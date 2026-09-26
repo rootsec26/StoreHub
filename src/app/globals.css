@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+/* Custom utilities for the app */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Arabic typography — prefer Arabic-capable faces when the doc is RTL */
+  html[dir="rtl"],
+  html[dir="rtl"] body {
+    font-family:
+      "Noto Sans Arabic",
+      "Geeza Pro",
+      "Segoe UI",
+      Tahoma,
+      Arial,
+      sans-serif;
+  }
+
+  /* Keep prices/IDs/phone numbers readable inside RTL paragraphs */
+  html[dir="rtl"] .numeric {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+}
+
+/* Custom scrollbar */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgb(203 213 225);
+    border-radius: 3px;
+  }
+}
+
+/* Line clamp support */
+@utility line-clamp-1 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+@utility line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
