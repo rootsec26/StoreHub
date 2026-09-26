@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient, type PoolConfig, type PoolOptions } from "pg";
+import { cleanUrlInput, ensureScheme } from "@/lib/url";
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -8,6 +9,8 @@ if (!databaseUrl) {
     "DATABASE_URL is missing. Copy .env.example to .env.local and set DATABASE_URL to your Supabase Postgres connection string."
   );
 }
+
+const connectionString: string = databaseUrl;
 
 const CONNECT_TIMEOUT_MS = 8000;
 const PROBE_TIMEOUT_MS = 6000;
@@ -46,16 +49,42 @@ function isLoopback(hostname: string): boolean {
   );
 }
 
+function invalidDatabaseUrl(): Error {
+  return new Error(
+    "DATABASE_URL is not a valid PostgreSQL connection string. " +
+      "Expected postgresql://user:password@host:port/database " +
+      "(quotes around the value are not allowed)."
+  );
+}
+
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 function parseDatabaseUrl(rawUrl: string): PoolConfig {
-  const url = new URL(rawUrl);
+  const normalized = ensureScheme(cleanUrlInput(rawUrl), "postgresql");
+
+  let url: URL;
+  try {
+    url = new URL(normalized);
+  } catch {
+    throw invalidDatabaseUrl();
+  }
+
+  if (!url.hostname) throw invalidDatabaseUrl();
+
   const sslmode = url.searchParams.get("sslmode");
   const remote = !isLoopback(url.hostname);
 
   return {
     host: url.hostname,
     port: url.port ? Number(url.port) : 5432,
-    user: decodeURIComponent(url.username),
-    password: decodeURIComponent(url.password),
+    user: safeDecode(url.username),
+    password: safeDecode(url.password),
     database: url.pathname.replace(/^\//, "") || "postgres",
     ssl: remote && sslmode !== "disable" ? { rejectUnauthorized: false } : undefined,
     connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
@@ -175,10 +204,10 @@ class ResilientPool extends Pool {
 
   private ensureResolved(): Promise<PoolConfig> {
     if (!this.resolution) {
-      this.resolution = resolveConfig(
-        primaryConfig,
-        fallbacks
-      )
+      this.resolution = (async () => {
+        const { primary, fallbacks } = getConnectionConfig();
+        return resolveConfig(primary, fallbacks);
+      })()
         .then((config) => {
           Object.assign(this.options as PoolOptions, config);
           this.resolved = true;
@@ -222,8 +251,28 @@ class ResilientPool extends Pool {
   }
 }
 
-const primaryConfig = parseDatabaseUrl(databaseUrl);
-const fallbacks = buildFallbacks(primaryConfig);
+interface ConnectionConfig {
+  primary: PoolConfig;
+  fallbacks: PoolConfig[];
+}
+
+function resolveConnectionConfig(): ConnectionConfig {
+  const primary = parseDatabaseUrl(connectionString);
+  return { primary, fallbacks: buildFallbacks(primary) };
+}
+
+let connectionConfig: ConnectionConfig | null = null;
+
+try {
+  connectionConfig = resolveConnectionConfig();
+} catch {
+  connectionConfig = null;
+}
+
+function getConnectionConfig(): ConnectionConfig {
+  if (!connectionConfig) connectionConfig = resolveConnectionConfig();
+  return connectionConfig;
+}
 
 const globalForDb = globalThis as typeof globalThis & {
   __arenaNextJsPostgresqlPool?: Pool;
@@ -232,7 +281,7 @@ const globalForDb = globalThis as typeof globalThis & {
 export const pool: Pool =
   globalForDb.__arenaNextJsPostgresqlPool ??
   (() => {
-    const created = new ResilientPool(primaryConfig);
+    const created = new ResilientPool(connectionConfig?.primary ?? {});
     created.on("error", (error) => {
       console.error("[db] idle connection error:", describeError(error));
     });

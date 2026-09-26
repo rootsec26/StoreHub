@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { I18nProvider } from "@/lib/i18n";
 import { SITE_DESCRIPTION, SITE_NAME, absoluteUrl, getSiteUrl } from "@/lib/site";
+import { safeUrl } from "@/lib/url";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(getSiteUrl()),
+  metadataBase: safeUrl(getSiteUrl()),
   title: {
     default: "StoreHub — Multi-Tenant E-Commerce SaaS",
     template: "%s | StoreHub",

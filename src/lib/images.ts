@@ -1,11 +1,9 @@
+import { cleanUrlInput, safeParseUrl } from "@/lib/url";
+
 const SUPABASE_HOST = (() => {
-  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!raw) return null;
-  try {
-    return new URL(raw).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
+  const parsed = safeParseUrl(cleanUrlInput(process.env.NEXT_PUBLIC_SUPABASE_URL));
+  if (!parsed) return null;
+  return parsed.hostname.toLowerCase();
 })();
 
 const EXTRA_HOSTS = (process.env.NEXT_PUBLIC_IMAGE_ALLOWED_HOSTS ?? "")

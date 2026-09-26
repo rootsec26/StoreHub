@@ -1,10 +1,15 @@
 import type { NextConfig } from "next";
 
 function supabaseHost(): string | null {
-  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const raw = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "")
+    .trim()
+    .replace(/^['"]+|['"]+$/g, "");
   if (!raw) return null;
   try {
-    return new URL(raw).hostname.toLowerCase();
+    const withProtocol = /^[a-z][a-z0-9+\-.]*:\/\//i.test(raw)
+      ? raw
+      : `https://${raw}`;
+    return new URL(withProtocol).hostname.toLowerCase();
   } catch {
     return null;
   }

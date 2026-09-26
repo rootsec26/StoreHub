@@ -1,5 +1,6 @@
 import { SignJWT } from "jose";
 import "server-only";
+import { cleanUrlInput, ensureProtocol, safeParseUrl, urlToString } from "@/lib/url";
 
 const DEFAULT_TOKEN_TTL_SECONDS = 3600;
 
@@ -14,19 +15,22 @@ export interface SupabaseConfig {
  * Returns `null` when the project has not been configured yet.
  */
 export function getSupabaseConfig(): SupabaseConfig | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const anonKey = cleanUrlInput(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const url = ensureProtocol(
+    cleanUrlInput(process.env.NEXT_PUBLIC_SUPABASE_URL),
+    "https"
+  );
 
   if (!url || !anonKey) return null;
 
-  let projectRef = "";
-  try {
-    projectRef = new URL(url).hostname.split(".")[0];
-  } catch {
-    projectRef = "";
-  }
+  const parsed = safeParseUrl(url);
+  if (!parsed) return null;
 
-  return { url, anonKey, projectRef };
+  return {
+    url: urlToString(parsed),
+    anonKey,
+    projectRef: parsed.hostname.split(".")[0],
+  };
 }
 
 /**

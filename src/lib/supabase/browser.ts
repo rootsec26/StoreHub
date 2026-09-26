@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { cleanUrlInput, ensureProtocol, safeParseUrl, urlToString } from "@/lib/url";
 
 const TOKEN_TTL_MS = 45 * 60 * 1000;
 
@@ -60,8 +61,11 @@ export async function getSupabaseAccessToken(): Promise<string | null> {
 export function getSupabaseBrowserClient(): SupabaseClient {
   if (browserClient) return browserClient;
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = ensureProtocol(
+    cleanUrlInput(process.env.NEXT_PUBLIC_SUPABASE_URL),
+    "https"
+  );
+  const anonKey = cleanUrlInput(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
   if (!url || !anonKey) {
     throw new Error(
@@ -69,9 +73,26 @@ export function getSupabaseBrowserClient(): SupabaseClient {
     );
   }
 
-  browserClient = createClient(url, anonKey, {
-    accessToken: async () => getSupabaseAccessToken(),
-  });
+  const parsed = safeParseUrl(url);
+  if (!parsed) {
+    throw new Error(
+      `NEXT_PUBLIC_SUPABASE_URL is not a valid URL: "${url}". ` +
+        "Expected https://<project-ref>.supabase.co"
+    );
+  }
+
+  const normalizedUrl = urlToString(parsed);
+
+  try {
+    browserClient = createClient(normalizedUrl, anonKey, {
+      accessToken: async () => getSupabaseAccessToken(),
+    });
+  } catch (error) {
+    throw new Error(
+      `Unable to create the Supabase client for "${normalizedUrl}": ` +
+        (error instanceof Error ? error.message : String(error))
+    );
+  }
 
   return browserClient;
 }

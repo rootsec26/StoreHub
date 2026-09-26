@@ -5,6 +5,7 @@ import {
   getSupabaseBrowserClient,
   invalidateSupabaseToken,
 } from "@/lib/supabase/browser";
+import { cleanUrlInput, safeParseUrl, urlToString } from "@/lib/url";
 
 /** Public bucket created by `supabase/storage.sql`. */
 export const STORAGE_BUCKET = "store-assets";
@@ -91,9 +92,11 @@ export function isStoreAssetPath(path: string, storeId: string): boolean {
 }
 
 export function getPublicAssetUrl(path: string): string {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!url) return path;
-  return `${url.replace(/\/$/, "")}/storage/v1/object/public/${STORAGE_BUCKET}/${path}`;
+  const parsed = safeParseUrl(
+    cleanUrlInput(process.env.NEXT_PUBLIC_SUPABASE_URL)
+  );
+  if (!parsed) return path;
+  return `${urlToString(parsed)}/storage/v1/object/public/${STORAGE_BUCKET}/${path}`;
 }
 
 /**

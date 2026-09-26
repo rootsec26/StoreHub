@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { safeParseUrl, safeResolveUrl } from "@/lib/url";
 
 const SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "super-secret-key-change-in-production"
@@ -91,25 +92,30 @@ function isCrawlerFile(pathname: string): boolean {
   );
 }
 
+function resolveUrl(request: NextRequest, path: string): URL {
+  return safeResolveUrl(path, request.url) ?? request.nextUrl;
+}
+
 function buildApexUrl(request: NextRequest, rootDomain: string): URL {
   const hostHeader = request.headers.get("host") ?? "";
-  let port = "";
-  try {
-    const parsed = new URL(`http://${hostHeader}`);
-    port = parsed.port ? `:${parsed.port}` : "";
-  } catch {
-    port = "";
-  }
+  const hostUrl = safeParseUrl(`http://${hostHeader}`, "http");
+  const port = hostUrl?.port ? `:${hostUrl.port}` : "";
 
   const forwardedProto = request.headers
     .get("x-forwarded-proto")
     ?.split(",")[0]
     .trim();
   const rawProtocol = forwardedProto || request.nextUrl.protocol;
-  const protocol = rawProtocol.endsWith(":") ? rawProtocol : `${rawProtocol}:`;
+  const withColon = rawProtocol.endsWith(":") ? rawProtocol : `${rawProtocol}:`;
+  const protocol =
+    withColon === "http:" || withColon === "https:"
+      ? withColon
+      : request.nextUrl.protocol;
 
-  return new URL(
-    `${protocol}//${rootDomain}${port}${request.nextUrl.pathname}${request.nextUrl.search}`
+  return (
+    safeParseUrl(
+      `${protocol}//${rootDomain}${port}${request.nextUrl.pathname}${request.nextUrl.search}`
+    ) ?? request.nextUrl
   );
 }
 
@@ -130,14 +136,16 @@ export async function proxy(request: NextRequest) {
     if (!isAppOnlyPath(pathname)) {
       const target = storePathForSubdomain(pathname, subdomain.slug);
       if (target === pathname) return NextResponse.next();
-      return NextResponse.rewrite(new URL(target, request.url));
+      return NextResponse.rewrite(resolveUrl(request, target));
     }
 
     // App-only pages live on the apex domain. When the apex resolves to this
     // same origin (local `*.localhost` development) a redirect would loop, so
     // those requests fall through to the standard auth flow instead.
     const apex = buildApexUrl(request, subdomain.rootDomain);
-    if (apex.origin !== new URL(request.url).origin) {
+    const requestOrigin =
+      safeParseUrl(request.url)?.origin ?? request.nextUrl.origin;
+    if (apex.origin !== requestOrigin) {
       return NextResponse.redirect(apex);
     }
   }
@@ -165,7 +173,7 @@ export async function proxy(request: NextRequest) {
       const { payload } = await jwtVerify(token, SECRET);
       const hasStore = Boolean((payload as SessionClaims).storeId);
       return NextResponse.redirect(
-        new URL(hasStore ? "/dashboard" : "/create-store", request.url)
+        resolveUrl(request, hasStore ? "/dashboard" : "/create-store")
       );
     } catch {
       // Invalid token, continue to auth page
@@ -178,7 +186,7 @@ export async function proxy(request: NextRequest) {
 
   // Protected pages require a valid token
   if (!token) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(resolveUrl(request, "/login"));
   }
 
   try {
@@ -188,19 +196,19 @@ export async function proxy(request: NextRequest) {
     // Onboarding: users who already own a store skip store creation.
     if (pathname === "/create-store") {
       return storeId
-        ? NextResponse.redirect(new URL("/dashboard", request.url))
+        ? NextResponse.redirect(resolveUrl(request, "/dashboard"))
         : NextResponse.next();
     }
 
     // Dashboard: if user doesn't have a store, redirect to create-store
     if (pathname.startsWith("/dashboard") && !storeId) {
-      return NextResponse.redirect(new URL("/create-store", request.url));
+      return NextResponse.redirect(resolveUrl(request, "/create-store"));
     }
 
     return NextResponse.next();
   } catch {
     // Invalid token
-    const response = NextResponse.redirect(new URL("/login", request.url));
+    const response = NextResponse.redirect(resolveUrl(request, "/login"));
     response.cookies.delete("session");
     return response;
   }
