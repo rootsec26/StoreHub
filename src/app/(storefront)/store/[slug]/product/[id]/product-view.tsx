@@ -17,7 +17,7 @@ import {
 import { useCartStore, type CartItem } from "@/lib/cart";
 import { useI18n } from "@/lib/i18n";
 import { accentGradient, accentThemeStyle, normalizeAccent } from "@/lib/theme";
-import { canOptimizeImage } from "@/lib/images";
+import { canOptimizeImage, isValidImageUrl } from "@/lib/images";
 import { storePath } from "@/lib/site";
 
 export interface ProductViewStore {
@@ -115,9 +115,9 @@ export default function ProductView({
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         <div className="grid gap-8 md:grid-cols-2">
           <div className="relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-            {product.imageUrl ? (
+            {isValidImageUrl(product.imageUrl) ? (
               <Image
-                src={product.imageUrl}
+                src={product.imageUrl!}
                 alt={product.name}
                 fill
                 sizes="(max-width: 768px) 100vw, 50vw"

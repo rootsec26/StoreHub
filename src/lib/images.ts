@@ -20,16 +20,33 @@ function isAllowlistedHost(hostname: string): boolean {
 }
 
 /**
+ * Validates if a string is a valid, non-empty image URL.
+ * Handles empty strings, whitespace, and malformed URLs.
+ */
+export function isValidImageUrl(src: string | null | undefined): boolean {
+  if (!src || typeof src !== "string") return false;
+  const trimmed = src.trim();
+  if (!trimmed) return false;
+
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Remote images go through the Next.js optimizer only when their host is on
  * the allowlist. Anything else (owner-pasted URLs, SVGs) renders unoptimized
  * so previews never break, while Supabase assets stay fully optimized.
  */
 export function canOptimizeImage(src: string | null | undefined): boolean {
-  if (!src) return false;
+  if (!isValidImageUrl(src)) return false;
 
   let url: URL;
   try {
-    url = new URL(src);
+    url = new URL(src!);
   } catch {
     return true;
   }

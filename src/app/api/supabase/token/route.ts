@@ -4,6 +4,7 @@ import {
   isSupabaseTokenConfigured,
   mintSupabaseAccessToken,
 } from "@/lib/supabase/server";
+import { createErrorResponse } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,7 @@ export async function GET() {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
     if (!isSupabaseTokenConfigured()) {
@@ -26,6 +27,7 @@ export async function GET() {
         {
           error:
             "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY and SUPABASE_JWT_SECRET.",
+          code: "SUPABASE_NOT_CONFIGURED",
           configured: false,
         },
         { status: 503 }
@@ -35,7 +37,7 @@ export async function GET() {
     const token = await mintSupabaseAccessToken(session.id, TTL_SECONDS);
     if (!token) {
       return NextResponse.json(
-        { error: "Unable to mint Supabase token", configured: false },
+        { error: "Unable to mint Supabase token", code: "TOKEN_MINT_FAILED", configured: false },
         { status: 503 }
       );
     }
@@ -43,6 +45,6 @@ export async function GET() {
     return NextResponse.json({ token, expiresIn: TTL_SECONDS, configured: true });
   } catch (error) {
     console.error("Supabase token error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to generate token");
   }
 }

@@ -5,6 +5,7 @@ import { AI_PLATFORMS, generateMarketingPost, type AiPlatform } from "@/lib/ai";
 import { getSession } from "@/lib/auth";
 import { db } from "@/db";
 import { products, stores } from "@/db/schema";
+import { createErrorResponse } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
     const body = await request.json().catch(() => null);
@@ -26,13 +27,13 @@ export async function POST(request: NextRequest) {
     const keywords = typeof body?.keywords === "string" ? body.keywords.trim() : "";
 
     if (!productId) {
-      return NextResponse.json({ error: "Product is required" }, { status: 400 });
+      return NextResponse.json({ error: "Product is required", code: "MISSING_PRODUCT" }, { status: 400 });
     }
     if (!AI_PLATFORMS.includes(platform as AiPlatform)) {
-      return NextResponse.json({ error: "Unsupported platform" }, { status: 400 });
+      return NextResponse.json({ error: "Unsupported platform", code: "INVALID_PLATFORM" }, { status: 400 });
     }
     if (keywords.length > 400) {
-      return NextResponse.json({ error: "Input is too long" }, { status: 400 });
+      return NextResponse.json({ error: "Input is too long", code: "INPUT_TOO_LONG" }, { status: 400 });
     }
 
     const userStore = await db
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     if (userStore.length === 0) {
-      return NextResponse.json({ error: "Store not found" }, { status: 404 });
+      return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
     }
 
     const productResult = await db
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     if (productResult.length === 0) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+      return NextResponse.json({ error: "Product not found", code: "PRODUCT_NOT_FOUND" }, { status: 404 });
     }
 
     const product = productResult[0];
@@ -78,6 +79,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("AI marketing error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to generate marketing post");
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { generateBusinessInsights } from "@/lib/ai";
 import { getSession } from "@/lib/auth";
+import { createErrorResponse } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
@@ -47,12 +48,12 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== "object") {
-      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid payload", code: "INVALID_PAYLOAD" }, { status: 400 });
     }
 
     const rawTopProducts: unknown[] = Array.isArray(body.topProducts)
@@ -76,6 +77,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("AI insights error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to generate insights");
   }
 }

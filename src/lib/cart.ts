@@ -14,6 +14,7 @@ export interface CartItem {
 interface CartState {
   items: CartItem[];
   storeSlug: string | null;
+  _hydrated: boolean;
   addItem: (item: CartItem, storeSlug: string) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
@@ -27,6 +28,7 @@ export const useCartStore = create<CartState>()(
     (set, get) => ({
       items: [],
       storeSlug: null,
+      _hydrated: false,
 
       addItem: (item, storeSlug) => {
         const currentSlug = get().storeSlug;
@@ -91,6 +93,10 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: "cart-storage",
+      partialize: (state) => ({
+        items: state.items,
+        storeSlug: state.storeSlug,
+      }),
     }
   )
 );

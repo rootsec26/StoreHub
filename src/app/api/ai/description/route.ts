@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { generateProductDescription } from "@/lib/ai";
 import { getSession } from "@/lib/auth";
+import { createErrorResponse } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
     const body = await request.json().catch(() => null);
@@ -23,13 +24,13 @@ export async function POST(request: NextRequest) {
 
     if (!name) {
       return NextResponse.json(
-        { error: "Product name is required" },
+        { error: "Product name is required", code: "MISSING_NAME" },
         { status: 400 }
       );
     }
     if (name.length > 200 || keywords.length > 600) {
       return NextResponse.json(
-        { error: "Input is too long" },
+        { error: "Input is too long", code: "INPUT_TOO_LONG" },
         { status: 400 }
       );
     }
@@ -42,6 +43,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("AI description error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to generate description");
   }
 }

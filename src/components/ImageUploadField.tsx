@@ -5,7 +5,7 @@ import Image from "next/image";
 import { ImagePlus, Loader2, X } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
-import { canOptimizeImage } from "@/lib/images";
+import { canOptimizeImage, isValidImageUrl } from "@/lib/images";
 import {
   StoreAssetError,
   extractStoreAssetPath,
@@ -85,7 +85,7 @@ export default function ImageUploadField({
 
       <div className="flex items-start gap-3">
         <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-          {value ? (
+          {isValidImageUrl(value) ? (
             <Image
               src={value}
               alt={label}

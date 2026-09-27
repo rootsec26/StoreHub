@@ -32,8 +32,11 @@ export default function SignupPage() {
         return;
       }
 
-      window.location.href = data.redirect || "/create-store";
-    } catch {
+      if (res.ok && data.redirectUrl) {
+        window.location.href = data.redirectUrl;
+      }
+    } catch (err) {
+      console.error("[signup] unexpected error:", err);
       setError(t("auth.somethingWrong"));
     } finally {
       setLoading(false);
@@ -53,7 +56,7 @@ export default function SignupPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4" method="POST">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-slate-700">
             {t("auth.name")}

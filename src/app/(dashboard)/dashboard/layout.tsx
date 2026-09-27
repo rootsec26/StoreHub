@@ -166,6 +166,12 @@ export default function DashboardLayout({
     };
   }, [store?.id]);
 
+  // Clear playedOrderIds when store changes to prevent memory growth
+  useEffect(() => {
+    if (!store?.id) return;
+    playedOrderIds.current.clear();
+  }, [store?.id]);
+
   // Chime + toast whenever a brand new Pending order lands.
   useEffect(() => {
     if (!newPendingOrder) return;
@@ -176,6 +182,11 @@ export default function DashboardLayout({
     }
 
     playedOrderIds.current.add(newPendingOrder.id);
+    // Bound the set size to prevent memory growth over long sessions
+    if (playedOrderIds.current.size > 500) {
+      const ids = Array.from(playedOrderIds.current);
+      playedOrderIds.current = new Set(ids.slice(-250));
+    }
     playOrderChime();
 
     // OS-level desktop popup whenever a new order lands in realtime.

@@ -13,6 +13,7 @@ import {
 import type { Order, OrderStatus, OrdersSummary } from "@/lib/types";
 
 const POLL_INTERVAL_MS = 30_000;
+const MAX_KNOWN_IDS = 500;
 
 export type RealtimeStatus = "idle" | "connecting" | "live" | "polling";
 
@@ -124,7 +125,13 @@ function startPolling(set: StoreSet): void {
         }
       }
 
-      knownPendingIds = nextIds;
+      // Bound the set size to prevent memory growth
+      if (nextIds.size > MAX_KNOWN_IDS) {
+        const ids = Array.from(nextIds);
+        knownPendingIds = new Set(ids.slice(-MAX_KNOWN_IDS));
+      } else {
+        knownPendingIds = nextIds;
+      }
       hasSummary = true;
       set({
         pendingCount: pending.length,
@@ -178,6 +185,11 @@ async function bootstrap(storeId: string, set: StoreSet, get: StoreGet): Promise
             if (!order) return;
             if (order.status === "Pending") {
               knownPendingIds.add(order.id);
+              // Bound the set size
+              if (knownPendingIds.size > MAX_KNOWN_IDS) {
+                const ids = Array.from(knownPendingIds);
+                knownPendingIds = new Set(ids.slice(-MAX_KNOWN_IDS));
+              }
               set({ pendingCount: get().pendingCount + 1 });
             }
             set({
@@ -236,6 +248,9 @@ export const useOrdersRealtime = create<OrdersRealtimeState>()((set, get) => ({
     if (activeStoreId === storeId) return;
 
     teardownConnection();
+    // Clear known IDs on store switch to prevent memory growth
+    knownPendingIds = new Set();
+    hasSummary = false;
     activeStoreId = storeId;
     set({ storeId, status: "connecting" });
     void bootstrap(storeId, set, get);
@@ -258,6 +273,11 @@ export const useOrdersRealtime = create<OrdersRealtimeState>()((set, get) => ({
     const summary = await fetchSummary();
     if (!summary) return;
     knownPendingIds = new Set(summary.pendingIds);
+    // Bound the set size
+    if (knownPendingIds.size > MAX_KNOWN_IDS) {
+      const ids = Array.from(knownPendingIds);
+      knownPendingIds = new Set(ids.slice(-MAX_KNOWN_IDS));
+    }
     hasSummary = true;
     set({ pendingCount: summary.pendingCount });
   },

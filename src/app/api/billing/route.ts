@@ -6,6 +6,7 @@ import { products, stores } from "@/db/schema";
 import { getSession } from "@/lib/auth";
 import { normalizePlan, productLimitFor, isPlan } from "@/lib/plans";
 import type { BillingInfo } from "@/lib/types";
+import { createErrorResponse } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
@@ -48,18 +49,18 @@ export async function GET() {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
     const info = await buildBillingInfo(session.id);
     if (!info) {
-      return NextResponse.json({ error: "Store not found" }, { status: 404 });
+      return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
     }
 
     return NextResponse.json(info);
   } catch (error) {
     console.error("Get billing error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to fetch billing info");
   }
 }
 
@@ -68,14 +69,14 @@ export async function PATCH(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
     const body = await request.json();
     const { plan } = body;
 
     if (!isPlan(plan)) {
-      return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid plan", code: "INVALID_PLAN" }, { status: 400 });
     }
 
     const store = await db
@@ -85,7 +86,7 @@ export async function PATCH(request: NextRequest) {
       .limit(1);
 
     if (store.length === 0) {
-      return NextResponse.json({ error: "Store not found" }, { status: 404 });
+      return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
     }
 
     await db.update(stores).set({ plan }).where(eq(stores.id, store[0].id));
@@ -94,6 +95,6 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json(info);
   } catch (error) {
     console.error("Update plan error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to update plan");
   }
 }

@@ -1,76 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { signup } from "@/lib/auth";
+import { createSession } from "@/lib/auth";
+import { extractDbErrorInfo, isDatabaseUnreachable, createErrorResponse } from "@/lib/errors";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const CONNECTION_ERROR_CODES = new Set([
-  "ENOTFOUND",
-  "EAI_AGAIN",
-  "ECONNREFUSED",
-  "ECONNRESET",
-  "ETIMEDOUT",
-  "EHOSTUNREACH",
-  "ENETUNREACH",
-  "EPIPE",
-  "ECONNABORTED",
-]);
-
-interface DbErrorInfo {
-  code?: string;
-  message: string;
-}
-
-// Drizzle wraps driver failures in DrizzleQueryError, so the SQLSTATE code
-// (e.g. 23505) and the real message live on `error.cause`.
-function extractDbErrorInfo(error: unknown): DbErrorInfo {
-  let current = error as
-    | { code?: unknown; message?: unknown; cause?: unknown }
-    | undefined;
-  let info: DbErrorInfo = { message: "" };
-
-  for (let depth = 0; depth < 5 && current; depth++) {
-    const code = typeof current.code === "string" ? current.code : undefined;
-    const message = typeof current.message === "string" ? current.message : "";
-
-    if (code) {
-      return { code, message };
-    }
-    if (message) {
-      info = { message };
-    }
-    current = current.cause as typeof current;
-  }
-
-  return info;
-}
-
-// pg reports these without a SQLSTATE/code when the socket dies mid-query.
-const CONNECTION_ERROR_MESSAGES = [
-  "Could not connect to the database",
-  "timeout expired",
-  "connection timeout",
-  "Connection terminated unexpectedly",
-  "Connection ended unexpectedly",
-  "Client has encountered a connection error",
-  "the database system is starting up",
-  "terminating connection due to administrator command",
-  "sorry, too many clients already",
-];
-
-function isDatabaseUnreachable(error: unknown): boolean {
-  const { code = "", message } = extractDbErrorInfo(error);
-
-  // SQLSTATE class 08 = connection exception, 57P01 = admin shutdown,
-  // 57P03 = cannot connect now, 53300 = too many connections.
-  if (code.startsWith("08")) return true;
-  if (code === "57P01" || code === "57P03" || code === "53300") return true;
-  if (CONNECTION_ERROR_CODES.has(code)) return true;
-
-  const lower = message.toLowerCase();
-  return CONNECTION_ERROR_MESSAGES.some((fragment) =>
-    lower.includes(fragment.toLowerCase())
-  );
-}
 
 function signupErrorResponse(error: unknown): NextResponse {
   const { code = "", message } = extractDbErrorInfo(error);
@@ -79,7 +12,7 @@ function signupErrorResponse(error: unknown): NextResponse {
 
   if (code === "23505" || message.toLowerCase().includes("duplicate")) {
     return NextResponse.json(
-      { error: "An account with this email already exists. Try signing in instead." },
+      { error: "An account with this email already exists. Try signing in instead.", code: "DUPLICATE_EMAIL" },
       { status: 409 }
     );
   }
@@ -93,6 +26,7 @@ function signupErrorResponse(error: unknown): NextResponse {
       {
         error:
           "The `users` table is missing in the database. Run supabase/schema.sql (or node scripts/apply-migration.js) and retry.",
+        code: "MISSING_TABLE",
       },
       { status: 500 }
     );
@@ -103,6 +37,7 @@ function signupErrorResponse(error: unknown): NextResponse {
       {
         error:
           "Cannot reach the database. Check DATABASE_URL and your network connection, then retry.",
+        code: "DATABASE_UNREACHABLE",
       },
       { status: 503 }
     );
@@ -113,6 +48,7 @@ function signupErrorResponse(error: unknown): NextResponse {
       {
         error:
           "The database user is not allowed to write to the `users` table. Check the role in DATABASE_URL.",
+        code: "PERMISSION_DENIED",
       },
       { status: 500 }
     );
@@ -123,19 +59,17 @@ function signupErrorResponse(error: unknown): NextResponse {
       {
         error:
           "The database or schema named in DATABASE_URL does not exist. Check DATABASE_URL, then run supabase/schema.sql.",
+        code: "INVALID_DATABASE",
       },
       { status: 500 }
     );
   }
 
   if (message.startsWith("Signup failed")) {
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message, code: "SIGNUP_FAILED" }, { status: 500 });
   }
 
-  return NextResponse.json(
-    { error: "Internal server error" },
-    { status: 500 }
-  );
+  return createErrorResponse(error);
 }
 
 export async function POST(request: NextRequest) {
@@ -197,12 +131,19 @@ export async function POST(request: NextRequest) {
   try {
     const result = await signup(email, password, name);
 
-    const response = NextResponse.json({
-      user: result.user,
-      redirect: "/create-store",
+    // Create session without store info (store will be created during onboarding)
+    const token = await createSession({
+      id: result.user.id,
+      email: result.user.email,
+      name: result.user.name,
     });
 
-    response.cookies.set("session", result.token, {
+    const response = NextResponse.json(
+      { success: true, redirectUrl: "/onboarding" },
+      { status: 200 }
+    );
+
+    response.cookies.set("session", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

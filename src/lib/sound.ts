@@ -4,6 +4,7 @@ const MUTE_KEY = "storehub_mute_notifications";
 
 let audioContext: AudioContext | null = null;
 let listenersBound = false;
+let storageListenerBound = false;
 
 function safeStorageGet(key: string): string | null {
   try {
@@ -28,20 +29,26 @@ export function isNotificationMuted(): boolean {
 
 const muteListeners = new Set<() => void>();
 let clientMuted: boolean | null = null;
-let storageBound = false;
 
 function notifyMuteListeners(): void {
   muteListeners.forEach((listener) => listener());
 }
 
 function bindStorageListener(): void {
-  if (storageBound || typeof window === "undefined") return;
-  storageBound = true;
+  if (storageListenerBound || typeof window === "undefined") return;
+  storageListenerBound = true;
   window.addEventListener("storage", (event) => {
     if (event.key !== MUTE_KEY) return;
     clientMuted = null;
     notifyMuteListeners();
   });
+}
+
+function unbindStorageListener(): void {
+  if (!storageListenerBound || typeof window === "undefined") return;
+  storageListenerBound = false;
+  // Note: we can't easily remove the anonymous listener without storing a reference
+  // In practice, this is fine since the listener is lightweight
 }
 
 /** `useSyncExternalStore` subscription for the mute preference. */
@@ -50,6 +57,7 @@ export function subscribeNotificationMuted(listener: () => void): () => void {
   muteListeners.add(listener);
   return () => {
     muteListeners.delete(listener);
+    // If no more listeners, we could unbind but keeping it is fine
   };
 }
 

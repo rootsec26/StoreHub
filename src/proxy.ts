@@ -3,9 +3,11 @@ import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import { safeParseUrl, safeResolveUrl } from "@/lib/url";
 
-const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "super-secret-key-change-in-production"
-);
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET environment variable is required but not set");
+}
+const SECRET = new TextEncoder().encode(jwtSecret);
 
 interface SessionClaims {
   storeId?: string;
@@ -37,6 +39,7 @@ const APP_ONLY_PATHS = [
   "/login",
   "/signup",
   "/create-store",
+  "/onboarding",
   "/forgot-password",
 ];
 
@@ -166,6 +169,32 @@ export async function proxy(request: NextRequest) {
     pathname === "/signup" ||
     pathname.startsWith("/store/");
 
+  // Admin routes require valid auth session AND localhost host validation
+  const isAdminPath = pathname === "/admin" || pathname.startsWith("/admin/");
+  if (isAdminPath) {
+    const host = request.headers.get("host") ?? "";
+    const hostname = host.split(":")[0].toLowerCase();
+    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".localhost");
+
+    if (!isLocalhost) {
+      return NextResponse.json({ error: "Forbidden: Admin access only allowed from localhost" }, { status: 403 });
+    }
+
+    if (!token) {
+      return NextResponse.redirect(resolveUrl(request, "/login"));
+    }
+
+    try {
+      await jwtVerify(token, SECRET);
+    } catch {
+      const response = NextResponse.redirect(resolveUrl(request, "/login"));
+      response.cookies.delete("session");
+      return response;
+    }
+
+    return NextResponse.next();
+  }
+
   // If logged in and on auth pages, send the user where they actually belong:
   // owners with a store go to the dashboard, new users go to store creation.
   if (token && (pathname === "/login" || pathname === "/signup")) {
@@ -194,15 +223,15 @@ export async function proxy(request: NextRequest) {
     const storeId = (payload as SessionClaims).storeId;
 
     // Onboarding: users who already own a store skip store creation.
-    if (pathname === "/create-store") {
+    if (pathname === "/create-store" || pathname === "/onboarding") {
       return storeId
         ? NextResponse.redirect(resolveUrl(request, "/dashboard"))
         : NextResponse.next();
     }
 
-    // Dashboard: if user doesn't have a store, redirect to create-store
+    // Dashboard: if user doesn't have a store, redirect to onboarding
     if (pathname.startsWith("/dashboard") && !storeId) {
-      return NextResponse.redirect(resolveUrl(request, "/create-store"));
+      return NextResponse.redirect(resolveUrl(request, "/onboarding"));
     }
 
     return NextResponse.next();

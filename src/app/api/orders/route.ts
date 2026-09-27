@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { orders, orderItems, stores, products } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
+import { createErrorResponse } from "@/lib/errors";
 
 // Get orders
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
     const userStore = await db
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
       .limit(1);
 
     if (userStore.length === 0) {
-      return NextResponse.json({ error: "Store not found" }, { status: 404 });
+      return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
     }
 
     const orderId = request.nextUrl.searchParams.get("id");
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
         .limit(1);
 
       if (orderResult.length === 0) {
-        return NextResponse.json({ error: "Order not found" }, { status: 404 });
+        return NextResponse.json({ error: "Order not found", code: "ORDER_NOT_FOUND" }, { status: 404 });
       }
 
       const items = await db
@@ -56,17 +57,23 @@ export async function GET(request: NextRequest) {
         .from(orderItems)
         .where(eq(orderItems.orderId, orderId));
 
-      // Get product details for each item
-      const itemsWithProducts = await Promise.all(
-        items.map(async (item) => {
-          const product = await db
-            .select()
-            .from(products)
-            .where(eq(products.id, item.productId))
-            .limit(1);
-          return { ...item, product: product[0] || null };
-        })
-      );
+      // Batch fetch all products in a single query to avoid N+1
+      const productIds = items.map((item) => item.productId);
+      const productMap = new Map<string, typeof products.$inferSelect>();
+      if (productIds.length > 0) {
+        const fetchedProducts = await db
+          .select()
+          .from(products)
+          .where(inArray(products.id, productIds));
+        for (const product of fetchedProducts) {
+          productMap.set(product.id, product);
+        }
+      }
+
+      const itemsWithProducts = items.map((item) => ({
+        ...item,
+        product: productMap.get(item.productId) || null,
+      }));
 
       return NextResponse.json({
         order: orderResult[0],
@@ -87,7 +94,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Get orders error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to fetch orders");
   }
 }
 
@@ -99,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     if (!storeId || !customerName || !items || items.length === 0) {
       return NextResponse.json(
-        { error: "Store ID, customer name, and items are required" },
+        { error: "Store ID, customer name, and items are required", code: "MISSING_FIELDS" },
         { status: 400 }
       );
     }
@@ -139,7 +146,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ order });
   } catch (error) {
     console.error("Create order error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to create order");
   }
 }
 
@@ -148,7 +155,17 @@ export async function PATCH(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+    }
+
+    const userStore = await db
+      .select()
+      .from(stores)
+      .where(eq(stores.ownerId, session.id))
+      .limit(1);
+
+    if (userStore.length === 0) {
+      return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
     }
 
     const body = await request.json();
@@ -156,7 +173,7 @@ export async function PATCH(request: NextRequest) {
 
     if (!id || !status) {
       return NextResponse.json(
-        { error: "Order ID and status are required" },
+        { error: "Order ID and status are required", code: "MISSING_FIELDS" },
         { status: 400 }
       );
     }
@@ -171,18 +188,22 @@ export async function PATCH(request: NextRequest) {
     ];
 
     if (!validStatuses.includes(status)) {
-      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid status", code: "INVALID_STATUS" }, { status: 400 });
     }
 
     const result = await db
       .update(orders)
       .set({ status })
-      .where(eq(orders.id, id))
+      .where(and(eq(orders.id, id), eq(orders.storeId, userStore[0].id)))
       .returning();
+
+    if (result.length === 0) {
+      return NextResponse.json({ error: "Forbidden: Order not found in your store", code: "FORBIDDEN" }, { status: 403 });
+    }
 
     return NextResponse.json({ order: result[0] });
   } catch (error) {
     console.error("Update order error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to update order");
   }
 }

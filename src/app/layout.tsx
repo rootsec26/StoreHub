@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { I18nProvider } from "@/lib/i18n";
+import { getInitialLocale } from "@/components/locale-initializer";
 import { SITE_DESCRIPTION, SITE_NAME, absoluteUrl, getSiteUrl } from "@/lib/site";
 import { safeUrl } from "@/lib/url";
 import "./globals.css";
@@ -39,12 +40,13 @@ export const metadata: Metadata = {
 // without a flash. Kept in sync by <I18nProvider /> afterwards.
 const directionScript = `try{var k="storehub_locale";var l=localStorage.getItem(k);if(l!=="ar"&&l!=="en"){l=(navigator.language||"en").toLowerCase().indexOf("ar")===0?"ar":"en"}document.documentElement.lang=l;document.documentElement.dir=l==="ar"?"rtl":"ltr"}catch(e){}`;
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const initialLocale = await getInitialLocale();
   return (
-    <html lang="en" dir="ltr" suppressHydrationWarning>
+    <html lang={initialLocale} dir={initialLocale === "ar" ? "rtl" : "ltr"} suppressHydrationWarning>
       <body className="bg-slate-50 text-slate-900 antialiased">
         <script dangerouslySetInnerHTML={{ __html: directionScript }} />
-        <I18nProvider>{children}</I18nProvider>
+        <I18nProvider initialLocale={initialLocale}>{children}</I18nProvider>
       </body>
     </html>
   );

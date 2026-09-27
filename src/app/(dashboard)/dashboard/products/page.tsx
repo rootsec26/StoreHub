@@ -19,7 +19,7 @@ import {
 
 import { useI18n } from "@/lib/i18n";
 import ImageUploadField from "@/components/ImageUploadField";
-import { canOptimizeImage } from "@/lib/images";
+import { canOptimizeImage, isValidImageUrl } from "@/lib/images";
 import type { BillingInfo } from "@/lib/types";
 
 interface Product {
@@ -556,9 +556,9 @@ export default function ProductsPage() {
               className="rounded-xl bg-white shadow-sm transition-shadow hover:shadow-md"
             >
               <div className="relative h-40 overflow-hidden rounded-t-xl bg-slate-100">
-                {product.imageUrl ? (
+                {isValidImageUrl(product.imageUrl) ? (
                   <Image
-                    src={product.imageUrl}
+                    src={product.imageUrl!}
                     alt={product.name}
                     fill
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"

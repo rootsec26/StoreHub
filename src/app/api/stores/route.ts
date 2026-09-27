@@ -4,12 +4,13 @@ import { stores } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createSession, getSession } from "@/lib/auth";
 import { isHexColor } from "@/lib/theme";
+import { createErrorResponse, extractDbErrorInfo } from "@/lib/errors";
 
 // Check slug availability
 export async function GET(request: NextRequest) {
   const slug = request.nextUrl.searchParams.get("slug");
   if (!slug) {
-    return NextResponse.json({ error: "Slug is required" }, { status: 400 });
+    return NextResponse.json({ error: "Slug is required", code: "MISSING_SLUG" }, { status: 400 });
   }
 
   const existing = await db
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
     const body = await request.json();
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     if (!name || !slug) {
       return NextResponse.json(
-        { error: "Name and slug are required" },
+        { error: "Name and slug are required", code: "MISSING_FIELDS" },
         { status: 400 }
       );
     }
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
     // Validate slug format
     if (!/^[a-z0-9-]+$/.test(slug)) {
       return NextResponse.json(
-        { error: "Slug must be lowercase letters, numbers, and hyphens only" },
+        { error: "Slug must be lowercase letters, numbers, and hyphens only", code: "INVALID_SLUG_FORMAT" },
         { status: 400 }
       );
     }
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     if (existing.length > 0) {
       return NextResponse.json(
-        { error: "Slug is already taken" },
+        { error: "Slug is already taken", code: "DUPLICATE_SLUG" },
         { status: 409 }
       );
     }
@@ -97,15 +98,16 @@ export async function POST(request: NextRequest) {
     });
 
     return response;
-  } catch (error: any) {
+  } catch (error) {
     console.error("Create store error:", error);
-    if (error?.code === "23505") {
+    const { code = "" } = extractDbErrorInfo(error);
+    if (code === "23505") {
       return NextResponse.json(
-        { error: "Slug is already taken" },
+        { error: "Slug is already taken", code: "DUPLICATE_SLUG" },
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to create store");
   }
 }
 
@@ -114,7 +116,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
     const body = await request.json();
@@ -128,12 +130,12 @@ export async function PATCH(request: NextRequest) {
       .limit(1);
 
     if (userStore.length === 0) {
-      return NextResponse.json({ error: "Store not found" }, { status: 404 });
+      return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
     }
 
     if (accentColor !== undefined && accentColor !== "" && !isHexColor(accentColor)) {
       return NextResponse.json(
-        { error: "accentColor must be a hex color like #4f46e5" },
+        { error: "accentColor must be a hex color like #4f46e5", code: "INVALID_COLOR" },
         { status: 400 }
       );
     }
@@ -156,6 +158,6 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ store: result[0] });
   } catch (error) {
     console.error("Update store error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to update store");
   }
 }

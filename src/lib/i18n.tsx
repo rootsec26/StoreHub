@@ -167,6 +167,19 @@ const en = {
   "billing.feature.priority": "Priority support",
   "billing.toast.changed": "Plan updated to {plan}",
   "billing.toast.failed": "Failed to update plan",
+  "billing.activation.failed": "Failed to activate code. Please try again.",
+  "billing.upgradeModal.title": "Upgrade to Pro",
+  "billing.upgradeModal.step1Title": "Step 1: Contact us on WhatsApp",
+  "billing.upgradeModal.step1Desc": "Message us to complete your payment and receive your activation code.",
+  "billing.upgradeModal.whatsappLink": "Open WhatsApp Chat",
+  "billing.upgradeModal.step1AltTitle": "Or transfer via Vodafone Cash / InstaPay",
+  "billing.upgradeModal.step1AltDesc": "Send {phone} the subscription amount, then you'll receive an activation code.",
+  "billing.upgradeModal.activationCodeLabel": "Activation Code (كود التفعيل)",
+  "billing.upgradeModal.activationCodePlaceholder": "Enter your activation code",
+  "billing.upgradeModal.submitCode": "Submit Code",
+  "billing.upgradeModal.successTitle": "Pro Plan Activated!",
+  "billing.upgradeModal.successDesc": "Your store now has unlimited products. Welcome to Pro!",
+  "billing.upgradeModal.close": "Continue to Dashboard",
 
   // --------------------------------------------
   // Analytics
@@ -315,6 +328,17 @@ const en = {
   "category.Sports": "Sports",
   "category.Books": "Books",
   "category.Other": "Other",
+  "category.retail": "Retail",
+  "category.electronics": "Electronics",
+  "category.fashion": "Fashion",
+  "category.food": "Food & Drinks",
+  "category.health": "Health",
+  "category.home": "Home & Garden",
+  "category.sports": "Sports",
+  "category.beauty": "Beauty",
+  "category.automotive": "Automotive",
+  "category.books": "Books",
+  "category.other": "Other",
 
   // --------------------------------------------
   // Storefront
@@ -411,15 +435,32 @@ const en = {
   "onboarding.subtitle": "Set up your store details to start selling",
   "onboarding.storeName": "Store Name *",
   "onboarding.storeNamePlaceholder": "My Awesome Store",
-  "onboarding.slug": "Store Slug (URL) *",
+  "onboarding.storeNameHelp": "This will be displayed on your storefront and in the dashboard.",
+  "onboarding.storeSlug": "Store Slug (URL) *",
+  "onboarding.storeSlugPlaceholder": "my-awesome-store",
+  "onboarding.storeSlugHelp": "This will be your store's URL (e.g., storehub.io/my-awesome-store).",
   "onboarding.slugUrl": "Your store URL: /store/{slug}",
   "onboarding.slugTaken": "This slug is already taken",
+  "onboarding.slugAvailable": "Available",
   "onboarding.description": "Description",
   "onboarding.descriptionPlaceholder": "What does your store sell?",
+  "onboarding.category": "Category",
+  "onboarding.selectCategory": "Select a category",
+  "onboarding.phone": "Phone",
+  "onboarding.phonePlaceholder": "+20 100 123 4567",
   "onboarding.addressPlaceholder": "Cairo, Egypt",
   "onboarding.creating": "Creating store...",
   "onboarding.submit": "Create Store",
+  "onboarding.createStore": "Create Store",
   "onboarding.createFailed": "Failed to create store",
+  "onboarding.failed": "Failed to save store details",
+  "onboarding.storeNameRequired": "Store name is required",
+  "onboarding.storeSlugRequired": "Store slug is required",
+  "onboarding.somethingWrong": "Something went wrong",
+  "onboarding.storeCreated": "Store Created!",
+  "onboarding.redirecting": "Redirecting to dashboard...",
+  "onboarding.skipForNow": "Want to skip this step?",
+  "onboarding.goToDashboard": "Go to Dashboard",
 
   // --------------------------------------------
   // Landing page
@@ -603,6 +644,19 @@ const ar: Record<TranslationKey, string> = {
   "billing.feature.priority": "دعم بأولوية",
   "billing.toast.changed": "تم تحديث الخطة إلى {plan}",
   "billing.toast.failed": "فشل تحديث الخطة",
+  "billing.activation.failed": "فشل تفعيل الكود. يرجى المحاولة مرة أخرى.",
+  "billing.upgradeModal.title": "الترقية إلى Pro",
+  "billing.upgradeModal.step1Title": "الخطوة 1: تواصل معنا على واتساب",
+  "billing.upgradeModal.step1Desc": "راسلنا لإتمام الدفع واستلام كود التفعيل الخاص بك.",
+  "billing.upgradeModal.whatsappLink": "فتح محادثة واتساب",
+  "billing.upgradeModal.step1AltTitle": "أو التحويل عبر فودافون كاش / إنستاباي",
+  "billing.upgradeModal.step1AltDesc": "أرسل المبلغ لـ {phone}، ثم ستحصل على كود التفعيل.",
+  "billing.upgradeModal.activationCodeLabel": "كود التفعيل",
+  "billing.upgradeModal.activationCodePlaceholder": "أدخل كود التفعيل",
+  "billing.upgradeModal.submitCode": "إرسال الكود",
+  "billing.upgradeModal.successTitle": "تم تفعيل خطة Pro!",
+  "billing.upgradeModal.successDesc": "متجرك أصبح يمتلك منتجات غير محدودة. أهلاً بك في Pro!",
+  "billing.upgradeModal.close": "متابعة إلى لوحة التحكم",
 
   // Analytics
   "analytics.subtitle": "اتجاهات الإيرادات والأكثر مبيعًا ومتوسط قيمة الطلب",
@@ -734,6 +788,17 @@ const ar: Record<TranslationKey, string> = {
   "category.Sports": "رياضة",
   "category.Books": "كتب",
   "category.Other": "أخرى",
+  "category.retail": "تجزئة",
+  "category.electronics": "إلكترونيات",
+  "category.fashion": "أزياء",
+  "category.food": "أطعمة ومشروبات",
+  "category.health": "صحة",
+  "category.home": "منزل وحديقة",
+  "category.sports": "رياضة",
+  "category.beauty": "جمال",
+  "category.automotive": "سيارات",
+  "category.books": "كتب",
+  "category.other": "أخرى",
 
   // Storefront
   "store.searchPlaceholder": "بحث في المنتجات...",
@@ -820,15 +885,32 @@ const ar: Record<TranslationKey, string> = {
   "onboarding.subtitle": "أدخل بيانات متجرك لبدء البيع",
   "onboarding.storeName": "اسم المتجر *",
   "onboarding.storeNamePlaceholder": "متجري الرائع",
-  "onboarding.slug": "رابط المتجر (Slug) *",
+  "onboarding.storeNameHelp": "سيظهر هذا على واجهة متجرك وفي لوحة التحكم.",
+  "onboarding.storeSlug": "رابط المتجر (Slug) *",
+  "onboarding.storeSlugPlaceholder": "my-awesome-store",
+  "onboarding.storeSlugHelp": "هذا سيكون رابط متجرك (مثلاً: storehub.io/my-awesome-store).",
   "onboarding.slugUrl": "رابط متجرك: ‎/store/{slug}",
   "onboarding.slugTaken": "هذا الرابط محجوز بالفعل",
+  "onboarding.slugAvailable": "متاح",
   "onboarding.description": "الوصف",
   "onboarding.descriptionPlaceholder": "ماذا يبيع متجرك؟",
+  "onboarding.category": "التصنيف",
+  "onboarding.selectCategory": "اختر تصنيفًا",
+  "onboarding.phone": "الهاتف",
+  "onboarding.phonePlaceholder": "+20 100 123 4567",
   "onboarding.addressPlaceholder": "القاهرة، مصر",
   "onboarding.creating": "جارٍ إنشاء المتجر...",
   "onboarding.submit": "إنشاء المتجر",
+  "onboarding.createStore": "إنشاء المتجر",
   "onboarding.createFailed": "فشل إنشاء المتجر",
+  "onboarding.failed": "فشل حفظ بيانات المتجر",
+  "onboarding.storeNameRequired": "اسم المتجر مطلوب",
+  "onboarding.storeSlugRequired": "رابط المتجر مطلوب",
+  "onboarding.somethingWrong": "حدث خطأ ما",
+  "onboarding.storeCreated": "تم إنشاء المتجر!",
+  "onboarding.redirecting": "جاري التوجيه إلى لوحة التحكم...",
+  "onboarding.skipForNow": "تريد تخطي هذه الخطوة؟",
+  "onboarding.goToDashboard": "الذهاب للوحة التحكم",
 
   // Landing page
   "landing.badge": "منصة تجارة إلكترونية متعددة المتاجر",
@@ -944,8 +1026,8 @@ function readClientLocale(): Locale {
   return clientLocale;
 }
 
-function readServerLocale(): Locale {
-  return "en";
+function readServerLocale(initialLocale: Locale): Locale {
+  return initialLocale;
 }
 
 function subscribeLocale(listener: () => void): () => void {
@@ -969,17 +1051,21 @@ function commitLocale(next: Locale): void {
   applyDocumentDirection(next);
   try {
     window.localStorage.setItem(LOCALE_STORAGE_KEY, next);
+    document.cookie = `${LOCALE_STORAGE_KEY}=${next};path=/;max-age=31536000;SameSite=Lax`;
   } catch {
     // Ignore storage errors — direction still applies for this session.
   }
   notifyLocaleListeners();
 }
 
-export function I18nProvider({ children }: { children: ReactNode }) {
+export function I18nProvider({
+  children,
+  initialLocale = "en",
+}: { children: ReactNode; initialLocale?: Locale }) {
   const locale = useSyncExternalStore(
     subscribeLocale,
     readClientLocale,
-    readServerLocale
+    () => readServerLocale(initialLocale)
   );
 
   // Keep `<html lang>` / `dir` in sync once the resolved locale is known.

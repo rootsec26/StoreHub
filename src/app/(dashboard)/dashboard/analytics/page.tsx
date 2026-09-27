@@ -15,7 +15,7 @@ import {
 
 import { useI18n } from "@/lib/i18n";
 import { useOrdersRealtime } from "@/lib/realtime";
-import { canOptimizeImage } from "@/lib/images";
+import { canOptimizeImage, isValidImageUrl } from "@/lib/images";
 import type { AnalyticsBucket, AnalyticsResponse } from "@/lib/types";
 
 type Period = "daily" | "weekly";
@@ -324,9 +324,9 @@ export default function AnalyticsPage() {
                       {index + 1}
                     </span>
                     <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-slate-100">
-                      {product.imageUrl ? (
+                      {isValidImageUrl(product.imageUrl) ? (
                         <Image
-                          src={product.imageUrl}
+                          src={product.imageUrl!}
                           alt={product.name}
                           width={36}
                           height={36}

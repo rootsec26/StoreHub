@@ -5,9 +5,11 @@ import { db } from "@/db";
 import { users, stores } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "super-secret-key-change-in-production"
-);
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET environment variable is required but not set");
+}
+const SECRET = new TextEncoder().encode(jwtSecret);
 
 export interface SessionUser {
   id: string;

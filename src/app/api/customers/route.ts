@@ -8,6 +8,7 @@ import type {
   CustomersResponse,
   CustomersSummaryStats,
 } from "@/lib/types";
+import { createErrorResponse } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,7 @@ export async function GET() {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
     const userStore = await db
@@ -28,7 +29,7 @@ export async function GET() {
       .limit(1);
 
     if (userStore.length === 0) {
-      return NextResponse.json({ error: "Store not found" }, { status: 404 });
+      return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
     }
 
     const grouped = await db
@@ -74,6 +75,6 @@ export async function GET() {
     return NextResponse.json(payload);
   } catch (error) {
     console.error("Get customers error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to fetch customers");
   }
 }

@@ -4,6 +4,7 @@ import { products, stores } from "@/db/schema";
 import { eq, and, count } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import { normalizePlan, productLimitFor } from "@/lib/plans";
+import { createErrorResponse } from "@/lib/errors";
 
 // Get products for store
 export async function GET(request: NextRequest) {
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
         .limit(1);
 
       if (storeResult.length === 0) {
-        return NextResponse.json({ error: "Store not found" }, { status: 404 });
+        return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
       }
 
       const conditions = [eq(products.storeId, storeResult[0].id)];
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
     // Dashboard: get products for user's store
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
       .limit(1);
 
     if (userStore.length === 0) {
-      return NextResponse.json({ error: "Store not found" }, { status: 404 });
+      return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
     }
 
     const result = await db
@@ -61,7 +62,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ products: result });
   } catch (error) {
     console.error("Get products error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to fetch products");
   }
 }
 
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
     const body = await request.json();
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     if (!name || price === undefined) {
       return NextResponse.json(
-        { error: "Name and price are required" },
+        { error: "Name and price are required", code: "MISSING_FIELDS" },
         { status: 400 }
       );
     }
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     if (userStore.length === 0) {
-      return NextResponse.json({ error: "Store not found" }, { status: 404 });
+      return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
     }
 
     // Plan limit guard: Free = max 15 products, Pro = unlimited.
@@ -135,7 +136,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ product: result[0] });
   } catch (error) {
     console.error("Create product error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to create product");
   }
 }
 
@@ -144,14 +145,24 @@ export async function PATCH(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+    }
+
+    const userStore = await db
+      .select()
+      .from(stores)
+      .where(eq(stores.ownerId, session.id))
+      .limit(1);
+
+    if (userStore.length === 0) {
+      return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
     }
 
     const body = await request.json();
     const { id, name, description, price, stock, categoryId, imageUrl, isVisible } = body;
 
     if (!id) {
-      return NextResponse.json({ error: "Product ID is required" }, { status: 400 });
+      return NextResponse.json({ error: "Product ID is required", code: "MISSING_ID" }, { status: 400 });
     }
 
     const result = await db
@@ -165,13 +176,17 @@ export async function PATCH(request: NextRequest) {
         ...(imageUrl !== undefined && { imageUrl }),
         ...(isVisible !== undefined && { isVisible }),
       })
-      .where(eq(products.id, id))
+      .where(and(eq(products.id, id), eq(products.storeId, userStore[0].id)))
       .returning();
+
+    if (result.length === 0) {
+      return NextResponse.json({ error: "Forbidden: Product not found in your store", code: "FORBIDDEN" }, { status: 403 });
+    }
 
     return NextResponse.json({ product: result[0] });
   } catch (error) {
     console.error("Update product error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to update product");
   }
 }
 
@@ -180,19 +195,36 @@ export async function DELETE(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+    }
+
+    const userStore = await db
+      .select()
+      .from(stores)
+      .where(eq(stores.ownerId, session.id))
+      .limit(1);
+
+    if (userStore.length === 0) {
+      return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
     }
 
     const id = request.nextUrl.searchParams.get("id");
     if (!id) {
-      return NextResponse.json({ error: "Product ID is required" }, { status: 400 });
+      return NextResponse.json({ error: "Product ID is required", code: "MISSING_ID" }, { status: 400 });
     }
 
-    await db.delete(products).where(eq(products.id, id));
+    const result = await db
+      .delete(products)
+      .where(and(eq(products.id, id), eq(products.storeId, userStore[0].id)))
+      .returning();
+
+    if (result.length === 0) {
+      return NextResponse.json({ error: "Forbidden: Product not found in your store", code: "FORBIDDEN" }, { status: 403 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Delete product error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return createErrorResponse(error, "Failed to delete product");
   }
 }

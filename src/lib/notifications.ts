@@ -17,6 +17,7 @@ export function getDesktopNotificationPermission(): DesktopNotificationPermissio
 
 const listeners = new Set<() => void>();
 let permissionSnapshot: DesktopNotificationPermission | null = null;
+let storageListenerBound = false;
 
 function commitPermission(value: DesktopNotificationPermission): DesktopNotificationPermission {
   if (permissionSnapshot !== value) {
@@ -26,10 +27,22 @@ function commitPermission(value: DesktopNotificationPermission): DesktopNotifica
   return value;
 }
 
+function bindStorageListener(): void {
+  if (storageListenerBound || typeof window === "undefined") return;
+  storageListenerBound = true;
+  window.addEventListener("storage", (event) => {
+    if (event.key !== "notification_permission") return;
+    permissionSnapshot = null;
+    commitPermission(getDesktopNotificationPermission());
+  });
+}
+
 export function subscribeDesktopPermission(listener: () => void): () => void {
+  bindStorageListener();
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
+    // If no more listeners, we could unbind but keeping it is fine
   };
 }
 

@@ -10,6 +10,11 @@ import {
   Loader2,
   AlertTriangle,
   Infinity as InfinityIcon,
+  MessageSquare,
+  Key,
+  X,
+  CheckCircle,
+  Copy,
 } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
@@ -22,6 +27,12 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [changing, setChanging] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [activationStep, setActivationStep] = useState<1 | 2>(1);
+  const [activationCode, setActivationCode] = useState("");
+  const [activating, setActivating] = useState(false);
+  const [activationError, setActivationError] = useState<string | null>(null);
+  const [activationSuccess, setActivationSuccess] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,6 +60,15 @@ export default function BillingPage() {
 
   async function changePlan(plan: Plan) {
     if (!info || info.plan === plan || changing) return;
+    const planNameKey = plan === "pro" ? "billing.planProName" : "billing.planFreeName";
+    if (plan === "pro") {
+      setActivationStep(1);
+      setActivationCode("");
+      setActivationError(null);
+      setActivationSuccess(false);
+      setShowUpgradeModal(true);
+      return;
+    }
     setChanging(true);
 
     try {
@@ -63,8 +83,7 @@ export default function BillingPage() {
       setInfo(payload);
       setToast(
         t("billing.toast.changed", {
-          plan:
-            plan === "pro" ? t("billing.planProName") : t("billing.planFreeName"),
+          plan: t(planNameKey),
         })
       );
     } catch {
@@ -72,6 +91,45 @@ export default function BillingPage() {
     } finally {
       setChanging(false);
     }
+  }
+
+  async function handleActivateCode() {
+    if (!activationCode.trim() || activating) return;
+    setActivating(true);
+    setActivationError(null);
+
+    try {
+      const res = await fetch("/api/billing/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: activationCode.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setActivationError(data.error || t("billing.activation.failed"));
+        return;
+      }
+
+      setActivationSuccess(true);
+      setActivationStep(2);
+
+      const updatedInfo = await fetch("/api/billing").then((r) => r.json());
+      if (updatedInfo) setInfo(updatedInfo);
+    } catch {
+      setActivationError(t("billing.activation.failed"));
+    } finally {
+      setActivating(false);
+    }
+  }
+
+  function closeUpgradeModal() {
+    setShowUpgradeModal(false);
+    setActivationStep(1);
+    setActivationCode("");
+    setActivationError(null);
+    setActivationSuccess(false);
   }
 
   const percent = info?.usagePercent ?? 0;
@@ -290,6 +348,96 @@ export default function BillingPage() {
           {t("nav.products")}
         </Link>
       </div>
+
+      {/* Upgrade to Pro Modal */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-900">{t("billing.upgradeModal.title")}</h2>
+              <button onClick={closeUpgradeModal} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {activationStep === 1 && (
+              <div className="mt-6 space-y-4">
+                <div className="rounded-lg bg-indigo-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <MessageSquare className="mt-0.5 h-5 w-5 text-indigo-600 shrink-0" />
+                    <div className="text-sm text-indigo-800">
+                      <p className="font-semibold">{t("billing.upgradeModal.step1Title")}</p>
+                      <p className="mt-1">{t("billing.upgradeModal.step1Desc")}</p>
+                      <a
+                        href="https://wa.me/201065592701"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-1.5 font-medium text-indigo-600 hover:text-indigo-500"
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        {t("billing.upgradeModal.whatsappLink")}
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg bg-amber-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <Key className="mt-0.5 h-5 w-5 text-amber-600 shrink-0" />
+                    <div className="text-sm text-amber-800">
+                      <p className="font-semibold">{t("billing.upgradeModal.step1AltTitle")}</p>
+                      <p className="mt-1">{t("billing.upgradeModal.step1AltDesc", { phone: "01065592701" })}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    {t("billing.upgradeModal.activationCodeLabel")}
+                  </label>
+                  <input
+                    type="text"
+                    value={activationCode}
+                    onChange={(e) => setActivationCode(e.target.value.toUpperCase())}
+                    placeholder={t("billing.upgradeModal.activationCodePlaceholder")}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase"
+                    maxLength={20}
+                  />
+                </div>
+
+                {activationError && (
+                  <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
+                    {activationError}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleActivateCode}
+                  disabled={!activationCode.trim() || activating}
+                  className="w-full mt-4 inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60 hover:bg-indigo-700"
+                >
+                  {activating && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {t("billing.upgradeModal.submitCode")}
+                </button>
+              </div>
+            )}
+
+            {activationStep === 2 && activationSuccess && (
+              <div className="mt-6 text-center space-y-4">
+                <CheckCircle className="mx-auto h-16 w-16 text-emerald-500" />
+                <h3 className="text-xl font-bold text-slate-900">{t("billing.upgradeModal.successTitle")}</h3>
+                <p className="text-sm text-slate-500">{t("billing.upgradeModal.successDesc")}</p>
+                <button
+                  onClick={closeUpgradeModal}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+                >
+                  {t("billing.upgradeModal.close")}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

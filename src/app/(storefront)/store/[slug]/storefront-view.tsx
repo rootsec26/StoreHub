@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -19,7 +19,7 @@ import {
 import { useCartStore, type CartItem } from "@/lib/cart";
 import { accentGradient, accentThemeStyle, normalizeAccent } from "@/lib/theme";
 import { useI18n, type TranslationKey } from "@/lib/i18n";
-import { canOptimizeImage } from "@/lib/images";
+import { canOptimizeImage, isValidImageUrl } from "@/lib/images";
 import { productPath } from "@/lib/site";
 
 export interface StoreData {
@@ -84,6 +84,11 @@ export default function StorefrontView({
   const [showCart, setShowCart] = useState(false);
 
   const cart = useCartStore();
+  const isHydrated = useCartStore((state) => state._hydrated ?? false);
+
+  useEffect(() => {
+    useCartStore.setState({ _hydrated: true });
+  }, []);
 
   const filteredProducts = products.filter((p) => {
     const matchesCategory =
@@ -118,9 +123,9 @@ export default function StorefrontView({
         className="relative overflow-hidden"
         style={{ backgroundImage: accentGradient(accent) }}
       >
-        {store.coverUrl && (
+        {isValidImageUrl(store.coverUrl) && (
           <Image
-            src={store.coverUrl}
+            src={store.coverUrl!}
             alt=""
             fill
             sizes="100vw"
@@ -130,9 +135,9 @@ export default function StorefrontView({
         )}
         <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6">
           <div className="flex items-start gap-4">
-            {store.logoUrl ? (
+            {isValidImageUrl(store.logoUrl) ? (
               <Image
-                src={store.logoUrl}
+                src={store.logoUrl!}
                 alt={store.name}
                 width={64}
                 height={64}
@@ -199,10 +204,10 @@ export default function StorefrontView({
           <button
             onClick={() => setShowCart(!showCart)}
             className="relative inline-flex items-center gap-2 rounded-lg bg-[var(--store-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-            aria-label={t("store.cartTitle", { count: cart.getItemCount() })}
+            aria-label={t("store.cartTitle", { count: isHydrated ? cart.getItemCount() : 0 })}
           >
             <ShoppingCart className="h-4 w-4" />
-            {cart.getItemCount() > 0 && (
+            {isHydrated && cart.getItemCount() > 0 && (
               <span className="absolute -end-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
                 {cart.getItemCount()}
               </span>
@@ -250,9 +255,9 @@ export default function StorefrontView({
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredProducts.map((product) => {
-              const inCart = cart.items.find(
-                (i) => i.productId === product.id
-              );
+              const inCart = isHydrated
+                ? cart.items.find((i) => i.productId === product.id)
+                : undefined;
               const href = productPath(slug, product.id);
               return (
                 <div
@@ -264,9 +269,9 @@ export default function StorefrontView({
                     className="relative block h-48 bg-slate-100"
                     aria-label={product.name}
                   >
-                    {product.imageUrl ? (
+                    {isValidImageUrl(product.imageUrl) ? (
                       <Image
-                        src={product.imageUrl}
+                        src={product.imageUrl!}
                         alt={product.name}
                         fill
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
@@ -375,7 +380,7 @@ export default function StorefrontView({
           <div className="fixed inset-y-0 end-0 z-50 w-full max-w-md overflow-y-auto bg-white shadow-xl">
             <div className="flex items-center justify-between border-b px-4 py-4">
               <h2 className="text-lg font-semibold text-slate-900">
-                {t("store.cartTitle", { count: cart.getItemCount() })}
+                {t("store.cartTitle", { count: isHydrated ? cart.getItemCount() : 0 })}
               </h2>
               <button
                 onClick={() => setShowCart(false)}
@@ -386,7 +391,11 @@ export default function StorefrontView({
               </button>
             </div>
 
-            {cart.items.length === 0 ? (
+            {!isHydrated ? (
+              <div className="py-16 text-center">
+                <ShoppingCart className="mx-auto mb-4 h-12 w-12 text-slate-300 animate-pulse" />
+              </div>
+            ) : cart.items.length === 0 ? (
               <div className="py-16 text-center">
                 <ShoppingCart className="mx-auto mb-4 h-12 w-12 text-slate-300" />
                 <p className="text-slate-600">{t("store.cartEmpty")}</p>
@@ -488,7 +497,7 @@ export default function StorefrontView({
       )}
 
       {/* Floating Cart Button (mobile) */}
-      {cart.getItemCount() > 0 && !showCart && (
+      {isHydrated && cart.getItemCount() > 0 && !showCart && (
         <div className="fixed bottom-4 end-4 z-30 sm:bottom-6 sm:end-6">
           <button
             onClick={() => setShowCart(true)}
