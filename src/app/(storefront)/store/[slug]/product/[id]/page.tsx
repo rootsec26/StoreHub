@@ -5,6 +5,7 @@ import {
   getCategoryName,
   getStoreBySlug,
   getStoreProduct,
+  getStorePromotions,
 } from "@/lib/storefront";
 import { SITE_NAME, absoluteUrl, productPath, storePath } from "@/lib/site";
 import { normalizeAccent } from "@/lib/theme";
@@ -85,8 +86,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
   if (!product) notFound();
 
   const categoryName = await getCategoryName(product.categoryId);
+  const promotionRecords = await getStorePromotions(store.id);
   const url = absoluteUrl(productPath(store.slug, product.id));
   const inStock = (product.stock ?? 0) > 0;
+  const currency = (store.currency ?? "EGP").toUpperCase();
+  const supportedCurrencies =
+    store.supportedCurrencies && store.supportedCurrencies.length > 0
+      ? store.supportedCurrencies
+      : [currency, "USD", "SAR", "AED", "EUR"];
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -101,7 +108,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     offers: {
       "@type": "Offer",
       url,
-      priceCurrency: "EGP",
+      priceCurrency: currency,
       price: product.price,
       availability: inStock
         ? "https://schema.org/InStock"
@@ -124,6 +131,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
         store={{
           name: store.name,
           accentColor: store.accentColor ?? "",
+          currency,
+          supportedCurrencies,
         }}
         product={{
           id: product.id,
@@ -132,8 +141,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
           price: product.price,
           stock: product.stock ?? 0,
           imageUrl: product.imageUrl ?? "",
+          categoryId: product.categoryId,
         }}
         categoryName={categoryName}
+        initialPromotions={promotionRecords}
       />
     </>
   );

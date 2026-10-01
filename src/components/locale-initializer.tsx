@@ -1,13 +1,13 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { LOCALE_STORAGE_KEY } from "@/lib/i18n";
+import { DEFAULT_LOCALE, LOCALE_STORAGE_KEY, type Locale } from "@/lib/locale";
 
-export async function getInitialLocale(): Promise<"en" | "ar"> {
+export async function getInitialLocale(): Promise<Locale> {
   const cookieStore = await cookies();
   const localeCookie = cookieStore.get(LOCALE_STORAGE_KEY)?.value;
   if (localeCookie === "en" || localeCookie === "ar") {
     return localeCookie;
   }
-  return "en";
+  return DEFAULT_LOCALE;
 }

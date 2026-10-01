@@ -3,6 +3,7 @@ export const ORDER_STATUSES = [
   "Confirmed",
   "Preparing",
   "Ready",
+  "Shipped",
   "Completed",
   "Cancelled",
 ] as const;

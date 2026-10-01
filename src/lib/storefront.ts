@@ -1,10 +1,11 @@
 import "server-only";
 
 import { cache } from "react";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 
 import { db } from "@/db";
-import { categories, products, stores } from "@/db/schema";
+import { categories, products, promotions, stores } from "@/db/schema";
+import type { PromotionRecord } from "@/lib/promotions";
 
 export type StoreRecord = typeof stores.$inferSelect;
 export type ProductRecord = typeof products.$inferSelect;
@@ -78,6 +79,48 @@ export async function getStoreProduct(
 
   return rows[0] ?? null;
 }
+
+/**
+ * Active campaigns (live or upcoming) for a storefront, serialized as plain
+ * `PromotionRecord`s so they can be handed to client components.
+ * Failures degrade to "no campaigns" instead of breaking the page render.
+ */
+export const getStorePromotions = cache(
+  async (storeId: string): Promise<PromotionRecord[]> => {
+    if (!storeId || !isValidUuid(storeId)) return [];
+
+    try {
+      const rows = await db
+        .select()
+        .from(promotions)
+        .where(
+          and(
+            eq(promotions.storeId, storeId),
+            eq(promotions.isActive, true),
+            gt(promotions.endTime, new Date())
+          )
+        )
+        .orderBy(asc(promotions.startTime));
+
+      return rows.map((row) => ({
+        id: row.id,
+        storeId: row.storeId,
+        title: row.title,
+        discountPercentage: row.discountPercentage,
+        startTime: row.startTime.toISOString(),
+        endTime: row.endTime.toISOString(),
+        isActive: row.isActive,
+        bannerText: row.bannerText,
+        showBanner: row.showBanner,
+        targetProductIds: row.targetProductIds ?? [],
+        targetCategoryIds: row.targetCategoryIds ?? [],
+      }));
+    } catch (error) {
+      console.error(`Failed to fetch promotions for store "${storeId}":`, error);
+      return [];
+    }
+  }
+);
 
 export async function getCategoryName(
   categoryId: string | null

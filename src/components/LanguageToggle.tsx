@@ -15,7 +15,7 @@ export default function LanguageToggle({ compact = false }: { compact?: boolean 
       aria-label={t("common.language")}
     >
       <Languages className="h-4 w-4" />
-      {!compact && <span>{locale === "ar" ? "English" : "العربية"}</span>}
+      {!compact && <span>{locale === "ar" ? "AR · العربية" : "EN · English"}</span>}
     </button>
   );
 }

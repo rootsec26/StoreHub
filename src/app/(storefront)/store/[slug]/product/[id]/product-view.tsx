@@ -16,13 +16,23 @@ import {
 
 import { useCartStore, type CartItem } from "@/lib/cart";
 import { useI18n } from "@/lib/i18n";
+import { convertAndFormatPrice } from "@/lib/currency";
+import { useNow, useStorePromotions } from "@/lib/promotions-hooks";
+import {
+  bestPromotionFor,
+  discountedPrice,
+  type PromotionRecord,
+} from "@/lib/promotions";
 import { accentGradient, accentThemeStyle, normalizeAccent } from "@/lib/theme";
 import { canOptimizeImage, isValidImageUrl } from "@/lib/images";
 import { storePath } from "@/lib/site";
+import { useStoreCurrency } from "@/components/CurrencySelector";
 
 export interface ProductViewStore {
   name: string;
   accentColor: string;
+  currency: string;
+  supportedCurrencies: string[];
 }
 
 export interface ProductViewProduct {
@@ -32,6 +42,7 @@ export interface ProductViewProduct {
   price: string;
   stock: number;
   imageUrl: string;
+  categoryId: string | null;
 }
 
 interface ProductViewProps {
@@ -39,6 +50,7 @@ interface ProductViewProps {
   store: ProductViewStore;
   product: ProductViewProduct;
   categoryName: string | null;
+  initialPromotions?: PromotionRecord[] | null;
 }
 
 export default function ProductView({
@@ -46,13 +58,28 @@ export default function ProductView({
   store,
   product,
   categoryName,
+  initialPromotions,
 }: ProductViewProps) {
   const router = useRouter();
-  const { t, formatMoney } = useI18n();
+  const { t, locale } = useI18n();
   const cart = useCartStore();
+
+  const { currency: selectedCurrency } = useStoreCurrency(
+    store.currency,
+    store.supportedCurrencies,
+    locale
+  );
+  const priceLocale = locale === "ar" ? "ar-EG" : "en-US";
 
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
+
+  const now = useNow();
+  const promotions = useStorePromotions(slug, initialPromotions);
+  const promotion = now === null ? null : bestPromotionFor(product, promotions, now);
+  const basePrice = parseFloat(product.price);
+  const salePrice = discountedPrice(basePrice, promotion);
+  const onSale = promotion !== null && salePrice < basePrice;
 
   const accent = normalizeAccent(store.accentColor);
   const inStock = product.stock > 0;
@@ -67,7 +94,7 @@ export default function ProductView({
     const item: CartItem = {
       productId: product.id,
       name: product.name,
-      price: product.price,
+      price: String(onSale ? salePrice : basePrice),
       quantity,
       imageUrl: product.imageUrl,
     };
@@ -149,9 +176,33 @@ export default function ProductView({
               {product.name}
             </h1>
 
-            <p className="mt-3 text-3xl font-bold text-[var(--store-accent)]">
-              {formatMoney(product.price)}
-            </p>
+            <div className="mt-3 flex flex-wrap items-baseline gap-3">
+              <p className="text-3xl font-bold text-[var(--color-primary)]">
+                {convertAndFormatPrice(
+                  onSale ? salePrice : basePrice,
+                  store.currency,
+                  selectedCurrency,
+                  priceLocale
+                )}
+              </p>
+              {onSale && (
+                <p className="text-lg font-medium text-slate-400 line-through">
+                  {convertAndFormatPrice(
+                    basePrice,
+                    store.currency,
+                    selectedCurrency,
+                    priceLocale
+                  )}
+                </p>
+              )}
+              {onSale && promotion && (
+                <span className="rounded-full bg-rose-600 px-2.5 py-1 text-xs font-bold text-white">
+                  {t("store.flash.off", {
+                    percent: promotion.discountPercentage,
+                  })}
+                </span>
+              )}
+            </div>
 
             <p className="mt-2 text-sm text-slate-500">
               {inStock
@@ -206,7 +257,7 @@ export default function ProductView({
 
                   <button
                     onClick={handleAddToCart}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--store-accent)] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90"
                   >
                     {added ? (
                       <>
@@ -230,14 +281,14 @@ export default function ProductView({
       <footer className="border-t bg-white py-6">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 px-4 text-center sm:px-6">
           <div className="flex items-center justify-center gap-2">
-            <Store className="h-4 w-4 text-[var(--store-accent)]" />
+            <Store className="h-4 w-4 text-[var(--color-primary)]" />
             <span className="text-sm font-medium text-slate-600">
               {t("store.poweredBy")}
             </span>
           </div>
           <Link
             href={storePath(slug)}
-            className="text-sm font-medium text-[var(--store-accent)] hover:underline"
+            className="text-sm font-medium text-[var(--color-primary)] hover:underline"
           >
             {t("product.backToStore")}
           </Link>

@@ -11,6 +11,7 @@ import {
   getSupabaseBrowserClient,
 } from "@/lib/supabase/browser";
 import type { Order, OrderStatus, OrdersSummary } from "@/lib/types";
+import { createClient } from "@supabase/supabase-js";
 
 const POLL_INTERVAL_MS = 30_000;
 const MAX_KNOWN_IDS = 500;
@@ -286,3 +287,38 @@ export const useOrdersRealtime = create<OrdersRealtimeState>()((set, get) => ({
     if (get().newPendingOrder) set({ newPendingOrder: null });
   },
 }));
+
+// Server-side broadcast function for webhook handlers
+export async function broadcastOrderUpdate(
+  storeId: string,
+  orderUpdate: {
+    orderId: string;
+    status: string;
+    customerName: string;
+    totalAmount: string;
+    createdAt: string;
+  }
+): Promise<void> {
+  if (typeof window !== "undefined") return;
+
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.warn("[realtime] Supabase credentials not configured for broadcast");
+      return;
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const channel = supabase.channel(`orders:${storeId}`);
+    await channel.send({
+      type: "broadcast",
+      event: "order_update",
+      payload: orderUpdate,
+    });
+  } catch (error) {
+    console.error("[realtime] Failed to broadcast order update:", error);
+  }
+}

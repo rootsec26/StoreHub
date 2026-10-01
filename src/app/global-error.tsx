@@ -3,6 +3,8 @@
 import { useEffect, type CSSProperties } from "react";
 import Link from "next/link";
 
+import { applyDocumentDirection, detectInitialLocale } from "@/lib/i18n";
+
 interface GlobalErrorProps {
   error: Error & { digest?: string };
   reset: () => void;
@@ -47,12 +49,21 @@ const linkStyle: CSSProperties = {
 };
 
 export default function GlobalError({ error, reset }: GlobalErrorProps) {
+  // This boundary replaces the root layout, so resolve the locale here and
+  // keep the document direction consistent (defaults to Arabic/RTL).
+  const locale = detectInitialLocale();
+
   useEffect(() => {
     console.error(error);
-  }, [error]);
+    applyDocumentDirection(locale);
+  }, [error, locale]);
 
   return (
-    <html lang="en">
+    <html
+      lang={locale}
+      dir={locale === "ar" ? "rtl" : "ltr"}
+      suppressHydrationWarning
+    >
       <body style={pageStyle}>
         <p
           style={{

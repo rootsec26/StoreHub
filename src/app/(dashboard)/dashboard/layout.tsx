@@ -5,12 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Store,
-  LayoutDashboard,
-  Package,
-  FolderOpen,
-  ShoppingCart,
-  Users,
-  Settings,
   LogOut,
   Menu,
   X,
@@ -18,12 +12,11 @@ import {
   Languages,
   Volume2,
   VolumeX,
-  BarChart3,
-  CreditCard,
   Bell,
   BellRing,
-  Megaphone,
 } from "lucide-react";
+
+import SidebarNav, { NAV_ITEMS } from "@/components/dashboard/Sidebar";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { useOrdersRealtime, type RealtimeStatus } from "@/lib/realtime";
@@ -49,18 +42,6 @@ interface StoreInfo {
   name: string;
   slug: string;
 }
-
-const NAV_ITEMS = [
-  { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/products", labelKey: "nav.products", icon: Package },
-  { href: "/dashboard/categories", labelKey: "nav.categories", icon: FolderOpen },
-  { href: "/dashboard/orders", labelKey: "nav.orders", icon: ShoppingCart },
-  { href: "/dashboard/customers", labelKey: "nav.customers", icon: Users },
-  { href: "/dashboard/analytics", labelKey: "nav.analytics", icon: BarChart3 },
-  { href: "/dashboard/marketing", labelKey: "nav.marketing", icon: Megaphone },
-  { href: "/dashboard/billing", labelKey: "nav.billing", icon: CreditCard },
-  { href: "/dashboard/settings", labelKey: "nav.settings", icon: Settings },
-] as const;
 
 function LiveStatusPill({ status }: { status: RealtimeStatus }) {
   const { t } = useI18n();
@@ -294,40 +275,10 @@ export default function DashboardLayout({
         )}
 
         <nav className="flex-1 px-3 py-4">
-          <ul className="space-y-1">
-            {NAV_ITEMS.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/dashboard" && pathname.startsWith(item.href));
-              const showOrdersBadge =
-                item.href === "/dashboard/orders" && pendingCount > 0;
-
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                      isActive
-                        ? "bg-indigo-600 text-white"
-                        : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                    }`}
-                  >
-                    <item.icon className="h-5 w-5" />
-                    <span>{t(item.labelKey)}</span>
-                    {showOrdersBadge && (
-                      <span
-                        className="ms-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
-                        aria-label={`${pendingCount} ${t("nav.orders")}`}
-                      >
-                        {pendingCount > 99 ? "99+" : pendingCount}
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          <SidebarNav
+            pendingOrders={pendingCount}
+            onNavigate={() => setSidebarOpen(false)}
+          />
         </nav>
 
         <div className="space-y-3 border-t border-slate-800 p-3">
@@ -394,7 +345,7 @@ export default function DashboardLayout({
             aria-label={t("common.language")}
           >
             <Languages className="h-4 w-4" />
-            {locale === "ar" ? "English" : "العربية"}
+            {locale === "ar" ? "AR · العربية" : "EN · English"}
           </button>
         </header>
         <div className="p-4 sm:p-6">{children}</div>

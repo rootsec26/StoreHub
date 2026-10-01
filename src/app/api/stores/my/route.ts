@@ -4,12 +4,13 @@ import { stores } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
+import { DEFAULT_THEME_CONFIG } from "@/lib/theme-config";
 
 export async function GET() {
   try {
     const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+    if (!session?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const result = await db
@@ -22,7 +23,13 @@ export async function GET() {
       return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
     }
 
-    return NextResponse.json({ store: result[0] });
+    const store = result[0];
+    const safeStore = {
+      ...store,
+      themeConfig: store.themeConfig || DEFAULT_THEME_CONFIG,
+    };
+
+    return NextResponse.json({ store: safeStore });
   } catch (error) {
     console.error("Get store error:", error);
     return createErrorResponse(error, "Failed to fetch store");

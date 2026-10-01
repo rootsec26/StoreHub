@@ -1,0 +1,218 @@
+@layer theme {
+  .modern-theme {
+    --card-bg: var(--color-background);
+    --card-border: var(--color-primary-soft);
+    --card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --card-shadow-hover: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --btn-primary-bg: var(--color-primary);
+    --btn-primary-hover: var(--color-primary-dark);
+    --btn-primary-text: #ffffff;
+    --btn-secondary-bg: var(--color-secondary);
+    --btn-secondary-hover: var(--color-secondary-dark);
+    --btn-secondary-text: #ffffff;
+    --input-border: var(--color-primary-soft);
+    --input-focus-ring: var(--color-primary);
+    --badge-bg: var(--color-primary-soft);
+    --badge-text: var(--color-primary-dark);
+    --header-bg: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    --announcement-bg: var(--color-secondary);
+    --announcement-text: #ffffff;
+  }
+
+  .minimal-theme {
+    --card-bg: var(--color-background);
+    --card-border: transparent;
+    --card-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --card-shadow-hover: 0 4px 8px -2px rgb(0 0 0 / 0.08);
+    --btn-primary-bg: var(--color-primary);
+    --btn-primary-hover: var(--color-primary-dark);
+    --btn-primary-text: #ffffff;
+    --btn-secondary-bg: transparent;
+    --btn-secondary-hover: var(--color-primary-soft);
+    --btn-secondary-text: var(--color-primary);
+    --input-border: var(--color-text-muted);
+    --input-focus-ring: var(--color-primary);
+    --badge-bg: transparent;
+    --badge-text: var(--color-primary);
+    --header-bg: var(--color-background);
+    --announcement-bg: var(--color-primary);
+    --announcement-text: #ffffff;
+  }
+
+  .luxury-theme {
+    --card-bg: #1a1a1a;
+    --card-border: var(--color-secondary);
+    --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.2);
+    --card-shadow-hover: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+    --btn-primary-bg: var(--color-secondary);
+    --btn-primary-hover: #e8c56d;
+    --btn-primary-text: #0f0f0f;
+    --btn-secondary-bg: transparent;
+    --btn-secondary-hover: rgba(212, 168, 67, 0.1);
+    --btn-secondary-text: var(--color-secondary);
+    --input-border: var(--color-secondary);
+    --input-focus-ring: var(--color-secondary);
+    --badge-bg: var(--color-secondary);
+    --badge-text: #0f0f0f;
+    --header-bg: linear-gradient(135deg, #0f0f0f 0%, #1c1917 100%);
+    --announcement-bg: var(--color-secondary);
+    --announcement-text: #0f0f0f;
+  }
+}
+
+@layer theme-components {
+  .theme-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+    transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+  }
+
+  .theme-card:hover {
+    box-shadow: var(--card-shadow-hover);
+    transform: translateY(-2px);
+  }
+
+  .theme-btn-primary {
+    background-color: var(--btn-primary-bg);
+    color: var(--btn-primary-text);
+    border: none;
+    border-radius: var(--radius);
+    font-weight: 600;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+  }
+
+  .theme-btn-primary:hover {
+    background-color: var(--btn-primary-hover);
+  }
+
+  .theme-btn-primary:active {
+    transform: scale(0.98);
+  }
+
+  .theme-btn-secondary {
+    background-color: var(--btn-secondary-bg);
+    color: var(--btn-secondary-text);
+    border: 1px solid var(--btn-secondary-text);
+    border-radius: var(--radius);
+    font-weight: 500;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  .theme-btn-secondary:hover {
+    background-color: var(--btn-secondary-hover);
+  }
+
+  .theme-input {
+    background-color: var(--color-background);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius);
+    color: var(--color-text);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .theme-input:focus {
+    outline: none;
+    border-color: var(--input-focus-ring);
+    box-shadow: 0 0 0 3px var(--input-focus-ring);
+  }
+
+  .theme-badge {
+    background-color: var(--badge-bg);
+    color: var(--badge-text);
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.25rem 0.75rem;
+  }
+
+  .theme-header {
+    background: var(--header-bg);
+    color: #ffffff;
+  }
+
+  .theme-announcement {
+    background-color: var(--announcement-bg);
+    color: var(--announcement-text);
+    text-align: center;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .theme-product-grid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
+
+  .modern-theme .theme-product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+
+  .minimal-theme .theme-product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 2rem;
+  }
+
+  .luxury-theme .theme-product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .theme-hero-banner {
+    position: relative;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .theme-hero-centered {
+    min-height: 250px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 3rem 1rem;
+  }
+
+  .theme-hero-split {
+    min-height: 350px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: center;
+  }
+
+  @media (max-width: 768px) {
+    .theme-hero-split {
+      grid-template-columns: 1fr;
+      min-height: auto;
+      padding: 2rem 1rem;
+    }
+  }
+}
+
+/* Smooth theme transitions — color/background changes only so layout stays jank-free */
+.theme-root {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+  font-family: var(--font-main, inherit);
+}
+
+.theme-root .theme-card,
+.theme-root .theme-btn-primary,
+.theme-root .theme-btn-secondary,
+.theme-root .theme-header,
+.theme-root .theme-announcement {
+  transition:
+    background-color 0.3s ease,
+    background 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}

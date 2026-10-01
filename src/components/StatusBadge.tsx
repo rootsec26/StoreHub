@@ -8,6 +8,7 @@ const COLORS: Record<string, string> = {
   Confirmed: "bg-blue-100 text-blue-700",
   Preparing: "bg-purple-100 text-purple-700",
   Ready: "bg-teal-100 text-teal-700",
+  Shipped: "bg-cyan-100 text-cyan-700",
   Completed: "bg-emerald-100 text-emerald-700",
   Cancelled: "bg-red-100 text-red-700",
 };

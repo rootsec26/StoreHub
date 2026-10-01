@@ -15,11 +15,23 @@
   html[dir="rtl"],
   html[dir="rtl"] body {
     font-family:
+      var(--font-cairo),
+      "Cairo",
       "Noto Sans Arabic",
       "Geeza Pro",
       "Segoe UI",
       Tahoma,
       Arial,
+      sans-serif;
+  }
+
+  /* Theme fonts (Inter, Playfair…) don't cover Arabic — append Arabic faces */
+  html[dir="rtl"] .theme-root {
+    font-family:
+      var(--font-main),
+      var(--font-cairo),
+      "Cairo",
+      "Noto Sans Arabic",
       sans-serif;
   }
 
@@ -64,4 +76,16 @@
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
 }

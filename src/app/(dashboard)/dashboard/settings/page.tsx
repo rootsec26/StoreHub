@@ -14,6 +14,10 @@ import {
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import ImageUploadField from "@/components/ImageUploadField";
+import DomainSettings from "./domain-settings";
+import CurrencySettings from "./currency-settings";
+import PaymentSettings from "./payment-settings";
+import ThemeSettings from "./theme-settings";
 import { normalizeAccent } from "@/lib/theme";
 
 interface StoreData {
@@ -55,7 +59,7 @@ const ACCENT_PRESETS = [
   "#4f46e5",
   "#0ea5e9",
   "#10b981",
-  "#f59e0b",
+  "#f5e00b",
   "#ef4444",
   "#ec4899",
   "#8b5cf6",
@@ -115,35 +119,6 @@ export default function SettingsPage() {
     }
   }, [toast]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-
-    try {
-      const res = await fetch("/api/stores", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          description,
-          category,
-          phone,
-          address,
-          logoUrl,
-          coverUrl,
-          accentColor,
-        }),
-      });
-
-      if (!res.ok) throw new Error("Failed to update store");
-      setToast(t("settings.toast.saved"));
-    } catch {
-      setToast(t("settings.toast.failed"));
-    } finally {
-      setSaving(false);
-    }
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -153,13 +128,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
-      {toast && (
-        <div className="fixed end-4 top-4 z-50 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white shadow-lg">
-          {toast}
-        </div>
-      )}
-
+    <div className="space-y-8">
       <div className="rounded-xl bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <div className="rounded-lg bg-indigo-50 p-2">
@@ -177,7 +146,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
               {t("settings.storeName")}
@@ -280,6 +249,10 @@ export default function SettingsPage() {
             />
           )}
 
+          {store && (
+            <ThemeSettings storeId={store.id} />
+          )}
+
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
               {t("settings.brandColor")}
@@ -325,17 +298,14 @@ export default function SettingsPage() {
               </button>
             </div>
 
-            <div
-              className="mt-3 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white"
-              style={{ backgroundColor: normalizeAccent(accentColor) }}
-            >
+            <div className="mt-3 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white">
               <Palette className="h-4 w-4" />
               {t("settings.brandColorPreview")}
             </div>
           </div>
 
           <button
-            type="submit"
+            type="button"
             disabled={saving}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
           >
@@ -346,7 +316,11 @@ export default function SettingsPage() {
             )}
             {saving ? t("common.saving") : t("common.save")}
           </button>
-        </form>
+        </div>
+
+        {store && <DomainSettings storeSlug={store.slug} />}
+        {store && <CurrencySettings storeId={store.id} />}
+        {store && <PaymentSettings storeId={store.id} />}
       </div>
     </div>
   );

@@ -4,13 +4,14 @@ import { orders, orderItems, stores, products } from "@/db/schema";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
+import { DEFAULT_THEME_CONFIG } from "@/lib/theme-config";
 
 // Get orders
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+    if (!session?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const userStore = await db
@@ -23,13 +24,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
     }
 
+    const store = userStore[0];
+    const safeStore = {
+      ...store,
+      themeConfig: store.themeConfig || DEFAULT_THEME_CONFIG,
+    };
+
     const orderId = request.nextUrl.searchParams.get("id");
     const summaryOnly = request.nextUrl.searchParams.get("summary") === "1";
 
     const pendingRows = await db
       .select({ id: orders.id })
       .from(orders)
-      .where(and(eq(orders.storeId, userStore[0].id), eq(orders.status, "Pending")));
+      .where(and(eq(orders.storeId, safeStore.id), eq(orders.status, "Pending")));
     const pendingIds = pendingRows.map((row) => row.id);
 
     // Lightweight payload for the realtime badge / polling fallback.
@@ -45,7 +52,7 @@ export async function GET(request: NextRequest) {
       const orderResult = await db
         .select()
         .from(orders)
-        .where(and(eq(orders.id, orderId), eq(orders.storeId, userStore[0].id)))
+        .where(and(eq(orders.id, orderId), eq(orders.storeId, safeStore.id)))
         .limit(1);
 
       if (orderResult.length === 0) {
@@ -85,7 +92,7 @@ export async function GET(request: NextRequest) {
     const result = await db
       .select()
       .from(orders)
-      .where(eq(orders.storeId, userStore[0].id))
+      .where(eq(orders.storeId, safeStore.id))
       .orderBy(desc(orders.createdAt));
 
     return NextResponse.json({
@@ -101,6 +108,10 @@ export async function GET(request: NextRequest) {
 // Create order (public checkout)
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await request.json();
     const { storeId, customerName, customerPhone, customerAddress, notes, items } = body;
 
@@ -154,8 +165,8 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+    if (!session?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const userStore = await db
@@ -167,6 +178,12 @@ export async function PATCH(request: NextRequest) {
     if (userStore.length === 0) {
       return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
     }
+
+    const store = userStore[0];
+    const safeStore = {
+      ...store,
+      themeConfig: store.themeConfig || DEFAULT_THEME_CONFIG,
+    };
 
     const body = await request.json();
     const { id, status } = body;
@@ -183,6 +200,7 @@ export async function PATCH(request: NextRequest) {
       "Confirmed",
       "Preparing",
       "Ready",
+      "Shipped",
       "Completed",
       "Cancelled",
     ];
@@ -194,7 +212,7 @@ export async function PATCH(request: NextRequest) {
     const result = await db
       .update(orders)
       .set({ status })
-      .where(and(eq(orders.id, id), eq(orders.storeId, userStore[0].id)))
+      .where(and(eq(orders.id, id), eq(orders.storeId, safeStore.id)))
       .returning();
 
     if (result.length === 0) {

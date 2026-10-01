@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import { safeParseUrl, safeResolveUrl } from "@/lib/url";
+import { db } from "@/db";
+import { stores } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { getDefaultCurrencyForCountry } from "@/lib/currency";
 
 const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) {
@@ -11,6 +15,29 @@ const SECRET = new TextEncoder().encode(jwtSecret);
 
 interface SessionClaims {
   storeId?: string;
+}
+
+const CURRENCY_COOKIE_NAME = "storehub_currency";
+const CURRENCY_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+function detectCurrencyFromHeaders(request: NextRequest): string {
+  const vercelCountry = request.headers.get("x-vercel-ip-country");
+  const cloudflareCountry = request.headers.get("cf-ipcountry");
+  const countryCode = vercelCountry ?? cloudflareCountry ?? "";
+  return getDefaultCurrencyForCountry(countryCode);
+}
+
+function setCurrencyCookie(response: NextResponse, currency: string): void {
+  response.cookies.set(CURRENCY_COOKIE_NAME, currency, {
+    maxAge: CURRENCY_COOKIE_MAX_AGE,
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+}
+
+function getCurrencyFromCookie(request: NextRequest): string | null {
+  return request.cookies.get(CURRENCY_COOKIE_NAME)?.value ?? null;
 }
 
 const RESERVED_SUBDOMAINS = new Set([
@@ -42,6 +69,35 @@ const APP_ONLY_PATHS = [
   "/onboarding",
   "/forgot-password",
 ];
+
+let customDomainCache: Map<string, { slug: string; expires: number }> = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function resolveCustomDomain(hostname: string): Promise<string | null> {
+  const cached = customDomainCache.get(hostname);
+  if (cached && cached.expires > Date.now()) {
+    return cached.slug;
+  }
+
+  try {
+    const result = await db
+      .select({ slug: stores.slug })
+      .from(stores)
+      .where(eq(stores.customDomain, hostname))
+      .limit(1);
+
+    if (result.length > 0) {
+      const slug = result[0].slug;
+      customDomainCache.set(hostname, { slug, expires: Date.now() + CACHE_TTL });
+      return slug;
+    }
+  } catch (error) {
+    console.error("[proxy] Custom domain lookup failed:", error);
+  }
+
+  customDomainCache.set(hostname, { slug: "", expires: Date.now() + CACHE_TTL });
+  return null;
+}
 
 function resolveStoreSubdomain(
   host: string | null
@@ -126,8 +182,20 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get("session")?.value;
 
-  const subdomain = resolveStoreSubdomain(request.headers.get("host"));
-  if (subdomain) {
+  const hostHeader = request.headers.get("host");
+  const hostname = hostHeader?.split(":")[0].toLowerCase() ?? "";
+
+  const subdomain = resolveStoreSubdomain(hostHeader);
+  const customDomainSlug = subdomain ? null : await resolveCustomDomain(hostname);
+
+  const effectiveSlug = subdomain?.slug ?? customDomainSlug;
+
+  // Handle currency detection for storefront pages
+  const isStorefrontPage = pathname.startsWith("/store/");
+  let currencyCookieSet = false;
+  let response: NextResponse | null = null;
+
+  if (effectiveSlug) {
     if (
       pathname.startsWith("/api/") ||
       pathname.startsWith("/_next/") ||
@@ -137,19 +205,32 @@ export async function proxy(request: NextRequest) {
     }
 
     if (!isAppOnlyPath(pathname)) {
-      const target = storePathForSubdomain(pathname, subdomain.slug);
-      if (target === pathname) return NextResponse.next();
+      const target = storePathForSubdomain(pathname, effectiveSlug);
+      if (target === pathname) {
+        // For storefront pages, apply currency detection
+        if (isStorefrontPage) {
+          const existingCurrency = getCurrencyFromCookie(request);
+          if (!existingCurrency) {
+            const detectedCurrency = detectCurrencyFromHeaders(request);
+            response = NextResponse.rewrite(resolveUrl(request, target));
+            setCurrencyCookie(response, detectedCurrency);
+            currencyCookieSet = true;
+          }
+        }
+        if (!currencyCookieSet) return NextResponse.next();
+        return response!;
+      }
       return NextResponse.rewrite(resolveUrl(request, target));
     }
 
-    // App-only pages live on the apex domain. When the apex resolves to this
-    // same origin (local `*.localhost` development) a redirect would loop, so
-    // those requests fall through to the standard auth flow instead.
-    const apex = buildApexUrl(request, subdomain.rootDomain);
-    const requestOrigin =
-      safeParseUrl(request.url)?.origin ?? request.nextUrl.origin;
-    if (apex.origin !== requestOrigin) {
-      return NextResponse.redirect(apex);
+    const rootDomain = subdomain?.rootDomain ?? (process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "").toLowerCase();
+    if (rootDomain) {
+      const apex = buildApexUrl(request, rootDomain);
+      const requestOrigin =
+        safeParseUrl(request.url)?.origin ?? request.nextUrl.origin;
+      if (apex.origin !== requestOrigin) {
+        return NextResponse.redirect(apex);
+      }
     }
   }
 
@@ -172,12 +253,14 @@ export async function proxy(request: NextRequest) {
   // Admin routes require valid auth session AND localhost host validation
   const isAdminPath = pathname === "/admin" || pathname.startsWith("/admin/");
   if (isAdminPath) {
-    const host = request.headers.get("host") ?? "";
-    const hostname = host.split(":")[0].toLowerCase();
-    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".localhost");
+    const isLocalhost =
+      hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".localhost");
 
     if (!isLocalhost) {
-      return NextResponse.json({ error: "Forbidden: Admin access only allowed from localhost" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Forbidden: Admin access only allowed from localhost" },
+        { status: 403 }
+      );
     }
 
     if (!token) {
@@ -206,6 +289,17 @@ export async function proxy(request: NextRequest) {
       );
     } catch {
       // Invalid token, continue to auth page
+    }
+  }
+
+  // Apply currency detection for direct storefront access (not via subdomain rewrite)
+  if (isStorefrontPage && !currencyCookieSet) {
+    const existingCurrency = getCurrencyFromCookie(request);
+    if (!existingCurrency) {
+      const detectedCurrency = detectCurrencyFromHeaders(request);
+      response = NextResponse.next();
+      setCurrencyCookie(response, detectedCurrency);
+      return response;
     }
   }
 

@@ -9,6 +9,7 @@ import {
   primaryKey,
   jsonb,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // ============================================
@@ -58,6 +59,37 @@ export const stores = pgTable(
     address: text("address").default(""),
     plan: text("plan").notNull().default("free"),
     accentColor: text("accent_color").default(""),
+    customDomain: text("custom_domain").unique(),
+    customDomainVerified: boolean("custom_domain_verified").default(false),
+    currency: text("currency").default("EGP"),
+    supportedCurrencies: jsonb("supported_currencies").$type<string[]>().default(["EGP", "USD", "SAR", "AED", "EUR"]),
+    stripeAccountId: text("stripe_account_id"),
+    stripeEnabled: boolean("stripe_enabled").default(false),
+    paddleVendorId: text("paddle_vendor_id"),
+    paddleEnabled: boolean("paddle_enabled").default(false),
+    manualPaymentInstructions: text("manual_payment_instructions"),
+    themeConfig: jsonb("theme_config").$type<{
+      themeId: 'modern' | 'minimal' | 'luxury';
+      primaryColor: string;
+      secondaryColor: string;
+      backgroundColor: string;
+      textColor: string;
+      fontFamily: 'Inter' | 'Cairo' | 'Playfair Display' | 'Roboto';
+      borderRadius: 'none' | 'sm' | 'md' | 'lg' | 'full';
+      heroStyle: 'banner' | 'centered' | 'split';
+      showAnnouncementBar: boolean;
+      announcementText?: string;
+    }>().default({
+      themeId: 'modern',
+      primaryColor: '#4f46e5',
+      secondaryColor: '#06b6d4',
+      backgroundColor: '#ffffff',
+      textColor: '#0f172a',
+      fontFamily: 'Cairo',
+      borderRadius: 'md',
+      heroStyle: 'banner',
+      showAnnouncementBar: false
+    }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("stores_owner_id_idx").on(table.ownerId)]
@@ -104,6 +136,27 @@ export const products = pgTable(
 );
 
 // ============================================
+// SHIPPING ZONES (per-region delivery rates)
+// ============================================
+export const shippingZones = pgTable(
+  "shipping_zones",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    zoneName: text("zone_name").notNull(),
+    rate: numeric("rate", { precision: 10, scale: 2 }).notNull().default("0"),
+    estimatedDeliveryDays: integer("estimated_delivery_days")
+      .notNull()
+      .default(2),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("shipping_zones_store_id_idx").on(table.storeId)]
+);
+
+// ============================================
 // ORDERS
 // ============================================
 export const orders = pgTable(
@@ -120,10 +173,27 @@ export const orders = pgTable(
     totalAmount: numeric("total_amount", { precision: 10, scale: 2 })
       .notNull()
       .default("0"),
+    // Coupon redemption tracking (Promotions & Flash Sales engine)
+    couponCode: text("coupon_code"),
+    discountAmount: numeric("discount_amount", { precision: 10, scale: 2 })
+      .notNull()
+      .default("0"),
     status: text("status").notNull().default("Pending"),
+    // Smart Shipping & Thermal Label Studio fulfillment fields
+    shippingZoneId: uuid("shipping_zone_id").references(
+      () => shippingZones.id,
+      { onDelete: "set null" }
+    ),
+    trackingNumber: text("tracking_number"),
+    courierName: text("courier_name"),
+    labelPrintedAt: timestamp("label_printed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("orders_store_id_idx").on(table.storeId)]
+  (table) => [
+    index("orders_store_id_idx").on(table.storeId),
+    index("orders_shipping_zone_id_idx").on(table.shippingZoneId),
+    index("orders_tracking_number_idx").on(table.trackingNumber),
+  ]
 );
 
 // ============================================
@@ -142,3 +212,57 @@ export const orderItems = pgTable("order_items", {
     .notNull()
     .default("0"),
 });
+
+// ============================================
+// PROMOTIONS (timed flash sales)
+// ============================================
+export const promotions = pgTable(
+  "promotions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    discountPercentage: integer("discount_percentage").notNull().default(0),
+    startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+    endTime: timestamp("end_time", { withTimezone: true }).notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    bannerText: text("banner_text").default(""),
+    // Live countdown banner toggle on the storefront
+    showBanner: boolean("show_banner").notNull().default(true),
+    // Empty arrays = the whole catalog; otherwise specific products/categories
+    targetProductIds: jsonb("target_product_ids").$type<string[]>().default([]),
+    targetCategoryIds: jsonb("target_category_ids").$type<string[]>().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("promotions_store_id_idx").on(table.storeId)]
+);
+
+// ============================================
+// COUPONS
+// ============================================
+export const coupons = pgTable(
+  "coupons",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    discountAmount: numeric("discount_amount", { precision: 10, scale: 2 })
+      .notNull()
+      .default("0"),
+    minSpend: numeric("min_spend", { precision: 10, scale: 2 })
+      .notNull()
+      .default("0"),
+    maxUses: integer("max_uses").notNull().default(1),
+    timesUsed: integer("times_used").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("coupons_store_id_idx").on(table.storeId),
+    uniqueIndex("coupons_store_code_unique").on(table.storeId, table.code),
+  ]
+);
