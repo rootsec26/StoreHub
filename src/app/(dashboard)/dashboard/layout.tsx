@@ -250,9 +250,9 @@ export default function DashboardLayout({
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 start-0 z-50 flex w-64 flex-col bg-slate-900 transition-transform lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 start-0 z-50 flex w-64 flex-col border-e border-slate-800 bg-slate-900 transition-transform lg:static lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full rtl:translate-x-full"
-        }`}
+        } lg:rtl:translate-x-0`}
       >
         <div className="flex items-center justify-between border-b border-slate-800 px-4 py-4">
           <div className="flex items-center gap-2">
