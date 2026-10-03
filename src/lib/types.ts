@@ -51,6 +51,10 @@ export type Plan = "free" | "pro";
 
 export interface BillingInfo {
   plan: Plan;
+  /** Strict: false once `plan_expires_at` has lapsed (paid features off). */
+  planActive: boolean;
+  /** ISO timestamp of the paid-plan window end; null on the free plan. */
+  planExpiresAt: string | null;
   productCount: number;
   /** Max products allowed on the plan; `null` means unlimited. */
   productLimit: number | null;
@@ -58,13 +62,29 @@ export interface BillingInfo {
   usagePercent: number;
   storeId: string;
   storeName: string;
+  /** Pay-per-use AI balance (deducted by every AI generation). */
+  aiCredits: number;
+  /** ISO timestamp; AI credits are unusable past this date. */
+  aiCreditsExpiresAt: string | null;
+  /** Pay-per-use WhatsApp balance. */
+  whatsappCredits: number;
+  /** ISO timestamp; WhatsApp credits are unusable past this date. */
+  waCreditsExpiresAt: string | null;
+  /** Monthly white-label add-on ("Powered by StoreHub" removed). */
+  hasWhiteLabel: boolean;
+  /** Admin seats available (1 included + purchased extras). */
+  maxStaffSeats: number;
 }
 
 export interface AnalyticsBucket {
   key: string;
   label: string;
+  /** Completed-only revenue for the bucket. */
   revenue: string;
+  /** Orders received in the bucket (excluding Cancelled). */
   orders: number;
+  /** Completed orders in the bucket — denominator for revenue metrics (AOV). */
+  completedOrders: number;
 }
 
 export interface AnalyticsTopProduct {

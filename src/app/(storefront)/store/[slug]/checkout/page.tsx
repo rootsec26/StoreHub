@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect, useMemo, useRef, Suspense } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -19,11 +19,15 @@ import {
   CreditCard,
   Smartphone,
   Banknote,
+  Truck,
   Lock,
   AlertCircle,
+  Zap,
+  Sparkles,
 } from "lucide-react";
 
 import { useCartStore, type CartItem } from "@/lib/cart";
+import CheckoutForm from "@/components/storefront/CheckoutForm";
 import { useI18n } from "@/lib/i18n";
 import { accentGradient, accentThemeStyle, normalizeAccent } from "@/lib/theme";
 import { canOptimizeImage } from "@/lib/images";
@@ -33,13 +37,14 @@ import {
 } from "@/lib/whatsapp";
 import { useStoreCurrency } from "@/components/CurrencySelector";
 import { convertAndFormatPrice } from "@/lib/currency";
+import type { CheckoutLoyaltyOutcome, VipTierRecord } from "@/lib/loyalty";
 
 interface PlacedOrder {
   items: { name: string; quantity: number; unitPrice: number }[];
   total: number;
 }
 
-type PaymentMethod = "stripe" | "paddle" | "manual";
+type PaymentMethod = "stripe" | "paddle" | "manual" | "cod";
 
 interface PaymentOption {
   id: PaymentMethod;
@@ -50,12 +55,17 @@ interface PaymentOption {
   disabledReason?: string;
 }
 
-export default function CheckoutPage() {
+function CheckoutContent() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
 
-  const { t, locale } = useI18n();
+  // Guest arrived through a WhatsApp recovery link (?recover=…&code=…).
+  const recoveryToken = searchParams.get("recover");
+  const recoveryCode = searchParams.get("code");
+
+  const { t, locale, formatMoney } = useI18n();
   const cart = useCartStore();
 
   const [storeId, setStoreId] = useState("");
@@ -79,6 +89,10 @@ export default function CheckoutPage() {
   const [orderId, setOrderId] = useState("");
   const [placedOrder, setPlacedOrder] = useState<PlacedOrder | null>(null);
   const [manualInstructions, setManualInstructions] = useState("");
+  const [codVerifyNotice, setCodVerifyNotice] = useState("");
+  const [codVerifyUrl, setCodVerifyUrl] = useState("");
+  const [loyaltyRedeemed, setLoyaltyRedeemed] = useState(0);
+  const [loyaltyResult, setLoyaltyResult] = useState<CheckoutLoyaltyOutcome | null>(null);
   const selectedPaymentMethodInitialized = useRef(false);
 
   const { currency: selectedCurrency } = useStoreCurrency(storeCurrency, storeSupportedCurrencies, locale);
@@ -103,6 +117,14 @@ export default function CheckoutPage() {
       disabledReason: paddleEnabled ? undefined : t("checkout.payment.paddleDisabled"),
     },
     {
+      id: "cod",
+      label: t("checkout.payment.cod"),
+      description: t("checkout.payment.codDesc"),
+      icon: <Truck className="h-5 w-5" />,
+      enabled: true,
+      disabledReason: undefined,
+    },
+    {
       id: "manual",
       label: t("checkout.payment.manual"),
       description: t("checkout.payment.manualDesc"),
@@ -111,6 +133,75 @@ export default function CheckoutPage() {
       disabledReason: undefined,
     },
   ], [stripeEnabled, paddleEnabled, t]);
+
+  // Loyalty state
+  const [loyalty, setLoyalty] = useState<{
+    enabled: boolean;
+    points: number;
+    totalLifetimeSpend: number;
+    vipTier: null | { tierName: string; discountPercentage: number; badgeColor: string };
+    tiers: VipTierRecord[];
+    redemptionRate: number;
+  }>({
+    enabled: false,
+    points: 0,
+    totalLifetimeSpend: 0,
+    vipTier: null,
+    tiers: [],
+    redemptionRate: 10,
+  });
+
+  useEffect(() => {
+    async function loadLoyalty() {
+      try {
+        if (!storeId) return;
+        const params = new URLSearchParams({ storeId });
+        if (customerPhone) params.set("phone", customerPhone);
+        const res = await fetch(`/api/storefront/loyalty?${params.toString()}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.enabled) {
+          setLoyalty((prev) => ({ ...prev, enabled: false }));
+          return;
+        }
+
+        const tiers: VipTierRecord[] = data.tiers ?? [];
+        const spend = Number(data.profile?.totalLifetimeSpend) || 0;
+        const points = Number(data.profile?.points) || 0;
+        const redemptionRate = Number(data.settings?.redemptionRate) || 10;
+        const vipTier =
+          spend > 0 && tiers.length > 0
+            ? tiers.find((tier) => spend >= tier.minSpendThreshold) ??
+              tiers[tiers.length - 1]
+            : null;
+
+        setLoyalty({
+          enabled: true,
+          points,
+          totalLifetimeSpend: spend,
+          vipTier: vipTier
+            ? {
+                tierName: vipTier.tierName,
+                discountPercentage: vipTier.discountPercentage,
+                badgeColor: vipTier.badgeColor,
+              }
+            : null,
+          tiers,
+          redemptionRate,
+        });
+      } catch {
+        // Silently fail - loyalty is optional
+      }
+    }
+
+    loadLoyalty();
+
+    // Keep the member balance fresh while the shopper types
+    const loyaltyTimer = setInterval(loadLoyalty, 30000);
+    return () => clearInterval(loyaltyTimer);
+  }, [storeId, customerPhone]);
 
   useEffect(() => {
     async function loadStore() {
@@ -176,6 +267,21 @@ export default function CheckoutPage() {
     locale,
   ]);
 
+  // Compute loyalty discount amount from selected points
+  const loyaltyDiscountAmount = useMemo(() => {
+    if (!loyalty.enabled || loyaltyRedeemed <= 0 || loyalty.redemptionRate <= 0) {
+      return 0;
+    }
+    // discount = points / redemptionRate (e.g., 100 points at rate 10 = 10 EGP)
+    return Math.floor((loyaltyRedeemed / loyalty.redemptionRate) * 100) / 100;
+  }, [loyalty.enabled, loyaltyRedeemed, loyalty.redemptionRate]);
+
+  // Compute final total with loyalty discount
+  const finalTotal = useMemo(() => {
+    const subtotal = cart.getTotal();
+    return Math.max(0, subtotal - loyaltyDiscountAmount);
+  }, [cart, loyaltyDiscountAmount]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -197,20 +303,26 @@ export default function CheckoutPage() {
         unitPrice: parseFloat(item.price),
       }));
 
+      // Loyalty (VIP discount + points redemption) is computed server-side
+      // inside POST /api/checkout, which also finalizes the member's balance.
+      const orderData = {
+        storeId,
+        customerName,
+        customerEmail,
+        customerPhone,
+        customerAddress,
+        notes,
+        items,
+        paymentMethod: selectedPaymentMethod,
+        currency: storeCurrency,
+        redeemPoints: loyaltyRedeemed,
+        locale,
+      };
+
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          storeId,
-          customerName,
-          customerEmail,
-          customerPhone,
-          customerAddress,
-          notes,
-          items,
-          paymentMethod: selectedPaymentMethod,
-          currency: storeCurrency,
-        }),
+        body: JSON.stringify(orderData),
       });
 
       const data = await res.json();
@@ -220,6 +332,9 @@ export default function CheckoutPage() {
       }
 
       setOrderId(data.orderId || "");
+      if (data.loyalty) {
+        setLoyaltyResult(data.loyalty);
+      }
 
       if (selectedPaymentMethod === "stripe" || selectedPaymentMethod === "paddle") {
         if (data.redirectUrl) {
@@ -228,8 +343,17 @@ export default function CheckoutPage() {
         }
       }
 
-      if (selectedPaymentMethod === "manual") {
-        setManualInstructions(data.message || manualPaymentInstructions || "");
+      if (selectedPaymentMethod === "manual" || selectedPaymentMethod === "cod") {
+        if (selectedPaymentMethod === "cod") {
+          setCodVerifyNotice(
+            data.codVerification?.delivered
+              ? t("checkout.codVerifyNotice")
+              : t("orders.cod.pending")
+          );
+          setCodVerifyUrl(data.codVerification?.verifyUrl || "");
+        } else {
+          setManualInstructions(data.message || manualPaymentInstructions || "");
+        }
         setPlacedOrder(snapshot);
         setSuccess(true);
         cart.clearCart();
@@ -248,6 +372,22 @@ export default function CheckoutPage() {
     }
   }
 
+  // Headless abandoned-cart listener: keeps the guest cart snapshot in sync
+  // while the shopper types, and closes it once the order is placed.
+  const abandonedCartListener = (
+    <CheckoutForm
+      slug={slug}
+      storeId={storeId}
+      items={cart.items}
+      totalAmount={cart.getTotal()}
+      customerName={customerName}
+      customerPhone={customerPhone}
+      customerEmail={customerEmail}
+      recoveryToken={recoveryToken}
+      completed={success}
+    />
+  );
+
   if (success) {
     const isManual = selectedPaymentMethod === "manual";
     
@@ -256,6 +396,7 @@ export default function CheckoutPage() {
         style={accentThemeStyle(normalizeAccent(storeAccent))}
         className="flex min-h-screen items-center justify-center px-4"
       >
+        {abandonedCartListener}
         <div className="w-full max-w-md text-center">
           <div className="mx-auto mb-6 inline-flex rounded-full bg-emerald-100 p-4">
             <CheckCircle2 className="h-12 w-12 text-emerald-600" />
@@ -277,6 +418,54 @@ export default function CheckoutPage() {
                 {t("checkout.payment.instructions")}
               </h3>
               <p className="whitespace-pre-wrap">{manualInstructions}</p>
+            </div>
+          )}
+
+          {selectedPaymentMethod === "cod" && codVerifyNotice && (
+            <div className="mb-6 rounded-lg bg-amber-50 p-4 text-left text-sm text-amber-800">
+              <h3 className="mb-2 flex items-center gap-2 font-semibold">
+                <MessageCircle className="h-4 w-4" />
+                {t("verify.badge")}
+              </h3>
+              <p>{codVerifyNotice}</p>
+              {codVerifyUrl && (
+                <a
+                  href={codVerifyUrl}
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-700"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {t("verify.confirm")}
+                </a>
+              )}
+            </div>
+          )}
+
+          {success && !isManual && loyaltyResult && (
+            <div className="mb-6 rounded-lg bg-emerald-50 p-4 text-left text-emerald-700">
+              <h3 className="font-semibold mb-2 flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                {t("loyalty.pointsEarnedFromOrder", {
+                  points: loyaltyResult.pointsEarned,
+                })}
+              </h3>
+              <p className="text-sm mb-2">
+                {t("loyalty.pointsBreakdown", {
+                  earned: loyaltyResult.pointsEarned,
+                  redeemed: loyaltyResult.pointsRedeemed,
+                  bonus: loyaltyResult.bonusPoints,
+                  discount: formatMoney(loyaltyResult.discountAmount),
+                })}
+              </p>
+              <p className="text-sm">
+                {t("loyalty.newBalance", {
+                  balance: loyaltyResult.newBalance,
+                })}
+              </p>
+              <p className="text-sm">
+                {t("loyalty.newTier", {
+                  tier: loyaltyResult.tierName || "—",
+                })}
+              </p>
             </div>
           )}
 
@@ -312,7 +501,7 @@ export default function CheckoutPage() {
               </Link>
             )}
 
-            <Link
+<Link
               href={`/store/${slug}`}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-6 py-3 text-sm font-medium text-white hover:opacity-90"
             >
@@ -327,6 +516,7 @@ export default function CheckoutPage() {
 
   return (
     <div style={accentThemeStyle(normalizeAccent(storeAccent))} className="min-h-screen bg-slate-50">
+      {abandonedCartListener}
       {/* Header */}
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4">
@@ -341,6 +531,35 @@ export default function CheckoutPage() {
           <span className="flex-1 text-lg font-semibold text-slate-900">
             {storeName || t("checkout.customerDetails")}
           </span>
+          {loyalty.enabled && (
+            <div className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-emerald-500" />
+              <span className="text-sm font-medium text-emerald-600">
+                {loyalty.points} {t("loyalty.points")}
+              </span>
+            </div>
+          )}
+          {loyalty.vipTier && (
+            <div className="ml-3 flex items-center gap-2">
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                  loyalty.vipTier.badgeColor
+                    ? `bg-${loyalty.vipTier.badgeColor.replace(
+                      "#",
+                      ""
+                    )}`
+                    : "bg-slate-200"
+                } text-slate-600`}
+              >
+                {loyalty.vipTier.tierName}
+              </span>
+              <span className="text-xs text-slate-500">
+                {t("loyalty.discount", {
+                  discount: loyalty.vipTier.discountPercentage,
+                })} {t("loyalty.discountPercent")}
+              </span>
+            </div>
+          )}
         </div>
       </header>
 
@@ -497,6 +716,20 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
+                {recoveryCode && (
+                  <div className="flex items-center justify-between gap-3 rounded-lg bg-emerald-50 p-3">
+                    <span className="text-sm text-emerald-800">
+                      {t("checkout.recoveryCodeLabel")}
+                    </span>
+                    <span
+                      dir="ltr"
+                      className="rounded bg-white px-2 py-1 text-sm font-bold tracking-wide text-emerald-700 ring-1 ring-emerald-200"
+                    >
+                      {recoveryCode}
+                    </span>
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   disabled={loading || cart.items.length === 0}
@@ -520,7 +753,7 @@ export default function CheckoutPage() {
                 {t("checkout.orderSummary")}
               </h2>
 
-              <div className="space-y-3">
+<div className="space-y-3">
                 {cart.items.map((item) => (
                   <div key={item.productId} className="flex gap-3">
                     <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-slate-100">
@@ -552,15 +785,65 @@ export default function CheckoutPage() {
                     </p>
                   </div>
                 ))}
-              </div>
 
-              <div className="mt-4 border-t pt-4">
+                {/* Loyalty Points Redemption */}
+                {loyalty.enabled && loyalty.points > 0 && (
+                  <div className="mt-4 p-4 rounded-lg bg-emerald-50 border border-emerald-200">
+                    <h3 className="font-medium text-emerald-700 mb-3">
+                      {t("loyalty.pointsToCash")}
+                    </h3>
+                    <p className="text-sm text-emerald-600 mb-3">
+                      {t("loyalty.pointsAvailable", {
+                        points: loyalty.points,
+                      })}
+                    </p>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      {t("loyalty.redeemAmount")}
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max={loyalty.points}
+                      value={loyaltyRedeemed}
+                      onChange={(e) => setLoyaltyRedeemed(Number(e.target.value))}
+                      className="w-full rounded-lg border border-emerald-300 py-2 ps-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-200"
+                    />
+                    <div className="mt-3 flex justify-between text-sm">
+                      <span>
+                        {t("loyalty.pointsToRedeem", { points: loyaltyRedeemed })}
+                      </span>
+                      <span className="font-medium text-emerald-600">
+                        -{loyaltyRedeemed} {t("loyalty.points")}
+                      </span>
+                    </div>
+                    {loyaltyDiscountAmount > 0 && (
+                      <div className="mt-3 flex justify-between text-sm">
+                        <span className="text-emerald-700">
+                          {t("loyalty.discountApplied", { amount: convertAndFormatPrice(loyaltyDiscountAmount, storeCurrency, selectedCurrency, priceLocale) })}
+                        </span>
+                        <span className="font-medium text-emerald-600">
+                          -{convertAndFormatPrice(loyaltyDiscountAmount, storeCurrency, selectedCurrency, priceLocale)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="mt-4 border-t pt-4">
+                {loyaltyDiscountAmount > 0 && (
+                  <div className="flex items-center justify-between text-sm text-slate-600 mb-2">
+                    <span>{t("store.subtotal")}</span>
+                    <span>
+                      {convertAndFormatPrice(cart.getTotal(), storeCurrency, selectedCurrency, priceLocale)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-base font-semibold text-slate-900">
                     {t("store.total")}
                   </span>
                   <span className="text-xl font-bold text-[var(--color-primary)]">
-                    {convertAndFormatPrice(cart.getTotal(), storeCurrency, selectedCurrency, priceLocale)}
+                    {convertAndFormatPrice(finalTotal, storeCurrency, selectedCurrency, priceLocale)}
                   </span>
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
@@ -570,7 +853,22 @@ export default function CheckoutPage() {
             </div>
           </div>
         </div>
+        </div>
       </main>
     </div>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-slate-50">
+          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+        </div>
+      }
+    >
+      <CheckoutContent />
+    </Suspense>
   );
 }

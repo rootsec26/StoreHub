@@ -1,7 +1,8 @@
 import { headers } from "next/headers";
+import Link from "next/link";
 import { db } from "@/db";
 import { users, stores, products, activationCodes, categories } from "@/db/schema";
-import { eq, count, desc, sql } from "drizzle-orm";
+import { eq, count, desc } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 export const runtime = "nodejs";
@@ -111,7 +112,7 @@ async function getMerchantsData() {
   return { merchants, dbError };
 }
 
-async function getActivationCodesData() {
+async function getActivationCodesSummary() {
   let codes: Array<typeof activationCodes.$inferSelect> = [];
   let dbError: Error | null = null;
 
@@ -129,9 +130,19 @@ async function getActivationCodesData() {
     }
   }
 
-  return { codes, dbError };
-}
+  const available = codes.filter(
+    (code) =>
+      !code.isUsed &&
+      (!code.expiresAt || new Date(code.expiresAt).getTime() > Date.now())
+  ).length;
 
+  return {
+    total: codes.length,
+    available,
+    used: codes.filter((code) => code.isUsed).length,
+    dbError,
+  };
+}
 async function getStoreDetails(storeId: string) {
   let storeProducts: Array<typeof products.$inferSelect> = [];
   let storeCategories: Array<typeof categories.$inferSelect> = [];
@@ -172,11 +183,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   const [merchantsResult, codesResult] = await Promise.all([
     getMerchantsData(),
-    getActivationCodesData(),
+    getActivationCodesSummary(),
   ]);
 
   const merchants = merchantsResult.merchants;
-  const codes = codesResult.codes;
+  const codeStats = codesResult;
   const dbErrors = [
     merchantsResult.dbError,
     codesResult.dbError,
@@ -336,65 +347,32 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               </div>
 
               <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm">
-                <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">Activation Codes</h2>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {codes.length === 0 ? (
-                    <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">No codes generated yet</p>
-                  ) : (
-                    codes.map((code) => (
-                      <div
-                        key={code.id}
-                        className={`flex items-center justify-between gap-2 rounded-lg p-3 ${
-                          code.isActive
-                            ? code.timesUsed >= code.maxUses
-                              ? "bg-amber-50 dark:bg-amber-900/30"
-                              : "bg-emerald-50 dark:bg-emerald-900/30"
-                            : "bg-slate-50 dark:bg-slate-700/30"
-                        }`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <code className="font-mono text-sm font-semibold text-slate-900 dark:text-white">
-                              {code.code}
-                            </code>
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                code.isActive
-                                  ? code.timesUsed >= code.maxUses
-                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
-                                    : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
-                                  : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
-                              }`}
-                            >
-                              {code.isActive
-                                ? code.timesUsed >= code.maxUses
-                                  ? "USED"
-                                  : "ACTIVE"
-                                : "INACTIVE"}
-                            </span>
-                          </div>
-                          <div className="mt-1 flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-                            <span>Plan: {code.plan}</span>
-                            <span>Uses: {code.timesUsed}/{code.maxUses}</span>
-                            {(code.discount ?? 0) > 0 && <span>Discount: {code.discount}%</span>}
-                            {code.expiresAt && (
-                              <span>
-                                Expires:{" "}
-                                {new Date(code.expiresAt).toLocaleDateString()}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => navigator.clipboard.writeText(code.code)}
-                          className="shrink-0 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 transition-colors"
-                        >
-                          Copy
-                        </button>
-                      </div>
-                    ))
-                  )}
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Activation Codes</h2>
+                  <Link
+                    href="/admin/codes"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                  >
+                    Manage codes
+                  </Link>
                 </div>
+                <dl className="space-y-3">
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-slate-500 dark:text-slate-400">Generated</dt>
+                    <dd className="font-semibold text-slate-900 dark:text-white">{codeStats.total}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-slate-500 dark:text-slate-400">Available</dt>
+                    <dd className="font-semibold text-emerald-600 dark:text-emerald-400">{codeStats.available}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-slate-500 dark:text-slate-400">Used</dt>
+                    <dd className="font-semibold text-slate-600 dark:text-slate-300">{codeStats.used}</dd>
+                  </div>
+                </dl>
+                <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+                  Generate single or batch vouchers and send them to merchants on WhatsApp after payment.
+                </p>
               </div>
             </section>
           </div>
@@ -477,93 +455,20 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           )}
 
           <section className="mt-8 rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">Generate Activation Code</h2>
-            <form
-              action="/api/admin/generate-code"
-              method="POST"
-              className="space-y-4"
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Custom Code (optional)
-                  </label>
-                  <input
-                    name="customCode"
-                    type="text"
-                    placeholder="Auto-generated if empty"
-                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Plan
-                  </label>
-                  <select
-                    name="plan"
-                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="pro">Pro</option>
-                    <option value="free">Free</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Price (EGP)
-                  </label>
-                  <input
-                    name="price"
-                    type="number"
-                    step="0.01"
-                    placeholder="299"
-                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Discount (%)
-                  </label>
-                  <input
-                    name="discount"
-                    type="number"
-                    min="0"
-                    max="100"
-                    defaultValue="0"
-                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Max Uses
-                  </label>
-                  <input
-                    name="maxUses"
-                    type="number"
-                    min="1"
-                    defaultValue="1"
-                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Duration (days, empty = lifetime)
-                  </label>
-                  <input
-                    name="durationDays"
-                    type="number"
-                    min="1"
-                    placeholder="30"
-                    className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Activation Code Generator</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Generate single or batch vouchers for plans and credit packages, then send them to merchants on WhatsApp.
+                </p>
               </div>
-              <button
-                type="submit"
+              <Link
+                href="/admin/codes"
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
               >
-                Generate Code
-              </button>
-            </form>
+                Open Activation Codes
+              </Link>
+            </div>
           </section>
         </div>
       </div>

@@ -28,6 +28,7 @@ import { accentGradient, accentThemeStyle, normalizeAccent } from "@/lib/theme";
 import { canOptimizeImage } from "@/lib/images";
 import { storePath } from "@/lib/site";
 import { useStoreCurrency } from "@/components/CurrencySelector";
+import StoreFooter from "@/components/storefront/Footer";
 import OrderStatusTimeline from "@/components/storefront/OrderStatusTimeline";
 import OrderInvoiceModal from "@/components/storefront/OrderInvoiceModal";
 import {
@@ -91,6 +92,7 @@ function TrackOrderContent() {
             "AED",
             "EUR",
           ],
+          hasWhiteLabel: data.store.hasWhiteLabel === true,
         });
       } catch {
         if (!cancelled) setStore(null);
@@ -528,14 +530,11 @@ function TrackOrderContent() {
         )}
       </main>
 
-      <footer className="border-t bg-white py-6">
-        <div className="mx-auto max-w-3xl px-4 text-center">
-          <div className="flex items-center justify-center gap-2">
-            <Package className="h-4 w-4 text-[var(--color-primary)]" />
-            <span className="text-sm font-medium text-slate-600">{t("store.poweredBy")}</span>
-          </div>
-        </div>
-      </footer>
+      <StoreFooter
+        hasWhiteLabel={store?.hasWhiteLabel}
+        containerClassName="mx-auto max-w-3xl px-4 text-center"
+        icon={<Package className="h-4 w-4 text-[var(--color-primary)]" />}
+      />
 
       {invoiceOpen && order && store && (
         <OrderInvoiceModal order={order} store={store} onClose={() => setInvoiceOpen(false)} />

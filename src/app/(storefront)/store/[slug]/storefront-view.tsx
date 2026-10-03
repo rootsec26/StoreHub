@@ -25,6 +25,7 @@ import { convertAndFormatPrice } from "@/lib/currency";
 import CurrencySelector, { useStoreCurrency } from "@/components/CurrencySelector";
 import AIShoppingAssistant from "@/components/storefront/AIShoppingAssistant";
 import FlashSaleBanner from "@/components/storefront/FlashSaleBanner";
+import StoreFooter from "@/components/storefront/Footer";
 import { useNow, useStorePromotions } from "@/lib/promotions-hooks";
 import {
   bestPromotionFor,
@@ -47,6 +48,8 @@ export interface StoreData {
   accentColor: string;
   currency: string;
   supportedCurrencies: string[];
+  /** White-label add-on: hides the "Powered by StoreHub" credit. */
+  hasWhiteLabel: boolean;
   themeConfig: ThemeConfig;
 }
 
@@ -836,16 +839,7 @@ export default function StorefrontView({
       <AIShoppingAssistant slug={slug} store={store} />
 
       {/* Footer */}
-      <footer className="border-t bg-white py-6">
-        <div className="mx-auto max-w-7xl px-4 text-center sm:px-6">
-          <div className="flex items-center justify-center gap-2">
-            <Store className="h-4 w-4 text-[var(--color-primary)]" />
-            <span className="text-sm font-medium text-slate-600">
-              {t("store.poweredBy")}
-            </span>
-          </div>
-        </div>
-      </footer>
+      <StoreFooter hasWhiteLabel={store.hasWhiteLabel} />
     </div>
   );
 }

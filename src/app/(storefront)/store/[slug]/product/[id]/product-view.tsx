@@ -27,12 +27,15 @@ import { accentGradient, accentThemeStyle, normalizeAccent } from "@/lib/theme";
 import { canOptimizeImage, isValidImageUrl } from "@/lib/images";
 import { storePath } from "@/lib/site";
 import { useStoreCurrency } from "@/components/CurrencySelector";
+import StoreFooter from "@/components/storefront/Footer";
 
 export interface ProductViewStore {
   name: string;
   accentColor: string;
   currency: string;
   supportedCurrencies: string[];
+  /** White-label add-on: hides the "Powered by StoreHub" credit. */
+  hasWhiteLabel?: boolean;
 }
 
 export interface ProductViewProduct {
@@ -278,22 +281,17 @@ export default function ProductView({
         </div>
       </main>
 
-      <footer className="border-t bg-white py-6">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 px-4 text-center sm:px-6">
-          <div className="flex items-center justify-center gap-2">
-            <Store className="h-4 w-4 text-[var(--color-primary)]" />
-            <span className="text-sm font-medium text-slate-600">
-              {t("store.poweredBy")}
-            </span>
-          </div>
-          <Link
-            href={storePath(slug)}
-            className="text-sm font-medium text-[var(--color-primary)] hover:underline"
-          >
-            {t("product.backToStore")}
-          </Link>
-        </div>
-      </footer>
+      <StoreFooter
+        hasWhiteLabel={store.hasWhiteLabel}
+        containerClassName="mx-auto flex max-w-5xl flex-col items-center gap-3 px-4 text-center sm:px-6"
+      >
+        <Link
+          href={storePath(slug)}
+          className="text-sm font-medium text-[var(--color-primary)] hover:underline"
+        >
+          {t("product.backToStore")}
+        </Link>
+      </StoreFooter>
     </div>
   );
 }

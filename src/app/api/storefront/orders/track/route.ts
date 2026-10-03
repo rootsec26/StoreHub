@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { orderItems, orders, products, stores } from "@/db/schema";
+import { orderItems, orders, products, shippingZones, stores } from "@/db/schema";
 import { createErrorResponse } from "@/lib/errors";
+import { summarizeShipment } from "@/lib/shipping";
 import { isValidOrderId, isValidPhoneNumber, normalizePhoneDigits } from "@/lib/order-tracking";
 
 export async function GET(request: NextRequest) {
@@ -89,6 +90,16 @@ export async function GET(request: NextRequest) {
 
     const order = orderResult[0];
 
+    let zoneDays: number | null = null;
+    if (order.shippingZoneId) {
+      const zoneRows = await db
+        .select({ days: shippingZones.estimatedDeliveryDays })
+        .from(shippingZones)
+        .where(eq(shippingZones.id, order.shippingZoneId))
+        .limit(1);
+      zoneDays = zoneRows[0]?.days ?? null;
+    }
+
     const items = await db
       .select()
       .from(orderItems)
@@ -114,6 +125,8 @@ export async function GET(request: NextRequest) {
           product: productMap.get(item.productId) || null,
         })),
       },
+      // Branded live tracking page payload (progress + carrier + ETA).
+      shipping: summarizeShipment(order, zoneDays),
     });
   } catch (error) {
     console.error("Track order error:", error);

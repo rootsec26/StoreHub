@@ -1,48 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { count, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { products, stores } from "@/db/schema";
+import { stores } from "@/db/schema";
+import { eq } from "drizzle-orm";
+
 import { getSession } from "@/lib/auth";
-import { normalizePlan, productLimitFor, isPlan } from "@/lib/plans";
-import type { BillingInfo } from "@/lib/types";
+import { isPlan } from "@/lib/plans";
+import { buildBillingInfo } from "@/lib/billing";
 import { createErrorResponse } from "@/lib/errors";
 
 export const runtime = "nodejs";
-
-async function buildBillingInfo(ownerId: string): Promise<BillingInfo | null> {
-  const store = await db
-    .select({
-      id: stores.id,
-      name: stores.name,
-      plan: stores.plan,
-    })
-    .from(stores)
-    .where(eq(stores.ownerId, ownerId))
-    .limit(1);
-
-  if (store.length === 0) return null;
-
-  const plan = normalizePlan(store[0].plan);
-  const limit = productLimitFor(plan);
-
-  const productCount = await db
-    .select({ value: count() })
-    .from(products)
-    .where(eq(products.storeId, store[0].id));
-
-  const used = Number(productCount[0]?.value ?? 0);
-
-  return {
-    plan,
-    productCount: used,
-    productLimit: limit,
-    usagePercent:
-      limit === null || limit === 0 ? 0 : Math.min(100, Math.round((used / limit) * 100)),
-    storeId: store[0].id,
-    storeName: store[0].name,
-  };
-}
 
 // Current subscription + product usage for the signed-in store
 export async function GET() {
@@ -64,7 +31,8 @@ export async function GET() {
   }
 }
 
-// Change subscription tier (mock billing: no payment provider attached)
+// Plan changes are voucher-gated: only downgrades are handled here.
+// Upgrading requires an activation code via POST /api/billing/redeem-code.
 export async function PATCH(request: NextRequest) {
   try {
     const session = await getSession();
@@ -79,6 +47,17 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Invalid plan", code: "INVALID_PLAN" }, { status: 400 });
     }
 
+    if (plan !== "free") {
+      return NextResponse.json(
+        {
+          error:
+            "Upgrades require a paid activation code. Redeem one from Billing.",
+          code: "PAYMENT_REQUIRED",
+        },
+        { status: 402 }
+      );
+    }
+
     const store = await db
       .select({ id: stores.id })
       .from(stores)
@@ -89,7 +68,10 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
     }
 
-    await db.update(stores).set({ plan }).where(eq(stores.id, store[0].id));
+    await db
+      .update(stores)
+      .set({ plan, planExpiresAt: null })
+      .where(eq(stores.id, store[0].id));
 
     const info = await buildBillingInfo(session.id);
     return NextResponse.json(info);

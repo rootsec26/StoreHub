@@ -28,6 +28,7 @@ import { accentGradient, accentThemeStyle, normalizeAccent } from "@/lib/theme";
 import { canOptimizeImage, isValidImageUrl } from "@/lib/images";
 import { storePath } from "@/lib/site";
 import CurrencySelector, { useStoreCurrency } from "@/components/CurrencySelector";
+import StoreFooter from "@/components/storefront/Footer";
 
 interface OrderItem {
   id: string;
@@ -68,6 +69,8 @@ interface StoreData {
   accentColor: string;
   currency: string;
   supportedCurrencies: string[];
+  /** White-label add-on: hides the "Powered by StoreHub" credit. */
+  hasWhiteLabel: boolean;
 }
 
 export default function OrderTrackingPage() {
@@ -99,6 +102,7 @@ export default function OrderTrackingPage() {
             accentColor: data.store.accentColor || "",
             currency: data.store.currency || "EGP",
             supportedCurrencies: data.store.supportedCurrencies || ["EGP", "USD", "SAR", "AED", "EUR"],
+            hasWhiteLabel: data.store.hasWhiteLabel === true,
           });
         }
       } catch {}
@@ -419,14 +423,11 @@ export default function OrderTrackingPage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t bg-white py-6">
-        <div className="mx-auto max-w-3xl px-4 text-center">
-          <div className="flex items-center justify-center gap-2">
-            <Package className="h-4 w-4 text-[var(--color-primary)]" />
-            <span className="text-sm font-medium text-slate-600">{t("store.poweredBy")}</span>
-          </div>
-        </div>
-      </footer>
+      <StoreFooter
+        hasWhiteLabel={store?.hasWhiteLabel}
+        containerClassName="mx-auto max-w-3xl px-4 text-center"
+        icon={<Package className="h-4 w-4 text-[var(--color-primary)]" />}
+      />
     </div>
   );
 }

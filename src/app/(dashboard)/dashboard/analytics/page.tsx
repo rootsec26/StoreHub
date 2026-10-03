@@ -175,8 +175,11 @@ export default function AnalyticsPage() {
   const aovPoints: ChartPoint[] = buckets.map((bucket) => ({
     key: bucket.key,
     label: bucket.label.slice(5),
-    value: bucket.orders > 0 ? (parseFloat(bucket.revenue) || 0) / bucket.orders : 0,
-    orders: bucket.orders,
+    value:
+      bucket.completedOrders > 0
+        ? (parseFloat(bucket.revenue) || 0) / bucket.completedOrders
+        : 0,
+    orders: bucket.completedOrders,
   }));
 
   const hasRevenue = revenuePoints.some((point) => point.value > 0);

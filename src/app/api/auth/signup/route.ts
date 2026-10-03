@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { signup } from "@/lib/auth";
 import { createSession } from "@/lib/auth";
 import { extractDbErrorInfo, isDatabaseUnreachable, createErrorResponse } from "@/lib/errors";
+import { withRateLimit, authRateLimiter } from "@/lib/rate-limit";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -73,6 +74,8 @@ function signupErrorResponse(error: unknown): NextResponse {
 }
 
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = await withRateLimit(request, authRateLimiter);
+  if (rateLimitResponse) return rateLimitResponse;
   let body: unknown;
 
   try {

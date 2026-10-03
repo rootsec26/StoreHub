@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { products, stores } from "@/db/schema";
 import { eq, and, count } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
-import { normalizePlan, productLimitFor } from "@/lib/plans";
+import { effectivePlan, normalizePlan, productLimitFor } from "@/lib/plans";
 import { createErrorResponse } from "@/lib/errors";
 
 // Get products for store
@@ -95,7 +95,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Plan limit guard: Free = max 15 products, Pro = unlimited.
-    const plan = normalizePlan(userStore[0].plan);
+    // An expired paid plan falls back to the free limit (strict expiry).
+    const plan = effectivePlan(
+      normalizePlan(userStore[0].plan),
+      userStore[0].planExpiresAt
+    );
     const limit = productLimitFor(plan);
 
     if (limit !== null) {

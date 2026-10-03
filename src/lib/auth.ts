@@ -18,6 +18,7 @@ export interface SessionUser {
   storeId?: string;
   storeSlug?: string;
   storeName?: string;
+  role?: "OWNER" | "STAFF_MANAGE_ORDERS" | "STAFF_VIEW_ORDERS";
 }
 
 // Hash password
@@ -117,6 +118,7 @@ export async function login(
     id: user.id,
     email: user.email,
     name: user.name,
+    role: store.length > 0 ? "OWNER" : undefined,
   };
 
   if (store.length > 0) {
@@ -164,6 +166,7 @@ export async function signup(
     id: user.id,
     email: user.email,
     name: user.name,
+    role: "OWNER",
   };
 
   const token = await createSession(sessionUser);

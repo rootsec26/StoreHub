@@ -23,7 +23,7 @@ interface RecentOrder {
 
 interface DashboardStats {
   todayOrders: number;
-  todaySales: number;
+  todaySales: string;
   totalProducts: number;
   pendingOrders: number;
   recentOrders: RecentOrder[];
@@ -43,41 +43,17 @@ export default function DashboardPage() {
 
     async function loadStats() {
       try {
-        const [ordersRes, productsRes] = await Promise.all([
-          fetch("/api/orders"),
-          fetch("/api/products"),
-        ]);
-
-        const ordersData = await ordersRes.json();
-        const productsData = await productsRes.json();
-
-        const allOrders: RecentOrder[] = ordersData.orders || [];
-        const allProducts = productsData.products || [];
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const todayOrders = allOrders.filter(
-          (o) => new Date(o.createdAt) >= today
-        );
-
-        const todaySales = todayOrders.reduce(
-          (sum, o) => sum + parseFloat(o.totalAmount || "0"),
-          0
-        );
-
-        const pendingOrders = allOrders.filter(
-          (o) => o.status === "Pending"
-        ).length;
+        const statsRes = await fetch("/api/dashboard/stats");
+        const statsData = await statsRes.json();
 
         if (cancelled) return;
 
         setStats({
-          todayOrders: todayOrders.length,
-          todaySales,
-          totalProducts: allProducts.length,
-          pendingOrders,
-          recentOrders: allOrders.slice(0, 5),
+          todayOrders: statsData.todayOrders ?? 0,
+          todaySales: statsData.todaySales ?? "0",
+          totalProducts: statsData.totalProducts ?? 0,
+          pendingOrders: statsData.pendingOrders ?? 0,
+          recentOrders: statsData.recentOrders ?? [],
         });
       } catch (error) {
         console.error("Failed to load stats:", error);

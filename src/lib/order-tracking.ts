@@ -41,6 +41,8 @@ export interface StorefrontStore {
   accentColor: string;
   currency: string;
   supportedCurrencies: string[];
+  /** White-label add-on: hides the "Powered by StoreHub" credit. */
+  hasWhiteLabel?: boolean;
 }
 
 export type TrackingStepKey = "received" | "processing" | "shipped" | "delivered";

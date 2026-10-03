@@ -133,6 +133,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           accentColor: store.accentColor ?? "",
           currency,
           supportedCurrencies,
+          hasWhiteLabel: store.hasWhiteLabel ?? false,
         }}
         product={{
           id: product.id,

@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { stores } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getDefaultCurrencyForCountry } from "@/lib/currency";
+import { isGatedApiPath, resolveApiFeatureGate } from "@/lib/paywall";
 
 const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) {
@@ -181,6 +182,26 @@ function buildApexUrl(request: NextRequest, rootDomain: string): URL {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get("session")?.value;
+
+  // Feature-gate paywalled API routes (e.g. AI generation spends credits)
+  // before the request ever reaches the route handler.
+  if (token && isGatedApiPath(pathname)) {
+    try {
+      const { payload } = await jwtVerify(token, SECRET);
+      const block = await resolveApiFeatureGate(
+        pathname,
+        (payload as SessionClaims).storeId
+      );
+      if (block) {
+        return NextResponse.json(
+          { error: block.error, code: block.code },
+          { status: block.status }
+        );
+      }
+    } catch {
+      // Invalid sessions are rejected by the route handler itself.
+    }
+  }
 
   const hostHeader = request.headers.get("host");
   const hostname = hostHeader?.split(":")[0].toLowerCase() ?? "";

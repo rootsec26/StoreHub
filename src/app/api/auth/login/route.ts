@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { login } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
+import { withRateLimit, authRateLimiter } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = await withRateLimit(request, authRateLimiter);
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const { email, password } = await request.json();
 

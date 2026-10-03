@@ -6,6 +6,8 @@ import { getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
 import {
   FULFILLED_ORDER_STATUSES,
+  SHIPMENT_FILTERS,
+  estimateDeliveryDate,
   generateTrackingNumber,
   type ShippingLabelStore,
   type ShippingOrderRecord,
@@ -51,6 +53,7 @@ function toLabelStore(
 function normalizeOrder(
   row: typeof orders.$inferSelect,
   zoneName: string | null,
+  zoneDays: number | null,
   itemsCount: number
 ): ShippingOrderRecord {
   return {
@@ -67,6 +70,16 @@ function normalizeOrder(
     courierName: row.courierName ?? null,
     labelPrintedAt: row.labelPrintedAt ? row.labelPrintedAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
+    carrierName: row.carrierName ?? null,
+    shippingStatus: row.shippingStatus ?? "UNFULFILLED",
+    airwayBillUrl: row.airwayBillUrl ?? null,
+    estimatedDeliveryAt:
+      row.status === "Cancelled"
+        ? null
+        : estimateDeliveryDate(
+            { createdAt: row.createdAt, zoneDays },
+            row.carrierName || row.courierName
+          ).toISOString(),
     zoneName,
     itemsCount,
   };
@@ -99,11 +112,36 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ unfulfilledCount: row?.value ?? 0 });
     }
 
+    const filter = request.nextUrl.searchParams.get("filter") || "";
+    const bucket = Object.prototype.hasOwnProperty.call(SHIPMENT_FILTERS, filter)
+      ? (filter as keyof typeof SHIPMENT_FILTERS)
+      : null;
+
+    let condition = unfulfilledCondition(store.id);
+    if (filter === "all") {
+      condition = eq(orders.storeId, store.id);
+    } else if (bucket === "ready") {
+      condition = and(
+        eq(orders.storeId, store.id),
+        eq(orders.shippingStatus, "UNFULFILLED"),
+        notInArray(orders.status, ["Completed", "Cancelled"])
+      );
+    } else if (bucket) {
+      condition = and(
+        eq(orders.storeId, store.id),
+        inArray(orders.shippingStatus, [...SHIPMENT_FILTERS[bucket]])
+      );
+    }
+
     const rows = await db
-      .select({ order: orders, zoneName: shippingZones.zoneName })
+      .select({
+        order: orders,
+        zoneName: shippingZones.zoneName,
+        zoneDays: shippingZones.estimatedDeliveryDays,
+      })
       .from(orders)
       .leftJoin(shippingZones, eq(orders.shippingZoneId, shippingZones.id))
-      .where(unfulfilledCondition(store.id))
+      .where(condition)
       .orderBy(desc(orders.createdAt))
       .limit(MAX_BULK_ORDERS * 2);
 
@@ -122,18 +160,52 @@ export async function GET(request: NextRequest) {
     }
 
     const list = rows.map((row) =>
-      normalizeOrder(row.order, row.zoneName, counts.get(row.order.id) ?? 0)
+      normalizeOrder(row.order, row.zoneName, row.zoneDays, counts.get(row.order.id) ?? 0)
     );
 
-    const [summary] = await db
+    const summary = await db
       .select({ value: sql<number>`count(*)::int` })
       .from(orders)
       .where(unfulfilledCondition(store.id));
+    const ready = await db
+      .select({ value: sql<number>`count(*)::int` })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.storeId, store.id),
+          eq(orders.shippingStatus, "UNFULFILLED"),
+          notInArray(orders.status, ["Completed", "Cancelled"])
+        )
+      );
+    const transit = await db
+      .select({ value: sql<number>`count(*)::int` })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.storeId, store.id),
+          inArray(orders.shippingStatus, [...SHIPMENT_FILTERS.transit])
+        )
+      );
+    const delivered = await db
+      .select({ value: sql<number>`count(*)::int` })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.storeId, store.id),
+          inArray(orders.shippingStatus, [...SHIPMENT_FILTERS.delivered])
+        )
+      );
 
     return NextResponse.json({
       store: toLabelStore(store),
       orders: list,
-      unfulfilledCount: summary?.value ?? list.length,
+      unfulfilledCount: summary[0]?.value ?? list.length,
+      counts: {
+        ready: ready[0]?.value ?? 0,
+        transit: transit[0]?.value ?? 0,
+        delivered: delivered[0]?.value ?? 0,
+      },
+      filter: bucket ?? (filter || "ready"),
     });
   } catch (error) {
     console.error("Get shipping queue error:", error);
@@ -251,7 +323,7 @@ export async function PATCH(request: NextRequest) {
       }
 
       return NextResponse.json({
-        orders: targets.map((order) => normalizeOrder(order, null, 0)),
+        orders: targets.map((order) => normalizeOrder(order, null, null, 0)),
       });
     }
 

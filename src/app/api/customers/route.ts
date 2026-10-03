@@ -3,6 +3,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { orders, stores } from "@/db/schema";
 import { getSession } from "@/lib/auth";
+import { REVENUE_ORDER_STATUS } from "@/lib/order-metrics";
 import type {
   CustomerSummary,
   CustomersResponse,
@@ -37,9 +38,13 @@ export async function GET() {
         phone: orders.customerPhone,
         name: sql<string>`max(${orders.customerName})`.as("name"),
         totalOrders: sql<number>`count(*)::int`.as("total_orders"),
-        totalSpent: sql<string>`coalesce(sum(${orders.totalAmount}), 0)::text`.as(
-          "total_spent"
-        ),
+        completedOrders: sql<number>`count(*) filter (where ${
+          orders.status
+        } = ${REVENUE_ORDER_STATUS})::int`.as("completed_orders"),
+        // Money metric: only Completed orders count towards total spent.
+        totalSpent: sql<string>`coalesce(sum(${orders.totalAmount}) filter (where ${
+          orders.status
+        } = ${REVENUE_ORDER_STATUS}), 0)::text`.as("total_spent"),
         lastOrderAt: sql<string>`max(${orders.createdAt})::text`.as(
           "last_order_at"
         ),
@@ -57,9 +62,12 @@ export async function GET() {
       lastOrderAt: row.lastOrderAt ?? "",
     }));
 
-    const totalOrders = customers.reduce((sum, c) => sum + c.totalOrders, 0);
-    const totalRevenue = customers.reduce(
-      (sum, c) => sum + (parseFloat(c.totalSpent) || 0),
+    const completedOrders = grouped.reduce(
+      (sum, row) => sum + (Number(row.completedOrders) || 0),
+      0
+    );
+    const totalRevenue = grouped.reduce(
+      (sum, row) => sum + (parseFloat(String(row.totalSpent)) || 0),
       0
     );
 
@@ -67,8 +75,11 @@ export async function GET() {
       totalCustomers: customers.length,
       totalRevenue: totalRevenue.toFixed(2),
       repeatCustomers: customers.filter((c) => c.totalOrders > 1).length,
+      // AOV pairs Completed-only revenue with the Completed order count.
       avgOrderValue:
-        totalOrders > 0 ? (totalRevenue / totalOrders).toFixed(2) : "0.00",
+        completedOrders > 0
+          ? (totalRevenue / completedOrders).toFixed(2)
+          : "0.00",
     };
 
     const payload: CustomersResponse = { customers, summary };

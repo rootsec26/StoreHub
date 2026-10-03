@@ -160,6 +160,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     accentColor: storeRow.accentColor ?? "",
     currency,
     supportedCurrencies,
+    hasWhiteLabel: storeRow.hasWhiteLabel ?? false,
     themeConfig: resolveThemeConfig(storeRow.themeConfig),
   };
 

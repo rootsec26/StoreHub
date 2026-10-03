@@ -3,13 +3,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateProductDescription } from "@/lib/ai";
 import { getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
+import {
+  canUseAICredits,
+  getStoreIdForOwner,
+  PaywallError,
+  recordCreditUsage,
+} from "@/lib/paywall";
 
 export const runtime = "nodejs";
 
 /**
  * POST /api/ai/description
  * Generates a persuasive Arabic product description from a name + keywords.
- * Requires an authenticated merchant session.
+ * Requires an authenticated merchant session and spends 1 AI credit.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -35,11 +41,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const storeId = session.storeId ?? (await getStoreIdForOwner(session.id));
+    if (!storeId) {
+      return NextResponse.json(
+        { error: "Store not found", code: "STORE_NOT_FOUND" },
+        { status: 404 }
+      );
+    }
+
+    let creditsRemaining: number | null = null;
+    try {
+      creditsRemaining = await canUseAICredits(storeId, 1);
+    } catch (error) {
+      if (error instanceof PaywallError) {
+        return NextResponse.json(
+          { error: error.message, code: error.code },
+          { status: error.status }
+        );
+      }
+      throw error;
+    }
+
     const result = await generateProductDescription({ name, keywords });
+
+    await recordCreditUsage(storeId, "ai", 1, creditsRemaining, "AI product description");
 
     return NextResponse.json({
       description: result.text,
       source: result.source,
+      ...(creditsRemaining !== null ? { creditsRemaining } : {}),
     });
   } catch (error) {
     console.error("AI description error:", error);

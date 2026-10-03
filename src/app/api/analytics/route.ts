@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql, and, gte, desc } from "drizzle-orm";
 
 import { db } from "@/db";
 import { orderItems, orders, products, stores } from "@/db/schema";
 import { getSession } from "@/lib/auth";
+import { REVENUE_ORDER_STATUS, REVENUE_PAYMENT_STATUS } from "@/lib/order-metrics";
 import type {
   AnalyticsBucket,
   AnalyticsResponse,
@@ -15,7 +16,6 @@ export const runtime = "nodejs";
 
 const DAILY_BUCKETS = 14;
 const WEEKLY_BUCKETS = 8;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function dayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -31,19 +31,25 @@ function weekStartKey(date: Date): string {
   return dayKey(d);
 }
 
-function round2(value: number): string {
-  return value.toFixed(2);
+function round2(value: string): string {
+  const num = parseFloat(value) || 0;
+  return num.toFixed(2);
 }
 
 /**
  * Revenue trends (daily/weekly), top 5 best-sellers and AOV for the store.
- * Cancelled orders are excluded from every metric.
+ * Money metrics only include orders with status "Completed" AND payment_status "paid".
+ * Order counts include every order except the Cancelled ones.
+ * All aggregations are performed in the database engine.
  */
 export async function GET() {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Unauthorized", code: "UNAUTHORIZED" },
+        { status: 401 }
+      );
     }
 
     const userStore = await db
@@ -53,140 +59,160 @@ export async function GET() {
       .limit(1);
 
     if (userStore.length === 0) {
-      return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Store not found", code: "STORE_NOT_FOUND" },
+        { status: 404 }
+      );
     }
 
     const storeId = userStore[0].id;
-
-    const [orderRows, itemRows] = await Promise.all([
-      db
-        .select({
-          id: orders.id,
-          totalAmount: orders.totalAmount,
-          status: orders.status,
-          createdAt: orders.createdAt,
-        })
-        .from(orders)
-        .where(eq(orders.storeId, storeId)),
-      db
-        .select({
-          orderId: orderItems.orderId,
-          productId: orderItems.productId,
-          quantity: orderItems.quantity,
-          unitPrice: orderItems.unitPrice,
-          name: products.name,
-          imageUrl: products.imageUrl,
-        })
-        .from(orderItems)
-        .innerJoin(products, eq(orderItems.productId, products.id))
-        .where(eq(products.storeId, storeId))
-        .orderBy(asc(orderItems.orderId)),
-    ]);
-
-    const validOrderIds = new Set(
-      orderRows.filter((o) => o.status !== "Cancelled").map((o) => o.id)
-    );
-
     const today = new Date();
+    const todayStart = dayKey(new Date(today.setHours(0, 0, 0, 0)));
 
+    // Build date boundaries for daily and weekly buckets
     const dailyKeys: string[] = [];
     for (let i = DAILY_BUCKETS - 1; i >= 0; i--) {
-      dailyKeys.push(dayKey(new Date(today.getTime() - i * MS_PER_DAY)));
+      dailyKeys.push(dayKey(new Date(Date.now() - i * 24 * 60 * 60 * 1000)));
     }
 
     const weeklyKeys: string[] = [];
     {
-      const start = new Date(weekStartKey(today) + "T00:00:00.000Z");
+      const start = new Date(weekStartKey(new Date()) + "T00:00:00.000Z");
       for (let i = WEEKLY_BUCKETS - 1; i >= 0; i--) {
         weeklyKeys.push(
-          dayKey(new Date(start.getTime() - i * 7 * MS_PER_DAY))
+          dayKey(new Date(start.getTime() - i * 7 * 24 * 60 * 60 * 1000))
         );
       }
     }
 
-    const dailyMap = new Map<string, { revenue: number; orders: number }>(
-      dailyKeys.map((key) => [key, { revenue: 0, orders: 0 }])
+    // Revenue condition: Completed AND paid (case-insensitive payment match)
+    const revenueCondition = and(
+      eq(orders.status, REVENUE_ORDER_STATUS),
+      sql`LOWER(${orders.paymentStatus}) = ${REVENUE_PAYMENT_STATUS}`
     );
-    const weeklyMap = new Map<string, { revenue: number; orders: number }>(
-      weeklyKeys.map((key) => [key, { revenue: 0, orders: 0 }])
-    );
 
-    let totalRevenue = 0;
-    let totalOrders = 0;
+    // Valid orders for counting (not cancelled)
+    const validOrderCondition = sql`${orders.status} != 'Cancelled'`;
 
-    for (const order of orderRows) {
-      if (!validOrderIds.has(order.id)) continue;
-      const revenue = parseFloat(order.totalAmount) || 0;
-      const key = dayKey(new Date(order.createdAt));
-      const weekKey = weekStartKey(new Date(order.createdAt));
+    // --- Summary: Total orders, total revenue, completed orders, AOV ---
+    const summaryResult = await db
+      .select({
+        totalOrders: sql<number>`COUNT(*) FILTER (WHERE ${validOrderCondition})::int`,
+        completedOrders: sql<number>`COUNT(*) FILTER (WHERE ${revenueCondition})::int`,
+        totalRevenue: sql<string>`COALESCE(SUM(${orders.totalAmount}) FILTER (WHERE ${revenueCondition}), 0)`,
+      })
+      .from(orders)
+      .where(eq(orders.storeId, storeId));
 
-      totalRevenue += revenue;
-      totalOrders += 1;
+    const summary = summaryResult[0] ?? {
+      totalOrders: 0,
+      completedOrders: 0,
+      totalRevenue: "0",
+    };
 
-      const daily = dailyMap.get(key);
-      if (daily) {
-        daily.revenue += revenue;
-        daily.orders += 1;
-      }
-      const weekly = weeklyMap.get(weekKey);
-      if (weekly) {
-        weekly.revenue += revenue;
-        weekly.orders += 1;
-      }
+    // --- Daily buckets ---
+    const dailyBuckets = await db
+      .select({
+        key: sql<string>`TO_CHAR(${orders.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`,
+        revenue: sql<string>`COALESCE(SUM(${orders.totalAmount}) FILTER (WHERE ${revenueCondition}), 0)`,
+        orders: sql<number>`COUNT(*) FILTER (WHERE ${validOrderCondition})::int`,
+        completedOrders: sql<number>`COUNT(*) FILTER (WHERE ${revenueCondition})::int`,
+      })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.storeId, storeId),
+          gte(orders.createdAt, sql`(CURRENT_DATE - INTERVAL '${DAILY_BUCKETS - 1} days')`)
+        )
+      )
+      .groupBy(sql`TO_CHAR(${orders.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`);
+
+    const dailyMap = new Map<string, AnalyticsBucket>();
+    for (const bucket of dailyBuckets) {
+      dailyMap.set(bucket.key, {
+        key: bucket.key,
+        label: bucket.key,
+        revenue: round2(bucket.revenue),
+        orders: bucket.orders,
+        completedOrders: bucket.completedOrders,
+      });
     }
-
-    const toBucket = (key: string, value: { revenue: number; orders: number }): AnalyticsBucket => ({
-      key,
-      label: key,
-      revenue: round2(value.revenue),
-      orders: value.orders,
-    });
 
     const daily: AnalyticsBucket[] = dailyKeys.map((key) =>
-      toBucket(key, dailyMap.get(key) ?? { revenue: 0, orders: 0 })
-    );
-    const weekly: AnalyticsBucket[] = weeklyKeys.map((key) =>
-      toBucket(key, weeklyMap.get(key) ?? { revenue: 0, orders: 0 })
+      dailyMap.get(key) ?? { key, label: key, revenue: "0.00", orders: 0, completedOrders: 0 }
     );
 
-    // Top 5 best-selling products (quantity sold, revenue excluded from cancelled orders)
-    const productTotals = new Map<
-      string,
-      { name: string; imageUrl: string; quantity: number; revenue: number }
-    >();
+    // --- Weekly buckets ---
+    const weeklyBuckets = await db
+      .select({
+        key: sql<string>`TO_CHAR(DATE_TRUNC('week', ${orders.createdAt} AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`,
+        revenue: sql<string>`COALESCE(SUM(${orders.totalAmount}) FILTER (WHERE ${revenueCondition}), 0)`,
+        orders: sql<number>`COUNT(*) FILTER (WHERE ${validOrderCondition})::int`,
+        completedOrders: sql<number>`COUNT(*) FILTER (WHERE ${revenueCondition})::int`,
+      })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.storeId, storeId),
+          gte(
+            orders.createdAt,
+            sql`(DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '${WEEKLY_BUCKETS - 1} weeks')`
+          )
+        )
+      )
+      .groupBy(sql`DATE_TRUNC('week', ${orders.createdAt} AT TIME ZONE 'UTC')`);
 
-    for (const item of itemRows) {
-      if (!validOrderIds.has(item.orderId)) continue;
-      const existing = productTotals.get(item.productId) ?? {
-        name: item.name,
-        imageUrl: item.imageUrl ?? "",
-        quantity: 0,
-        revenue: 0,
-      };
-      existing.quantity += item.quantity;
-      existing.revenue += (parseFloat(item.unitPrice) || 0) * item.quantity;
-      productTotals.set(item.productId, existing);
+    const weeklyMap = new Map<string, AnalyticsBucket>();
+    for (const bucket of weeklyBuckets) {
+      weeklyMap.set(bucket.key, {
+        key: bucket.key,
+        label: bucket.key,
+        revenue: round2(bucket.revenue),
+        orders: bucket.orders,
+        completedOrders: bucket.completedOrders,
+      });
     }
 
-    const topProducts: AnalyticsTopProduct[] = [...productTotals.entries()]
-      .map(([productId, value]) => ({
-        productId,
-        name: value.name,
-        imageUrl: value.imageUrl,
-        quantity: value.quantity,
-        revenue: round2(value.revenue),
-      }))
-      .sort(
-        (a, b) =>
-          b.quantity - a.quantity || parseFloat(b.revenue) - parseFloat(a.revenue)
-      )
-      .slice(0, 5);
+    const weekly: AnalyticsBucket[] = weeklyKeys.map((key) =>
+      weeklyMap.get(key) ?? { key, label: key, revenue: "0.00", orders: 0, completedOrders: 0 }
+    );
+
+    // --- Top 5 products ---
+    // Quantity: all non-cancelled orders
+    // Revenue: only Completed + Paid orders
+    const topProductsResult = await db
+      .select({
+        productId: orderItems.productId,
+        name: products.name,
+        imageUrl: products.imageUrl,
+        quantity: sql<number>`COALESCE(SUM(${orderItems.quantity}) FILTER (WHERE ${validOrderCondition}), 0)::int`,
+        revenue: sql<string>`COALESCE(SUM(${orderItems.unitPrice} * ${orderItems.quantity}) FILTER (WHERE ${revenueCondition}), 0)`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .innerJoin(products, eq(orderItems.productId, products.id))
+      .where(eq(orders.storeId, storeId))
+      .groupBy(orderItems.productId, products.name, products.imageUrl)
+      .orderBy(desc(sql`quantity`), desc(sql`revenue`))
+      .limit(5);
+
+    const topProducts: AnalyticsTopProduct[] = topProductsResult.map((p) => ({
+      productId: p.productId,
+      name: p.name,
+      imageUrl: p.imageUrl ?? "",
+      quantity: p.quantity,
+      revenue: round2(p.revenue),
+    }));
 
     const payload: AnalyticsResponse = {
       summary: {
-        totalOrders,
-        totalRevenue: round2(totalRevenue),
-        avgOrderValue: round2(totalOrders > 0 ? totalRevenue / totalOrders : 0),
+        totalOrders: summary.totalOrders,
+        totalRevenue: round2(summary.totalRevenue),
+        avgOrderValue: round2(
+          summary.completedOrders > 0
+            ? (parseFloat(summary.totalRevenue) / summary.completedOrders).toString()
+            : "0"
+        ),
       },
       daily,
       weekly,

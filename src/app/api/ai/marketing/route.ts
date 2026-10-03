@@ -6,6 +6,12 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/db";
 import { products, stores } from "@/db/schema";
 import { createErrorResponse } from "@/lib/errors";
+import {
+  canUseAICredits,
+  PaywallError,
+  recordCreditUsage,
+} from "@/lib/paywall";
+import { withRateLimit, aiRateLimiter } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -15,6 +21,9 @@ export const runtime = "nodejs";
  * for one of the merchant's own products.
  */
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = await withRateLimit(request, aiRateLimiter);
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const session = await getSession();
     if (!session) {
@@ -63,6 +72,19 @@ export async function POST(request: NextRequest) {
     const product = productResult[0];
     const selectedPlatform = platform as AiPlatform;
 
+    let creditsRemaining: number | null = null;
+    try {
+      creditsRemaining = await canUseAICredits(userStore[0].id, 1);
+    } catch (error) {
+      if (error instanceof PaywallError) {
+        return NextResponse.json(
+          { error: error.message, code: error.code },
+          { status: error.status }
+        );
+      }
+      throw error;
+    }
+
     const result = await generateMarketingPost({
       productName: product.name,
       storeName: userStore[0].name,
@@ -71,11 +93,20 @@ export async function POST(request: NextRequest) {
       keywords,
     });
 
+    await recordCreditUsage(
+      userStore[0].id,
+      "ai",
+      1,
+      creditsRemaining,
+      "AI marketing post"
+    );
+
     return NextResponse.json({
       post: result.text,
       platform: selectedPlatform,
       productName: product.name,
       source: result.source,
+      ...(creditsRemaining !== null ? { creditsRemaining } : {}),
     });
   } catch (error) {
     console.error("AI marketing error:", error);

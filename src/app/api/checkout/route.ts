@@ -1,9 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/db";
 import { stores, orders, orderItems } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createCheckoutSession as createStripeCheckoutSession } from "@/lib/payments/stripe";
 import { createCheckoutSession as createPaddleCheckoutSession } from "@/lib/payments/paddle";
+import {
+  applyDiscountToItems,
+  roundMoney,
+  type CheckoutLoyaltyOutcome,
+} from "@/lib/loyalty";
+import {
+  computeCheckoutLoyalty,
+  finalizeCheckoutLoyalty,
+} from "@/lib/loyalty-server";
+import { deductWarehouseStockForOrder } from "@/lib/warehouses-server";
+import { validateRequest, checkoutRequestSchema, formatZodError } from "@/lib/validators";
+import { createErrorResponse } from "@/lib/errors";
+import { withRateLimit, checkoutRateLimiter } from "@/lib/rate-limit";
+import {
+  evaluateOrderRisk,
+  fetchCustomerRiskHistory,
+} from "@/lib/orders/risk-engine";
+import {
+  triggerCodVerification,
+  type CodVerificationSendResult,
+} from "@/lib/orders/cod-verification";
 
 export interface CheckoutRequest {
   storeId: string;
@@ -17,10 +39,13 @@ export interface CheckoutRequest {
     quantity: number;
     unitPrice: number;
   }>;
-  paymentMethod: "stripe" | "paddle" | "manual";
+  paymentMethod: "stripe" | "paddle" | "manual" | "cod";
   currency: string;
   successUrl?: string;
   cancelUrl?: string;
+  /** Loyalty points the shopper chose to redeem on the slider. */
+  redeemPoints?: number;
+  locale?: "en" | "ar";
 }
 
 export interface CheckoutResponse {
@@ -29,12 +54,32 @@ export interface CheckoutResponse {
   sessionId?: string;
   message?: string;
   isSandbox?: boolean;
+  /** Earned/redeemed summary rendered on the order success screen. */
+  loyalty?: CheckoutLoyaltyOutcome;
+  /** Anti-Return Fraud Shield verdict persisted with the order. */
+  risk?: { score: "LOW" | "MEDIUM" | "HIGH"; reasons: string[] };
+  /** WhatsApp COD verification hand-off (pay-later orders only). */
+  codVerification?: {
+    status: string;
+    delivered: boolean;
+    verifyUrl: string;
+  };
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse<CheckoutResponse>> {
+  const rateLimitResponse = await withRateLimit(request, checkoutRateLimiter);
+  if (rateLimitResponse) return rateLimitResponse as NextResponse<CheckoutResponse>;
+
   try {
-    const body: CheckoutRequest = await request.json();
-    
+    const body = await request.json();
+    const validation = validateRequest(checkoutRequestSchema, body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { message: formatZodError(validation.error), code: "INVALID_PAYLOAD" },
+        { status: 400 }
+      );
+    }
+
     const {
       storeId,
       customerName,
@@ -47,14 +92,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
       currency,
       successUrl,
       cancelUrl,
-    } = body;
-
-    if (!storeId || !customerName || !items || items.length === 0 || !paymentMethod || !currency) {
-      return NextResponse.json(
-        { message: "Missing required fields: storeId, customerName, items, paymentMethod, currency" },
-        { status: 400 }
-      );
-    }
+      redeemPoints,
+      locale,
+    } = validation.data;
 
     const store = await db
       .select()
@@ -86,6 +126,60 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
     for (const item of items) {
       totalAmount += item.unitPrice * item.quantity;
     }
+    totalAmount = roundMoney(totalAmount);
+
+    // Smart Loyalty engine: apply the VIP tier discount and any points the
+    // shopper chose to redeem. `finalTotal` is what gets charged + stored.
+    const loyaltyResult = await computeCheckoutLoyalty({
+      storeId,
+      customerPhone: customerPhone || "",
+      grossTotal: totalAmount,
+      requestedPoints: Math.max(0, Math.floor(Number(redeemPoints) || 0)),
+    });
+    const loyaltyDiscountAmount = roundMoney(
+      loyaltyResult.vipDiscount + loyaltyResult.redemptionDiscount
+    );
+    const finalTotal = loyaltyResult.finalTotal;
+    const paymentItems =
+      loyaltyDiscountAmount > 0
+        ? applyDiscountToItems(items, loyaltyDiscountAmount)
+        : items;
+
+    const finalizeLoyalty = (orderId: string) =>
+      finalizeCheckoutLoyalty({
+        result: loyaltyResult,
+        storeId,
+        orderId,
+        customerName,
+        customerPhone: customerPhone || "",
+        customerEmail: customerEmail || "",
+        orderTotal: finalTotal,
+      });
+
+    // Multi-Warehouse engine: pick the closest branch from the customer city
+    // (falling back to the main warehouse) and deduct the ordered units.
+    const fulfilFromWarehouse = () =>
+      deductWarehouseStockForOrder({
+        storeId,
+        customerAddress: customerAddress || "",
+        items,
+      });
+
+    // Anti-Return Fraud Shield: score the buyer before the order is persisted.
+    const assessRisk = async () => {
+      const history = await fetchCustomerRiskHistory({
+        storeId,
+        phone: customerPhone,
+      });
+      return evaluateOrderRisk(
+        {
+          customerAddress: customerAddress || "",
+          customerPhone: customerPhone || "",
+          totalAmount: finalTotal,
+        },
+        history
+      );
+    };
 
     switch (paymentMethod) {
       case "stripe": {
@@ -96,7 +190,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
           );
         }
 
-        const stripeItems = items.map((item) => ({
+        const stripeItems = paymentItems.map((item) => ({
           name: item.productId,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
@@ -127,8 +221,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
             customerPhone: customerPhone || "",
             customerAddress: customerAddress || "",
             notes: notes || "",
-            totalAmount: String(totalAmount.toFixed(2)),
+            totalAmount: finalTotal.toFixed(2),
+            discountAmount: loyaltyDiscountAmount.toFixed(2),
             status: "Pending",
+            paymentMethod: "stripe",
           })
           .returning();
 
@@ -143,11 +239,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
 
         await db.insert(orderItems).values(orderItemsData);
 
+        const loyaltyOutcome = await finalizeLoyalty(order.id);
+        await fulfilFromWarehouse();
+
         return NextResponse.json({
           redirectUrl: result.url,
           sessionId: result.sessionId,
           orderId: order.id,
           isSandbox: result.isSandbox,
+          ...(loyaltyOutcome ? { loyalty: loyaltyOutcome } : {}),
         });
       }
 
@@ -166,7 +266,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
           );
         }
 
-        const paddleItems = items.map((item) => ({
+        const paddleItems = paymentItems.map((item) => ({
           name: item.productId,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
@@ -197,8 +297,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
             customerPhone: customerPhone || "",
             customerAddress: customerAddress || "",
             notes: notes || "",
-            totalAmount: String(totalAmount.toFixed(2)),
+            totalAmount: finalTotal.toFixed(2),
+            discountAmount: loyaltyDiscountAmount.toFixed(2),
             status: "Pending",
+            paymentMethod: "paddle",
           })
           .returning();
 
@@ -213,14 +315,23 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
 
         await db.insert(orderItems).values(orderItemsData);
 
+        const loyaltyOutcome = await finalizeLoyalty(order.id);
+        await fulfilFromWarehouse();
+
         return NextResponse.json({
           redirectUrl: result.checkoutUrl,
           orderId: order.id,
           isSandbox: result.isSandbox,
+          ...(loyaltyOutcome ? { loyalty: loyaltyOutcome } : {}),
         });
       }
 
-      case "manual": {
+      case "manual":
+      case "cod": {
+        // Smart COD Verification & Anti-Return Fraud Shield: score the buyer,
+        // hold the order behind a PENDING_VERIFICATION gate and message them.
+        const risk = await assessRisk();
+
         const orderResult = await db
           .insert(orders)
           .values({
@@ -229,8 +340,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
             customerPhone: customerPhone || "",
             customerAddress: customerAddress || "",
             notes: notes || "",
-            totalAmount: String(totalAmount.toFixed(2)),
+            totalAmount: finalTotal.toFixed(2),
+            discountAmount: loyaltyDiscountAmount.toFixed(2),
             status: "Pending",
+            paymentMethod,
+            codVerificationStatus: "PENDING_VERIFICATION",
+            riskScore: risk.riskScore,
+            riskReasons: risk.riskReasons,
           })
           .returning();
 
@@ -245,7 +361,21 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
 
         await db.insert(orderItems).values(orderItemsData);
 
-        const manualInstructions = storeData.manualPaymentInstructions || 
+        const loyaltyOutcome = await finalizeLoyalty(order.id);
+        await fulfilFromWarehouse();
+
+        // Fire-and-forget: a WhatsApp outage must never break checkout.
+        let codVerification: CodVerificationSendResult | null = null;
+        try {
+          codVerification = await triggerCodVerification(order.id, {
+            locale,
+            origin: request.nextUrl.origin,
+          });
+        } catch (error) {
+          console.error("COD verification trigger failed:", error);
+        }
+
+        const manualInstructions = storeData.manualPaymentInstructions ||
           "Please complete payment via Vodafone Cash or InstaPay and share the receipt with the merchant.";
 
         return NextResponse.json({
@@ -253,6 +383,17 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
           orderId: order.id,
           message: manualInstructions,
           isSandbox: false,
+          risk: { score: risk.riskScore, reasons: risk.riskReasons },
+          ...(codVerification
+            ? {
+                codVerification: {
+                  status: "PENDING_VERIFICATION",
+                  delivered: codVerification.delivered,
+                  verifyUrl: codVerification.verifyUrl,
+                },
+              }
+            : {}),
+          ...(loyaltyOutcome ? { loyalty: loyaltyOutcome } : {}),
         });
       }
 
@@ -264,9 +405,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
     }
   } catch (error) {
     console.error("Checkout error:", error);
-    return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Failed to process checkout" },
-      { status: 500 }
-    );
+    return createErrorResponse(error, "Failed to process checkout") as NextResponse<CheckoutResponse>;
   }
 }

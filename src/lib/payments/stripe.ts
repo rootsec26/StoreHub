@@ -181,7 +181,12 @@ export async function createConnectedAccount(params: {
   capabilities?: string[];
 }): Promise<{ accountId: string; onboardingUrl?: string }> {
   if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error("STRIPE_SECRET_KEY is not configured");
+    console.warn("[stripe] Running in sandbox/mock mode - STRIPE_SECRET_KEY not set");
+    const mockAccountId = `acct_mock_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    return {
+      accountId: mockAccountId,
+      onboardingUrl: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/dashboard/settings/payments?mock=true&account_id=${mockAccountId}`,
+    };
   }
 
   const stripe = getStripeInstance();
@@ -218,7 +223,13 @@ export async function getAccountStatus(accountId: string): Promise<{
   requirements: Stripe.Account.Requirements | undefined;
 }> {
   if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error("STRIPE_SECRET_KEY is not configured");
+    console.warn("[stripe] Running in sandbox/mock mode - STRIPE_SECRET_KEY not set");
+    return {
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      detailsSubmitted: false,
+      requirements: undefined,
+    };
   }
 
   const stripe = getStripeInstance();
@@ -234,7 +245,8 @@ export async function getAccountStatus(accountId: string): Promise<{
 
 export async function createPortalSession(accountId: string, returnUrl: string): Promise<string> {
   if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error("STRIPE_SECRET_KEY is not configured");
+    console.warn("[stripe] Running in sandbox/mock mode - STRIPE_SECRET_KEY not set");
+    return `${returnUrl}?mock=true`;
   }
 
   const stripe = getStripeInstance();
@@ -253,7 +265,8 @@ export async function verifyWebhookSignature(
   webhookSecret: string
 ): Promise<Stripe.Event> {
   if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error("STRIPE_SECRET_KEY is not configured");
+    console.warn("[stripe] Running in sandbox/mock mode - STRIPE_SECRET_KEY not set");
+    throw new Error("STRIPE_SECRET_KEY is not configured - cannot verify webhook in mock mode");
   }
 
   const stripe = getStripeInstance();

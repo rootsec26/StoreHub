@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { coupons, orders, stores } from "@/db/schema";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
+import { REVENUE_ORDER_STATUS } from "@/lib/order-metrics";
 import { createErrorResponse } from "@/lib/errors";
 import { couponStatus, type CouponRecord } from "@/lib/promotions";
 
@@ -56,11 +57,16 @@ export async function GET() {
     const [revenueRow, redemptionRow] = await Promise.all([
       db
         .select({
+          // Money metric: only Completed orders count towards coupon revenue.
           total: sql<string>`coalesce(sum(${orders.totalAmount}), 0)`,
         })
         .from(orders)
         .where(
-          and(eq(orders.storeId, store.id), isNotNull(orders.couponCode))
+          and(
+            eq(orders.storeId, store.id),
+            isNotNull(orders.couponCode),
+            eq(orders.status, REVENUE_ORDER_STATUS)
+          )
         ),
       db
         .select({ count: sql<string>`count(*)` })

@@ -3,6 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateBusinessInsights } from "@/lib/ai";
 import { getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
+import {
+  canUseAICredits,
+  getStoreIdForOwner,
+  PaywallError,
+  recordCreditUsage,
+} from "@/lib/paywall";
+import { withRateLimit, aiRateLimiter } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -45,6 +52,9 @@ function toProductStat(value: unknown): ProductStatInput | null {
  * business recommendations.
  */
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = await withRateLimit(request, aiRateLimiter);
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const session = await getSession();
     if (!session) {
@@ -64,6 +74,27 @@ export async function POST(request: NextRequest) {
       .filter((product): product is ProductStatInput => product !== null)
       .slice(0, 5);
 
+    const storeId = session.storeId ?? (await getStoreIdForOwner(session.id));
+    if (!storeId) {
+      return NextResponse.json(
+        { error: "Store not found", code: "STORE_NOT_FOUND" },
+        { status: 404 }
+      );
+    }
+
+    let creditsRemaining: number | null = null;
+    try {
+      creditsRemaining = await canUseAICredits(storeId, 1);
+    } catch (error) {
+      if (error instanceof PaywallError) {
+        return NextResponse.json(
+          { error: error.message, code: error.code },
+          { status: error.status }
+        );
+      }
+      throw error;
+    }
+
     const result = await generateBusinessInsights({
       totalOrders: toCount(body.totalOrders),
       totalRevenue: toAmount(body.totalRevenue),
@@ -71,9 +102,12 @@ export async function POST(request: NextRequest) {
       topProducts,
     });
 
+    await recordCreditUsage(storeId, "ai", 1, creditsRemaining, "AI business insights");
+
     return NextResponse.json({
       insights: result.insights,
       source: result.source,
+      ...(creditsRemaining !== null ? { creditsRemaining } : {}),
     });
   } catch (error) {
     console.error("AI insights error:", error);

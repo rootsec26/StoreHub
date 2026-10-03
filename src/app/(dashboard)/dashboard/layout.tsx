@@ -9,7 +9,6 @@ import {
   Menu,
   X,
   ExternalLink,
-  Languages,
   Volume2,
   VolumeX,
   Bell,
@@ -17,6 +16,7 @@ import {
 } from "lucide-react";
 
 import SidebarNav, { NAV_ITEMS } from "@/components/dashboard/Sidebar";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { useOrdersRealtime, type RealtimeStatus } from "@/lib/realtime";
@@ -72,7 +72,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { t, locale, toggleLocale } = useI18n();
+  const { t } = useI18n();
 
   const [store, setStore] = useState<StoreInfo | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -214,12 +214,20 @@ export default function DashboardLayout({
     setNotificationMuted(!muted);
   }
 
-  const activeItem =
-    NAV_ITEMS.find(
-      (item) =>
-        pathname === item.href ||
-        (item.href !== "/dashboard" && pathname.startsWith(item.href))
-    ) ?? NAV_ITEMS[0];
+  // Deepest matching section wins (e.g. AI Radar vs AI Radar → Social Bot).
+  // Falls back to the dashboard title when no section matches (e.g. /dashboard).
+  const activeItem = NAV_ITEMS.reduce<(typeof NAV_ITEMS)[number] | null>(
+    (best, item) => {
+      const matches =
+        pathname === item.href || pathname.startsWith(`${item.href}/`);
+      if (!matches) return best;
+      if (!best || item.href.length > best.href.length) return item;
+      return best;
+    },
+    null
+  );
+  const activeLabelKey: TranslationKey =
+    activeItem?.labelKey ?? "nav.dashboard";
 
   const desktopNotificationLabelKey: TranslationKey =
     desktopPermission === "granted"
@@ -316,7 +324,7 @@ export default function DashboardLayout({
             <Menu className="h-5 w-5" />
           </button>
           <h2 className="flex-1 text-lg font-semibold text-slate-900">
-            {t(activeItem.labelKey)}
+            {t(activeLabelKey)}
           </h2>
 
           <button
@@ -338,15 +346,7 @@ export default function DashboardLayout({
             </span>
           </button>
 
-          <button
-            onClick={toggleLocale}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
-            title={t("common.language")}
-            aria-label={t("common.language")}
-          >
-            <Languages className="h-4 w-4" />
-            {locale === "ar" ? "AR · العربية" : "EN · English"}
-          </button>
+          <LanguageSwitcher />
         </header>
         <div className="p-4 sm:p-6">{children}</div>
       </main>
