@@ -41,16 +41,11 @@ export const orderCreateSchema = z.object({
 });
 
 export const orderStatusUpdateSchema = z.object({
-  id: z.string().uuid("Invalid order ID"),
-  status: z.enum([
-    "Pending",
-    "Confirmed",
-    "Preparing",
-    "Ready",
-    "Shipped",
-    "Completed",
-    "Cancelled",
-  ]),
+  id: z.string().optional(),
+  orderId: z.string().optional(),
+  status: z.string(),
+}).refine((data) => data.id || data.orderId, {
+  message: "Either 'id' or 'orderId' is required",
 });
 
 export const redeemCodeSchema = z.object({

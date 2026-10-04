@@ -107,10 +107,14 @@ export default function OrdersPage() {
       const res = await fetch("/api/orders", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: orderId, status: newStatus }),
+        body: JSON.stringify({ orderId, id: orderId, status: newStatus }),
       });
 
-      if (!res.ok) throw new Error("Failed to update status");
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error("Update status error:", errorData);
+        throw new Error("Failed to update status");
+      }
       setToast(t("orders.toast.updated"));
       loadData();
     } catch {
@@ -163,26 +167,40 @@ export default function OrdersPage() {
 
   const selected = orders.find((o) => o.id === selectedId) ?? null;
 
-  const statusSelect = (order: Order) => (
-    <div className="relative">
-      <select
-        value={order.status}
-        onChange={(e) => updateStatus(order.id, e.target.value)}
-        disabled={updatingId === order.id}
-        className="appearance-none rounded-lg border border-slate-200 bg-white px-3 py-1.5 pe-8 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
-      >
-        {ORDER_STATUSES.map((status) => (
-          <option key={status} value={status}>
-            {t(`status.${status}` as TranslationKey)}
-          </option>
-        ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute end-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
-      {updatingId === order.id && (
-        <Loader2 className="absolute end-6 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-indigo-500" />
-      )}
-    </div>
-  );
+  const STATUS_OPTIONS = [
+    { value: "PENDING", label: "معلق" },
+    { value: "CONFIRMED", label: "مؤكد" },
+    { value: "PROCESSING", label: "قيد التجهيز" },
+    { value: "READY", label: "جاهز" },
+    { value: "SHIPPED", label: "تم الشحن" },
+    { value: "DELIVERED", label: "مكتمل" },
+    { value: "CANCELLED", label: "ملغي" },
+  ] as const;
+
+  const statusSelect = (order: Order) => {
+    const statusOptions = STATUS_OPTIONS.map((opt) => (
+      <option key={opt.value} value={opt.value}>
+        {opt.label}
+      </option>
+    ));
+
+    return (
+      <div className="relative">
+        <select
+          value={order.status}
+          onChange={(e) => updateStatus(order.id, e.target.value)}
+          disabled={updatingId === order.id}
+          className="appearance-none rounded-lg border border-slate-200 bg-white px-3 py-1.5 pe-8 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+        >
+          {statusOptions}
+        </select>
+        <ChevronDown className="pointer-events-none absolute end-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+        {updatingId === order.id && (
+          <Loader2 className="absolute end-6 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-indigo-500" />
+        )}
+      </div>
+    );
+  };
 
   const resendButton = (order: Order) => {
     if (!isCodOrder(order) || order.codVerificationStatus === "VERIFIED") return null;
