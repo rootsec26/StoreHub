@@ -114,7 +114,7 @@ function startPolling(set: StoreSet): void {
       if (!res.ok) return;
       const data: { orders?: Order[]; pendingCount?: number } = await res.json();
       const all = data.orders ?? [];
-      const pending = all.filter((order) => order.status === "Pending");
+      const pending = all.filter((order) => order.status === "PENDING");
       const nextIds = new Set(pending.map((order) => order.id));
 
       if (hasSummary) {
@@ -187,7 +187,7 @@ async function bootstrap(storeId: string, set: StoreSet, get: StoreGet): Promise
           if (payload.eventType === "INSERT") {
             const order = toOrder(payload.new);
             if (!order) return;
-            if (order.status === "Pending") {
+            if (order.status === "PENDING") {
               knownPendingIds.add(order.id);
               // Bound the set size
               if (knownPendingIds.size > MAX_KNOWN_IDS) {
@@ -198,7 +198,7 @@ async function bootstrap(storeId: string, set: StoreSet, get: StoreGet): Promise
             }
             set({
               lastEvent: { type: "INSERT", order, oldId: null, at },
-              newPendingOrder: order.status === "Pending" ? order : null,
+              newPendingOrder: order.status === "PENDING" ? order : null,
             });
             return;
           }
