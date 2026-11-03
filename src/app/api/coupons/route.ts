@@ -4,6 +4,7 @@ import { coupons, orders, stores } from "@/db/schema";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import { REVENUE_ORDER_STATUS } from "@/lib/order-metrics";
+import { orderStatusIs } from "@/lib/order-status-sql";
 import { createErrorResponse } from "@/lib/errors";
 import { couponStatus, type CouponRecord } from "@/lib/promotions";
 
@@ -65,7 +66,7 @@ export async function GET() {
           and(
             eq(orders.storeId, store.id),
             isNotNull(orders.couponCode),
-            eq(orders.status, REVENUE_ORDER_STATUS)
+            orderStatusIs(orders.status, REVENUE_ORDER_STATUS)
           )
         ),
       db

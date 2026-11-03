@@ -6,7 +6,6 @@ import {
   ChevronDown,
   Loader2,
   RefreshCw,
-  MessageCircle,
   Copy,
   Check,
   X,
@@ -16,6 +15,7 @@ import {
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { useOrdersRealtime } from "@/lib/realtime";
 import { ORDER_STATUSES } from "@/lib/types";
+import { normalizeOrderStatus, orderStatusTitle } from "@/lib/order-state-machine";
 import StatusBadge from "@/components/StatusBadge";
 import CodVerificationBadge, {
   CodRiskBadge,
@@ -124,16 +124,30 @@ export default function OrdersPage() {
     }
   }
 
-  async function resendVerification(orderId: string) {
+  async function handleResendWhatsapp(orderId: string) {
     setResendingId(orderId);
     try {
       const res = await fetch("/api/orders/resend-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ order_id: orderId, locale }),
+        body: JSON.stringify({ orderId, locale }),
       });
+      const data = await res.json().catch(() => ({}));
+
+      if (
+        res.status === 402 ||
+        data.code === "WHATSAPP_CREDITS_EXHAUSTED" ||
+        data.code === "CREDITS_EXPIRED"
+      ) {
+        setToast(
+          "عفواً، رصيد رسائل واتساب انتهى (0). برجاء الشحن من قسم الفوترة"
+        );
+        return;
+      }
+
       if (!res.ok) throw new Error("Failed to resend");
-      setToast(t("orders.cod.resendSent"));
+
+      setToast("تم إرسال الرسالة بنجاح وخصم 1 من رصيدك");
       loadData();
     } catch {
       setToast(t("orders.cod.resendFailed"));
@@ -163,7 +177,9 @@ export default function OrdersPage() {
   const filtered =
     filterStatus === "all"
       ? orders
-      : orders.filter((o) => o.status === filterStatus);
+      : orders.filter(
+          (o) => normalizeOrderStatus(o.status) === filterStatus
+        );
 
   const selected = orders.find((o) => o.id === selectedId) ?? null;
 
@@ -187,7 +203,7 @@ export default function OrdersPage() {
     return (
       <div className="relative">
         <select
-          value={order.status}
+          value={normalizeOrderStatus(order.status) ?? order.status}
           onChange={(e) => updateStatus(order.id, e.target.value)}
           disabled={updatingId === order.id}
           className="appearance-none rounded-lg border border-slate-200 bg-white px-3 py-1.5 pe-8 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
@@ -203,25 +219,67 @@ export default function OrdersPage() {
   };
 
   const resendButton = (order: Order) => {
-    if (!isCodOrder(order) || order.codVerificationStatus === "VERIFIED") return null;
+    if (!isCodOrder(order)) return null;
     const busy = resendingId === order.id;
     return (
       <button
         type="button"
-        onClick={() => resendVerification(order.id)}
+        onClick={() => handleResendWhatsapp(order.id)}
         disabled={busy}
-        title={t("orders.cod.resend")}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+        aria-busy={busy}
+        className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors shadow-sm"
       >
         {busy ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
         ) : (
-          <MessageCircle className="h-3.5 w-3.5" />
+          <span className="text-emerald-600">💬</span>
         )}
-        <span className="hidden lg:inline">
-          {busy ? t("orders.cod.resending") : t("orders.cod.resend")}
-        </span>
+        <span>إعادة إرسال تأكيد واتساب</span>
       </button>
+    );
+  };
+
+  const codBadge = (order: Order) => {
+    if (!isCodOrder(order)) return null;
+
+    const status = order.codVerificationStatus;
+    let badge: { label: string; className: string; dot: string } | null = null;
+
+    if (status === "VERIFIED") {
+      badge = {
+        label: "طلب مؤكد (COD)",
+        className: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+        dot: "bg-emerald-500",
+      };
+    } else if (order.riskScore === "HIGH") {
+      badge = {
+        label: "خطر احتيال مرتفع",
+        className: "bg-red-100 text-red-700 border border-red-200",
+        dot: "bg-red-500",
+      };
+    } else if (status === "PENDING_VERIFICATION") {
+      badge = {
+        label: "بانتظار التأكيد",
+        className: "bg-amber-100 text-amber-700 border border-amber-200",
+        dot: "bg-amber-500",
+      };
+    } else if (status === "EXPIRED") {
+      badge = {
+        label: "انتهت مهلة التأكيد",
+        className: "bg-slate-100 text-slate-600 border border-slate-200",
+        dot: "bg-slate-400",
+      };
+    }
+
+    if (!badge) return null;
+
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${badge.className}`}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
+        {badge.label}
+      </span>
     );
   };
 
@@ -255,7 +313,7 @@ export default function OrdersPage() {
                 : "bg-white text-slate-600 hover:bg-slate-100"
             }`}
           >
-            {t(`status.${status}` as TranslationKey)}
+            {t(`status.${orderStatusTitle(status)}` as TranslationKey)}
           </button>
         ))}
 
@@ -354,18 +412,20 @@ export default function OrdersPage() {
                     <td className="px-6 py-4">
                       <StatusBadge status={order.status} />
                     </td>
-                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex flex-col items-start gap-1.5">
-                        <CodVerificationBadge order={order} />
-                        {!isCodOrder(order) && (
-                          <span className="text-xs text-slate-400">—</span>
-                        )}
-                        {resendButton(order)}
-                      </div>
+                    <td
+                      className="px-6 py-4"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {isCodOrder(order) ? (
+                        <div className="flex flex-col items-start gap-1.5">
+                          {codBadge(order)}
+                          {resendButton(order)}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
                     </td>
-                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                      {statusSelect(order)}
-                    </td>
+                    <td className="px-6 py-4">{statusSelect(order)}</td>
                     <td className="px-6 py-4 text-sm text-slate-500">
                       {formatDateTime(order.createdAt)}
                     </td>

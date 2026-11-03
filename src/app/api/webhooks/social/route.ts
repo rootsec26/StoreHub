@@ -14,7 +14,9 @@ import {
   COMMENT_REPLY_TEXT,
   replyToComment,
   sendSocialText,
+  type SendOutcome,
 } from "@/lib/social-graph";
+import { PaywallError, sendMeteredWhatsApp } from "@/lib/paywall";
 import {
   listTopProducts,
   runSocialSalesBot,
@@ -33,9 +35,9 @@ export const runtime = "nodejs";
  *
  * Configuration:
  *   SOCIAL_WEBHOOK_VERIFY_TOKEN – echoed back on the GET subscription check
- *   SOCIAL_APP_SECRET           – validates X-Hub-Signature-256 (optional;
- *                                 when unset the endpoint accepts payloads,
- *                                 which keeps local simulation working)
+ *   SOCIAL_APP_SECRET           – validates X-Hub-Signature-256; required,
+ *                                 unsigned deliveries are rejected with 401
+ *                                 (set it locally to simulate payloads)
  */
 
 const MAX_EVENTS_PER_PAYLOAD = 20;
@@ -407,6 +409,28 @@ interface EventResult {
   delivery?: string;
 }
 
+/**
+ * Runs one outbound social/WhatsApp send through the metered dispatcher
+ * (deduct → send → ledger, refund on failure). A exhausted/expired credit
+ * balance degrades the send to `{ delivered: false, error: code }` so the
+ * webhook never 500s (and never retries) on billing problems.
+ */
+async function meteredSocialSend(
+  storeId: string,
+  description: string,
+  send: () => Promise<SendOutcome>
+): Promise<SendOutcome> {
+  try {
+    const outcome = await sendMeteredWhatsApp(storeId, description, send);
+    return outcome.result ?? { delivered: false, error: "SEND_FAILED" };
+  } catch (error) {
+    if (error instanceof PaywallError) {
+      return { delivered: false, error: error.code };
+    }
+    throw error;
+  }
+}
+
 async function handleEvent(event: SocialEvent, origin: string): Promise<EventResult> {
   const base = { kind: event.kind, platform: event.platform } as const;
 
@@ -419,21 +443,31 @@ async function handleEvent(event: SocialEvent, origin: string): Promise<EventRes
 
   if (event.kind === "comment") {
     // 1) Public reply that pushes the customer to the DM thread.
-    const publicReply = await replyToComment({
-      accessToken: channel.accessToken,
-      commentId: event.commentId,
-      text: DEFAULT_COMMENT_REPLY,
-    });
+    const publicReply = await meteredSocialSend(
+      channel.storeId,
+      "Social comment reply",
+      () =>
+        replyToComment({
+          accessToken: channel.accessToken,
+          commentId: event.commentId,
+          text: DEFAULT_COMMENT_REPLY,
+        })
+    );
 
     // 2) Private DM carrying the product details.
     const dmText = await buildCommentDm(channel, event);
-    const dmDelivery = await sendSocialText({
-      platform: channel.platform,
-      accessToken: channel.accessToken,
-      recipientId: event.senderId,
-      pageId: channel.pageId,
-      text: dmText,
-    });
+    const dmDelivery = await meteredSocialSend(
+      channel.storeId,
+      "Social comment DM",
+      () =>
+        sendSocialText({
+          platform: channel.platform,
+          accessToken: channel.accessToken,
+          recipientId: event.senderId,
+          pageId: channel.pageId,
+          text: dmText,
+        })
+    );
 
     return {
       ...base,
@@ -466,13 +500,19 @@ async function handleEvent(event: SocialEvent, origin: string): Promise<EventRes
     };
   }
 
-  const delivery = await sendSocialText({
-    platform: channel.platform,
-    accessToken: channel.accessToken,
-    recipientId: event.senderId,
-    pageId: channel.pageId,
-    text: bot.reply,
-  });
+  const replyText = bot.reply;
+  const delivery = await meteredSocialSend(
+    channel.storeId,
+    "Social AI reply DM",
+    () =>
+      sendSocialText({
+        platform: channel.platform,
+        accessToken: channel.accessToken,
+        recipientId: event.senderId,
+        pageId: channel.pageId,
+        text: replyText,
+      })
+  );
 
   return {
     ...base,
@@ -492,7 +532,7 @@ async function handleEvent(event: SocialEvent, origin: string): Promise<EventRes
 
 function verifySignature(rawBody: string, signatureHeader: string | null): boolean {
   const appSecret = process.env.SOCIAL_APP_SECRET;
-  if (!appSecret) return true; // Signature checking is opt-in via env.
+  if (!appSecret) return false; // fail closed: no secret, no trusted delivery
   if (!signatureHeader) return false;
 
   const [scheme, digest] = signatureHeader.split("=");
@@ -527,8 +567,18 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
 
+  if (!process.env.SOCIAL_APP_SECRET) {
+    return NextResponse.json(
+      { error: "Webhook secret is not configured", code: "WEBHOOK_SECRET_MISSING" },
+      { status: 401 }
+    );
+  }
+
   if (!verifySignature(rawBody, request.headers.get("x-hub-signature-256"))) {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Invalid signature", code: "INVALID_SIGNATURE" },
+      { status: 401 }
+    );
   }
 
   let payload: RawPayload;

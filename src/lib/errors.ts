@@ -64,6 +64,62 @@ export function isDatabaseUnreachable(error: unknown): boolean {
   );
 }
 
+/**
+ * Renders any thrown value as a loggable string.
+ *
+ * `console.error(msg, someError)` is not always enough: objects coming from
+ * another realm (or non-Error rejections) serialize as `{}`, which hides the
+ * very crash we are trying to debug. This keeps name, message, code and stack
+ * visible for every shape of error.
+ */
+export function formatErrorForLog(
+  error: unknown,
+  options: { includeStack?: boolean } = {}
+): string {
+  const includeStack = options.includeStack !== false;
+  if (error === null) return "null";
+  if (error === undefined) return "undefined";
+  if (typeof error !== "object") return String(error);
+
+  const candidate = error as {
+    name?: unknown;
+    message?: unknown;
+    stack?: unknown;
+    code?: unknown;
+    cause?: unknown;
+  };
+
+  const name = typeof candidate.name === "string" && candidate.name ? candidate.name : "Error";
+  const message =
+    typeof candidate.message === "string" && candidate.message
+      ? candidate.message
+      : safeJson(error);
+  const code =
+    candidate.code !== undefined && candidate.code !== null
+      ? ` (code=${String(candidate.code)})`
+      : "";
+  const stack =
+    includeStack && typeof candidate.stack === "string" && candidate.stack
+      ? candidate.stack
+      : "";
+  const cause =
+    candidate.cause !== undefined && candidate.cause !== error
+      ? `\ncaused by: ${formatErrorForLog(candidate.cause, options)}`
+      : "";
+
+  // `stack` already starts with "Name: message", so avoid printing it twice.
+  const head = stack || `${name}: ${message}`;
+  return `${head}${code ? `\n${code.trim()}` : ""}${cause}`;
+}
+
+function safeJson(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
+}
+
 export function createErrorResponse(
   error: unknown,
   fallbackMessage = "Internal server error"

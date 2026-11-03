@@ -4,10 +4,10 @@ import { generateProductDescription } from "@/lib/ai";
 import { getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
 import {
-  canUseAICredits,
   getStoreIdForOwner,
   PaywallError,
-  recordCreditUsage,
+  requireActivePlan,
+  runMeteredAI,
 } from "@/lib/paywall";
 
 export const runtime = "nodejs";
@@ -49,9 +49,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let creditsRemaining: number | null = null;
+    let outcome: {
+      result: Awaited<ReturnType<typeof generateProductDescription>>;
+      creditsRemaining: number | null;
+    };
     try {
-      creditsRemaining = await canUseAICredits(storeId, 1);
+      await requireActivePlan(storeId);
+      outcome = await runMeteredAI(storeId, 1, "AI product description", () =>
+        generateProductDescription({ name, keywords })
+      );
     } catch (error) {
       if (error instanceof PaywallError) {
         return NextResponse.json(
@@ -62,14 +68,12 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    const result = await generateProductDescription({ name, keywords });
-
-    await recordCreditUsage(storeId, "ai", 1, creditsRemaining, "AI product description");
-
     return NextResponse.json({
-      description: result.text,
-      source: result.source,
-      ...(creditsRemaining !== null ? { creditsRemaining } : {}),
+      description: outcome.result.text,
+      source: outcome.result.source,
+      ...(outcome.creditsRemaining !== null
+        ? { creditsRemaining: outcome.creditsRemaining }
+        : {}),
     });
   } catch (error) {
     console.error("AI description error:", error);

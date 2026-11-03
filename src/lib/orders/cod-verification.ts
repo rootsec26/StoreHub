@@ -12,8 +12,8 @@ import {
   sendWhatsAppPayload,
   whatsappApiConfigured,
 } from "@/lib/whatsapp-cloud";
-import { isValidTransition } from "@/lib/order-state-machine";
-import type { OrderStatus } from "@/lib/types";
+import { isValidTransition, normalizeOrderStatus } from "@/lib/order-state-machine";
+import { restockOrder } from "@/lib/warehouses-server";
 import { getVerificationTtlHours } from "@/lib/orders/risk-engine";
 import {
   COD_REPLY_CANCEL_PREFIX,
@@ -22,6 +22,7 @@ import {
   isCodOrder,
   type CodDecision,
 } from "@/lib/orders/cod-shared";
+import { createOrderToken } from "@/lib/order-tokens";
 
 export {
   COD_PAYMENT_METHODS,
@@ -59,23 +60,44 @@ const BUTTON_HINT: Record<Locale, string> = {
   ar: "اضغط على تأكيد لتجهيز طلبك أو إلغاء لإيقافه. إذا لم تظهر الأزرار، افتح الرابط أدناه:",
 };
 
-export function codReplyId(decision: CodDecision, orderId: string): string {
-  return decision === "CONFIRMED"
-    ? `${COD_REPLY_CONFIRM_PREFIX}${orderId}`
-    : `${COD_REPLY_CANCEL_PREFIX}${orderId}`;
+export function codReplyId(
+  decision: CodDecision,
+  orderId: string,
+  token: string
+): string {
+  const prefix =
+    decision === "CONFIRMED"
+      ? COD_REPLY_CONFIRM_PREFIX
+      : COD_REPLY_CANCEL_PREFIX;
+  return `${prefix}${orderId}.${token}`;
 }
 
 export function parseCodReplyId(replyId: string): {
   decision: CodDecision;
   orderId: string;
+  token: string;
 } | null {
-  if (replyId.startsWith(COD_REPLY_CONFIRM_PREFIX)) {
-    return { decision: "CONFIRMED", orderId: replyId.slice(COD_REPLY_CONFIRM_PREFIX.length) };
-  }
-  if (replyId.startsWith(COD_REPLY_CANCEL_PREFIX)) {
-    return { decision: "CANCELLED", orderId: replyId.slice(COD_REPLY_CANCEL_PREFIX.length) };
-  }
-  return null;
+  const prefix = replyId.startsWith(COD_REPLY_CONFIRM_PREFIX)
+    ? COD_REPLY_CONFIRM_PREFIX
+    : replyId.startsWith(COD_REPLY_CANCEL_PREFIX)
+      ? COD_REPLY_CANCEL_PREFIX
+      : null;
+  if (!prefix) return null;
+
+  const rest = replyId.slice(prefix.length);
+  const separator = rest.indexOf(".");
+  if (separator <= 0) return null;
+
+  const orderId = rest.slice(0, separator);
+  const token = rest.slice(separator + 1);
+  if (!orderId || !token) return null;
+
+  return {
+    decision:
+      prefix === COD_REPLY_CONFIRM_PREFIX ? "CONFIRMED" : "CANCELLED",
+    orderId,
+    token,
+  };
 }
 
 export interface CodVerificationMessage {
@@ -124,6 +146,8 @@ export function buildCodInteractivePayload(params: {
   to: string;
   text: string;
   orderId: string;
+  confirmToken: string;
+  cancelToken: string;
   locale: Locale;
 }): Record<string, unknown> {
   return {
@@ -138,11 +162,17 @@ export function buildCodInteractivePayload(params: {
         buttons: [
           {
             type: "reply",
-            reply: { id: codReplyId("CONFIRMED", params.orderId), title: CONFIRM_LABEL[params.locale] },
+            reply: {
+              id: codReplyId("CONFIRMED", params.orderId, params.confirmToken),
+              title: CONFIRM_LABEL[params.locale],
+            },
           },
           {
             type: "reply",
-            reply: { id: codReplyId("CANCELLED", params.orderId), title: CANCEL_LABEL[params.locale] },
+            reply: {
+              id: codReplyId("CANCELLED", params.orderId, params.cancelToken),
+              title: CANCEL_LABEL[params.locale],
+            },
           },
         ],
       },
@@ -156,6 +186,23 @@ export interface CodVerificationSendResult {
   verifyUrl: string;
   waMeUrl: string | null;
   error?: string;
+}
+
+/**
+ * Builds the customer-facing verification link for a COD order. Used by the
+ * merchant dashboard so the "copy link" action produces a tokenized URL even
+ * though the page itself is a client component.
+ */
+export function buildCodVerificationLink(
+  storeSlug: string,
+  orderId: string,
+  origin?: string
+): string {
+  return buildCodVerificationUrl(storeSlug, orderId, origin, {
+    trackToken: createOrderToken({ orderId, purpose: "track" }),
+    confirmToken: createOrderToken({ orderId, purpose: "cod_confirm" }),
+    cancelToken: createOrderToken({ orderId, purpose: "cod_cancel" }),
+  });
 }
 
 /**
@@ -178,7 +225,25 @@ export async function triggerCodVerification(
   if (rows.length === 0) return null;
 
   const { order, store } = rows[0];
-  const verifyUrl = buildCodVerificationUrl(store.slug, order.id, options.origin);
+  // Each link carries the exact action it authorizes. The WhatsApp reply IDs
+  // embed the confirm/cancel tokens, and the fallback URL carries all three.
+  const trackToken = createOrderToken({
+    orderId: order.id,
+    purpose: "track",
+  });
+  const confirmToken = createOrderToken({
+    orderId: order.id,
+    purpose: "cod_confirm",
+  });
+  const cancelToken = createOrderToken({
+    orderId: order.id,
+    purpose: "cod_cancel",
+  });
+  const verifyUrl = buildCodVerificationUrl(store.slug, order.id, options.origin, {
+    trackToken,
+    confirmToken,
+    cancelToken,
+  });
   const to = normalizeWhatsAppNumber(order.customerPhone);
   const waMeUrl = to
     ? `https://wa.me/${to}`
@@ -245,6 +310,8 @@ export async function triggerCodVerification(
       to,
       text: message.text,
       orderId: order.id,
+      confirmToken,
+      cancelToken,
       locale,
     });
     await sendWhatsAppPayload(payload);
@@ -315,7 +382,9 @@ export async function applyCodVerificationDecision(params: {
         return { order, changed: false, storeId: order.storeId };
       }
 
-      const nextStatus = order.status === "Pending" ? "Confirmed" : order.status;
+      const normalizedStatus = normalizeOrderStatus(order.status);
+      const nextStatus =
+        normalizedStatus === "PENDING" ? "CONFIRMED" : (normalizedStatus ?? order.status);
       const updated = await tx
         .update(orders)
         .set({
@@ -334,8 +403,8 @@ export async function applyCodVerificationDecision(params: {
       };
     }
 
-    // CANCELLED
-    if (order.status === "Cancelled") {
+    // CANCELLED (accepts legacy "Cancelled" spelling too)
+    if (normalizeOrderStatus(order.status) === "CANCELLED") {
       const updated = await tx
         .update(orders)
         .set({ codVerificationStatus: "EXPIRED" })
@@ -344,7 +413,11 @@ export async function applyCodVerificationDecision(params: {
       return { order: updated[0], changed: false, storeId: order.storeId };
     }
 
-    if (!isValidTransition(order.status as OrderStatus, "Cancelled", false)) {
+    const previousStatus = normalizeOrderStatus(order.status);
+    if (
+      !previousStatus ||
+      !isValidTransition(previousStatus, "CANCELLED", false)
+    ) {
       throw new CodVerificationError(
         "INVALID_STATUS",
         "This order can no longer be cancelled",
@@ -352,21 +425,11 @@ export async function applyCodVerificationDecision(params: {
       );
     }
 
-    const items = await tx
-      .select()
-      .from(orderItems)
-      .where(eq(orderItems.orderId, orderId));
-
-    for (const item of items) {
-      await tx
-        .update(products)
-        .set({ stock: sql`${products.stock} + ${item.quantity}` })
-        .where(eq(products.id, item.productId));
-    }
+    await restockOrder(tx, { orderId, storeId: order.storeId });
 
     const updated = await tx
       .update(orders)
-      .set({ status: "Cancelled", codVerificationStatus: "EXPIRED" })
+      .set({ status: "CANCELLED", codVerificationStatus: "EXPIRED" })
       .where(eq(orders.id, orderId))
       .returning();
 

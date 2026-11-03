@@ -9,16 +9,17 @@ import { Package, Printer, ShieldCheck, X } from "lucide-react";
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { useStoreCurrency } from "@/components/CurrencySelector";
 import { canOptimizeImage } from "@/lib/images";
+import { normalizeOrderStatus, orderStatusLower } from "@/lib/order-state-machine";
 import type { StorefrontStore, TrackedOrder } from "@/lib/order-tracking";
 
 const KNOWN_STATUSES = [
-  "Pending",
-  "Confirmed",
-  "Preparing",
-  "Ready",
-  "Shipped",
-  "Completed",
-  "Cancelled",
+  "PENDING",
+  "CONFIRMED",
+  "PROCESSING",
+  "READY",
+  "SHIPPED",
+  "DELIVERED",
+  "CANCELLED",
 ];
 
 interface OrderInvoiceModalProps {
@@ -60,9 +61,11 @@ export default function OrderInvoiceModal({ order, store, onClose }: OrderInvoic
   const shipping = 0;
   const tax = 0;
 
-  const statusLabel = KNOWN_STATUSES.includes(order.status)
-    ? t(`orders.status.${order.status}` as TranslationKey)
-    : order.status;
+  const normalizedStatus = normalizeOrderStatus(order.status);
+  const statusLabel =
+    normalizedStatus && KNOWN_STATUSES.includes(normalizedStatus)
+      ? t(`orders.status.${orderStatusLower(order.status)}` as TranslationKey)
+      : order.status;
 
   const createdDate = new Date(order.createdAt).toLocaleDateString(locale, {
     year: "numeric",

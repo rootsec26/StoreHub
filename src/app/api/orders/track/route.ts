@@ -4,6 +4,10 @@ import { eq, and } from "drizzle-orm";
 import { orders, orderItems, products, stores } from "@/db/schema";
 import { inArray } from "drizzle-orm";
 import { createErrorResponse } from "@/lib/errors";
+import { createOrderToken, verifyOrderToken } from "@/lib/order-tokens";
+import { isAuthenticatedStoreOwner } from "@/lib/orders/order-access";
+import { normalizeOrderStatus } from "@/lib/order-state-machine";
+import { buildTrackingOrder } from "@/lib/orders/tracking-dto";
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,6 +15,7 @@ export async function GET(request: NextRequest) {
     const orderId = searchParams.get("id");
     const phone = searchParams.get("phone");
     const slug = searchParams.get("slug");
+    const token = searchParams.get("token") || searchParams.get("order_token");
 
     if (!slug) {
       return NextResponse.json(
@@ -67,6 +72,22 @@ export async function GET(request: NextRequest) {
 
     const order = orderResult[0];
 
+    // Full customer details require either a signed tracking token or an
+    // authenticated merchant session. A bare UUID / phone number only gets the
+    // redacted projection below.
+    const tokenPayload = token
+      ? verifyOrderToken(token, { orderId: order.id, purpose: "track" })
+      : null;
+    const owner = tokenPayload
+      ? false
+      : await isAuthenticatedStoreOwner(storeId);
+    const fullAccess = Boolean(tokenPayload || owner);
+    const canCancel =
+      fullAccess && normalizeOrderStatus(order.status) === "PENDING";
+    const cancelToken = canCancel
+      ? createOrderToken({ orderId: order.id, purpose: "cancel" })
+      : null;
+
     // Get order items with product details
     const items = await db
       .select()
@@ -92,9 +113,11 @@ export async function GET(request: NextRequest) {
     }));
 
     return NextResponse.json({
-      order: {
-        ...order,
-        items: itemsWithProducts,
+      order: buildTrackingOrder(order, itemsWithProducts, fullAccess),
+      permissions: {
+        fullAccess,
+        canCancel,
+        cancelToken,
       },
     });
   } catch (error) {

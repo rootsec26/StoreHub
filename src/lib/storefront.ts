@@ -5,6 +5,7 @@ import { and, asc, desc, eq, gt } from "drizzle-orm";
 
 import { db } from "@/db";
 import { categories, products, promotions, stores } from "@/db/schema";
+import { hasFeatureAccess } from "@/lib/paywall";
 import type { PromotionRecord } from "@/lib/promotions";
 
 export type StoreRecord = typeof stores.$inferSelect;
@@ -30,7 +31,14 @@ export const getStoreBySlug = cache(
       .where(eq(stores.slug, slug))
       .limit(1);
 
-    return rows[0] ?? null;
+    const store = rows[0];
+    if (!store) return null;
+
+    // White-label branding is only served while the add-on is entitled.
+    return {
+      ...store,
+      hasWhiteLabel: await hasFeatureAccess(store.id, "white_label"),
+    };
   }
 );
 

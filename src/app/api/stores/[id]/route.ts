@@ -4,6 +4,7 @@ import { stores } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
+import { hasFeatureAccess } from "@/lib/paywall";
 import { DEFAULT_THEME_CONFIG } from "@/lib/theme-config";
 import { buildStoreUpdate, readJsonObject, type StoreRow } from "@/lib/store-update";
 
@@ -52,6 +53,8 @@ export async function GET(_request: NextRequest, { params }: StoreContext) {
     return NextResponse.json({
       store: {
         ...result.store,
+        // White-label is a paid entitlement; report what is actually active.
+        hasWhiteLabel: await hasFeatureAccess(result.store.id, "white_label"),
         themeConfig: result.store.themeConfig ?? DEFAULT_THEME_CONFIG,
       },
     });

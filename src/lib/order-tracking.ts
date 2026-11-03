@@ -1,3 +1,5 @@
+import { normalizeOrderStatus } from "@/lib/order-state-machine";
+
 export interface TrackOrderProduct {
   id: string;
   name: string;
@@ -55,20 +57,23 @@ export const TRACKING_STEP_KEYS: readonly TrackingStepKey[] = [
 ] as const;
 
 const STATUS_STEP_INDEX: Record<string, number> = {
-  Pending: 0,
-  Confirmed: 1,
-  Preparing: 1,
-  Ready: 2,
-  Shipped: 2,
-  Completed: 3,
+  PENDING: 0,
+  CONFIRMED: 1,
+  PROCESSING: 1,
+  READY: 2,
+  SHIPPED: 2,
+  DELIVERED: 3,
 };
 
 export function getTrackingStepIndex(status: string): number {
-  return STATUS_STEP_INDEX[status] ?? 0;
+  // Normalize legacy spellings first ("Pending" → PENDING, "Completed" → DELIVERED).
+  const canonical = normalizeOrderStatus(status) ?? status;
+  return STATUS_STEP_INDEX[canonical] ?? 0;
 }
 
 export function isFinalOrderStatus(status: string): boolean {
-  return status === "Completed" || status === "Cancelled";
+  const canonical = normalizeOrderStatus(status);
+  return canonical === "DELIVERED" || canonical === "CANCELLED";
 }
 
 export const ORDER_ID_PATTERN =

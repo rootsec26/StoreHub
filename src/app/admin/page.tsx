@@ -1,48 +1,11 @@
-import { headers } from "next/headers";
 import Link from "next/link";
 import { db } from "@/db";
 import { users, stores, products, activationCodes, categories } from "@/db/schema";
 import { eq, count, desc } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { isAdminAuthorized } from "@/lib/admin";
 
 export const runtime = "nodejs";
-
-async function isLocalhostRequest(): Promise<boolean> {
-  const headersList = await headers();
-  const host = headersList.get("host") || "";
-  
-  if (host.startsWith("localhost") || host.startsWith("127.0.0.1")) {
-    return true;
-  }
-
-  const xForwardedFor = headersList.get("x-forwarded-for") || "";
-  const xRealIp = headersList.get("x-real-ip") || "";
-
-  const clientIp = xForwardedFor.split(",")[0]?.trim() || xRealIp || "";
-
-  return (
-    clientIp === "127.0.0.1" ||
-    clientIp === "::1" ||
-    clientIp.startsWith("192.168.") ||
-    clientIp.startsWith("10.") ||
-    clientIp.startsWith("172.16.") ||
-    clientIp.startsWith("172.17.") ||
-    clientIp.startsWith("172.18.") ||
-    clientIp.startsWith("172.19.") ||
-    clientIp.startsWith("172.20.") ||
-    clientIp.startsWith("172.21.") ||
-    clientIp.startsWith("172.22.") ||
-    clientIp.startsWith("172.23.") ||
-    clientIp.startsWith("172.24.") ||
-    clientIp.startsWith("172.25.") ||
-    clientIp.startsWith("172.26.") ||
-    clientIp.startsWith("172.27.") ||
-    clientIp.startsWith("172.28.") ||
-    clientIp.startsWith("172.29.") ||
-    clientIp.startsWith("172.30.") ||
-    clientIp.startsWith("172.31.")
-  );
-}
 
 async function getMerchantsData() {
   let allUsers: Array<{ id: string; email: string; name: string; createdAt: Date }> = [];
@@ -173,8 +136,8 @@ async function getStoreDetails(storeId: string) {
 }
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ store?: string }> }) {
-  const localhostAllowed = await isLocalhostRequest();
-  if (!localhostAllowed) {
+  const adminAllowed = await isAdminAuthorized();
+  if (!adminAllowed) {
     return notFound();
   }
 

@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
           notes: "",
           totalAmount: String(total.toFixed(2)),
           discountAmount: String(discountAmount.toFixed(2)),
-          status: "Completed",
+          status: "DELIVERED",
           channel: "pos",
           paymentStatus: "paid",
           paymentMethod,

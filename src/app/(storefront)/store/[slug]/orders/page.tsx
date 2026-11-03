@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/lib/i18n";
+import { normalizeOrderStatus } from "@/lib/order-state-machine";
 import { accentGradient, accentThemeStyle, normalizeAccent } from "@/lib/theme";
 import { canOptimizeImage, isValidImageUrl } from "@/lib/images";
 import { storePath } from "@/lib/site";
@@ -87,6 +88,13 @@ export default function OrderTrackingPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchType, setSearchType] = useState<"orderId" | "phone">("orderId");
   const [cancelling, setCancelling] = useState<string | null>(null);
+  // Read the signed tracking token once on the client without a post-mount
+  // state update (which would cause an extra render pass).
+  const [accessToken] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("token") ?? "";
+  });
+  const [cancelToken, setCancelToken] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadStore() {
@@ -122,6 +130,7 @@ export default function OrderTrackingPage() {
     e.preventDefault();
     setError("");
     setOrder(null);
+    setCancelToken(null);
 
     if (!searchQuery.trim()) {
       setError(t("orders.enterOrderIdOrPhone"));
@@ -131,7 +140,10 @@ export default function OrderTrackingPage() {
     setLoading(true);
     try {
       const searchParam = searchType === "orderId" ? "id" : "phone";
-      const res = await fetch(`/api/orders/track?${searchParam}=${encodeURIComponent(searchQuery.trim())}&slug=${slug}`);
+      const tokenQuery = accessToken
+        ? `&token=${encodeURIComponent(accessToken)}`
+        : "";
+      const res = await fetch(`/api/orders/track?${searchParam}=${encodeURIComponent(searchQuery.trim())}&slug=${slug}${tokenQuery}`);
 
       const data = await res.json();
 
@@ -140,6 +152,7 @@ export default function OrderTrackingPage() {
       }
 
       setOrder(data.order);
+      setCancelToken(data.permissions?.cancelToken ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("orders.searchFailed"));
     } finally {
@@ -155,7 +168,7 @@ export default function OrderTrackingPage() {
       const res = await fetch("/api/orders/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, storeSlug: slug }),
+        body: JSON.stringify({ orderId, storeSlug: slug, token: cancelToken }),
       });
 
       const data = await res.json();
@@ -165,7 +178,7 @@ export default function OrderTrackingPage() {
       }
 
       if (order && order.id === orderId) {
-        setOrder({ ...order, status: "Cancelled", items: order.items.map(item => ({
+        setOrder({ ...order, status: "CANCELLED", items: order.items.map(item => ({
           ...item,
           product: item.product ? { ...item.product, stock: item.product.stock + item.quantity } : null
         })) });
@@ -179,16 +192,21 @@ export default function OrderTrackingPage() {
 
   function getStatusBadge(status: string) {
     const statuses: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-      Pending: { label: t("orders.status.pending"), icon: <Clock className="h-4 w-4" />, color: "bg-amber-100 text-amber-800" },
-      Confirmed: { label: t("orders.status.confirmed"), icon: <CheckCircle2 className="h-4 w-4" />, color: "bg-blue-100 text-blue-800" },
-      Preparing: { label: t("orders.status.preparing"), icon: <Package className="h-4 w-4" />, color: "bg-purple-100 text-purple-800" },
-      Ready: { label: t("orders.status.ready"), icon: <Truck className="h-4 w-4" />, color: "bg-indigo-100 text-indigo-800" },
-      Shipped: { label: t("orders.status.shipped"), icon: <Truck className="h-4 w-4" />, color: "bg-cyan-100 text-cyan-800" },
-      Completed: { label: t("orders.status.completed"), icon: <CheckCircle2 className="h-4 w-4 fill-current" />, color: "bg-emerald-100 text-emerald-800" },
-      Cancelled: { label: t("orders.status.cancelled"), icon: <XCircle className="h-4 w-4" />, color: "bg-red-100 text-red-800" },
+      PENDING: { label: t("orders.status.pending"), icon: <Clock className="h-4 w-4" />, color: "bg-amber-100 text-amber-800" },
+      CONFIRMED: { label: t("orders.status.confirmed"), icon: <CheckCircle2 className="h-4 w-4" />, color: "bg-blue-100 text-blue-800" },
+      PROCESSING: { label: t("orders.status.processing"), icon: <Package className="h-4 w-4" />, color: "bg-purple-100 text-purple-800" },
+      READY: { label: t("orders.status.ready"), icon: <Truck className="h-4 w-4" />, color: "bg-indigo-100 text-indigo-800" },
+      SHIPPED: { label: t("orders.status.shipped"), icon: <Truck className="h-4 w-4" />, color: "bg-cyan-100 text-cyan-800" },
+      DELIVERED: { label: t("orders.status.delivered"), icon: <CheckCircle2 className="h-4 w-4 fill-current" />, color: "bg-emerald-100 text-emerald-800" },
+      CANCELLED: { label: t("orders.status.cancelled"), icon: <XCircle className="h-4 w-4" />, color: "bg-red-100 text-red-800" },
     };
 
-    const s = statuses[status] || { label: status, icon: <AlertCircle className="h-4 w-4" />, color: "bg-slate-100 text-slate-800" };
+    const canonical = normalizeOrderStatus(status);
+    const s = (canonical ? statuses[canonical] : undefined) || {
+      label: status,
+      icon: <AlertCircle className="h-4 w-4" />,
+      color: "bg-slate-100 text-slate-800",
+    };
     return (
       <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${s.color}`}>
         {s.icon}
@@ -308,10 +326,12 @@ export default function OrderTrackingPage() {
                       <User className="h-4 w-4 text-slate-400" />
                       <span className="font-medium text-slate-900">{order.customerName}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-slate-400" />
-                      <span className="text-slate-600" dir="ltr">{order.customerPhone}</span>
-                    </div>
+                    {order.customerPhone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-slate-400" />
+                        <span className="text-slate-600" dir="ltr">{order.customerPhone}</span>
+                      </div>
+                    )}
                     {order.customerAddress && (
                       <div className="flex items-start gap-2">
                         <MapPin className="h-4 w-4 text-slate-400 mt-0.5" />
@@ -376,8 +396,8 @@ export default function OrderTrackingPage() {
               </div>
             </div>
 
-            {/* Cancel Button for Pending Orders */}
-            {order.status === "Pending" && (
+            {/* Cancel Button for Pending Orders (requires a signed link) */}
+            {normalizeOrderStatus(order.status) === "PENDING" && cancelToken && (
               <div className="mt-6 rounded-xl bg-white p-6 shadow-sm border border-amber-200" style={{ borderColor: "var(--color-primary-soft)" }}>
                 <div className="flex items-center gap-3 mb-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100">

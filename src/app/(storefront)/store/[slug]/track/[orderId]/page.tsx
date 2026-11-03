@@ -6,7 +6,10 @@ import { db } from "@/db";
 import { orderItems, orders, products, shippingZones, stores } from "@/db/schema";
 import { absoluteUrl } from "@/lib/site";
 import { isValidOrderId } from "@/lib/order-tracking";
+import { hasFeatureAccess } from "@/lib/paywall";
 import { shipmentTrackingPath, summarizeShipment } from "@/lib/shipping";
+import { verifyOrderToken } from "@/lib/order-tokens";
+import { isAuthenticatedStoreOwner } from "@/lib/orders/order-access";
 import TrackingPortal, {
   type TrackingOrderData,
   type TrackingStoreData,
@@ -14,6 +17,7 @@ import TrackingPortal, {
 
 interface TrackingPageProps {
   params: Promise<{ slug: string; orderId: string }>;
+  searchParams: Promise<{ token?: string; order_token?: string }>;
 }
 
 export const dynamic = "force-dynamic";
@@ -28,7 +32,7 @@ export async function generateMetadata({ params }: TrackingPageProps): Promise<M
   };
 }
 
-async function fetchTrackingData(slug: string, orderId: string) {
+async function fetchTrackingData(slug: string, orderId: string, token?: string) {
   const storeRows = await db
     .select({
       id: stores.id,
@@ -62,6 +66,13 @@ async function fetchTrackingData(slug: string, orderId: string) {
   const row = orderRows[0];
   if (!row) return null;
 
+  const tokenPayload = token
+    ? verifyOrderToken(token, { orderId: row.order.id, purpose: "track" })
+    : null;
+  const fullAccess = Boolean(
+    tokenPayload || (await isAuthenticatedStoreOwner(store.id))
+  );
+
   const itemRows = await db
     .select({
       id: orderItems.id,
@@ -86,7 +97,9 @@ async function fetchTrackingData(slug: string, orderId: string) {
       (store.supportedCurrencies as string[] | null)?.filter(
         (entry): entry is string => typeof entry === "string"
       ) ?? ["EGP"],
-    hasWhiteLabel: store.hasWhiteLabel === true,
+    hasWhiteLabel: store.hasWhiteLabel
+      ? await hasFeatureAccess(store.id, "white_label")
+      : false,
   };
 
   const orderData: TrackingOrderData = {
@@ -94,8 +107,8 @@ async function fetchTrackingData(slug: string, orderId: string) {
     status: row.order.status,
     createdAt: row.order.createdAt.toISOString(),
     totalAmount: String(row.order.totalAmount),
-    customerName: row.order.customerName,
-    customerAddress: row.order.customerAddress || null,
+    customerName: fullAccess ? row.order.customerName : "Customer",
+    customerAddress: fullAccess ? row.order.customerAddress || null : null,
     shipping: summarizeShipment(row.order, row.zoneDays),
     items: itemRows.map((item) => ({
       id: item.id,
@@ -106,22 +119,34 @@ async function fetchTrackingData(slug: string, orderId: string) {
     })),
   };
 
-  return { store: storeData, order: orderData };
+  return {
+    store: storeData,
+    order: orderData,
+    // Only forward a token that actually authorized full access; a random
+    // query value must not end up in the polling URL.
+    token: fullAccess ? token : undefined,
+  };
 }
 
-export default async function StoreOrderTrackingPage({ params }: TrackingPageProps) {
+export default async function StoreOrderTrackingPage({
+  params,
+  searchParams,
+}: TrackingPageProps) {
   const { slug, orderId } = await params;
+  const { token, order_token } = await searchParams;
 
   if (!isValidOrderId(orderId)) notFound();
 
   let data: Awaited<ReturnType<typeof fetchTrackingData>> = null;
   try {
-    data = await fetchTrackingData(slug, orderId);
+    data = await fetchTrackingData(slug, orderId, token || order_token);
   } catch (error) {
     console.error(`Failed to load tracking page for ${slug}/${orderId}:`, error);
   }
 
   if (!data) notFound();
 
-  return <TrackingPortal store={data.store} order={data.order} />;
+  return (
+    <TrackingPortal store={data.store} order={data.order} token={data.token} />
+  );
 }

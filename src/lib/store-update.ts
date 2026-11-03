@@ -21,7 +21,9 @@ const TEXT_FIELDS = [
   "address",
   "logoUrl",
   "coverUrl",
-  "stripeAccountId",
+  // NOTE: `stripeAccountId` is deliberately NOT updateable here. It is
+  // written by the Stripe Connect flow so a caller cannot point payouts at an
+  // arbitrary Stripe account through the generic store update.
   "paddleVendorId",
   "manualPaymentInstructions",
 ] as const;
@@ -102,6 +104,17 @@ export function buildStoreUpdate(
     if (typeof value === "boolean") {
       update[field] = value;
     }
+  }
+
+  // Enabling Stripe without a connected account would only produce failing
+  // checkouts; require the Connect flow to have stored an account first.
+  if (update.stripeEnabled === true && !store.stripeAccountId) {
+    return {
+      error: badRequest(
+        "Connect a Stripe account before enabling Stripe payments",
+        "STRIPE_NOT_CONNECTED"
+      ),
+    };
   }
 
   if (body.accentColor !== undefined) {

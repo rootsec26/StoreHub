@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { randomUUID } from "crypto";
 import { db } from "@/db";
-import { stores, orders, orderItems } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { stores, orders, orderItems, products, coupons } from "@/db/schema";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { createCheckoutSession as createStripeCheckoutSession } from "@/lib/payments/stripe";
 import { createCheckoutSession as createPaddleCheckoutSession } from "@/lib/payments/paddle";
+import { CouponError, validateCoupon } from "@/lib/coupons";
+import { convertAmount } from "@/lib/currency";
 import {
   applyDiscountToItems,
   roundMoney,
@@ -26,6 +29,7 @@ import {
   triggerCodVerification,
   type CodVerificationSendResult,
 } from "@/lib/orders/cod-verification";
+import { PaywallError, sendMeteredWhatsApp } from "@/lib/paywall";
 
 export interface CheckoutRequest {
   storeId: string;
@@ -37,7 +41,11 @@ export interface CheckoutRequest {
   items: Array<{
     productId: string;
     quantity: number;
-    unitPrice: number;
+    /**
+     * Informational only — the server ignores it and re-prices every line from
+     * the `products` row of the target store (see `resolvePricedCart`).
+     */
+    unitPrice?: number;
   }>;
   paymentMethod: "stripe" | "paddle" | "manual" | "cod";
   currency: string;
@@ -45,6 +53,8 @@ export interface CheckoutRequest {
   cancelUrl?: string;
   /** Loyalty points the shopper chose to redeem on the slider. */
   redeemPoints?: number;
+  /** Discount code validated server-side against this store's cart. */
+  couponCode?: string;
   locale?: "en" | "ar";
 }
 
@@ -93,6 +103,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
       successUrl,
       cancelUrl,
       redeemPoints,
+      couponCode,
       locale,
     } = validation.data;
 
@@ -122,28 +133,103 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
     const defaultSuccessUrl = successUrl || `${process.env.NEXT_PUBLIC_SITE_URL}/store/${storeData.slug}/track-order`;
     const defaultCancelUrl = cancelUrl || `${process.env.NEXT_PUBLIC_SITE_URL}/store/${storeData.slug}/checkout`;
 
-    let totalAmount = 0;
+    // ── Server-side pricing & tenant isolation ────────────────────────────
+    // Never trust client-supplied unitPrice. Re-fetch every product scoped to
+    // THIS store, reject unknown/foreign/unavailable products, merge duplicate
+    // lines and rebuild the cart with DB prices only.
+    const requestedIds = [...new Set(items.map((item) => item.productId))];
+    const dbProducts = await db
+      .select({ id: products.id, price: products.price, isVisible: products.isVisible })
+      .from(products)
+      .where(and(eq(products.storeId, storeId), inArray(products.id, requestedIds)));
+    const productById = new Map(dbProducts.map((row) => [row.id, row]));
+
+    const unavailableIds = requestedIds.filter((id) => {
+      const product = productById.get(id);
+      return !product || product.isVisible === false;
+    });
+    if (unavailableIds.length > 0) {
+      return NextResponse.json(
+        {
+          message: "One or more products are unavailable in this store",
+          code: "INVALID_PRODUCT",
+          productIds: unavailableIds,
+        },
+        { status: 400 }
+      );
+    }
+
+    const mergedQuantity = new Map<string, number>();
     for (const item of items) {
+      mergedQuantity.set(
+        item.productId,
+        (mergedQuantity.get(item.productId) ?? 0) + item.quantity
+      );
+    }
+    const cartItems = [...mergedQuantity.entries()].map(([productId, quantity]) => ({
+      productId,
+      quantity,
+      unitPrice: roundMoney(Number(productById.get(productId)!.price)),
+    }));
+
+    let totalAmount = 0;
+    for (const item of cartItems) {
       totalAmount += item.unitPrice * item.quantity;
     }
     totalAmount = roundMoney(totalAmount);
 
+    // ── Coupon ────────────────────────────────────────────────────────────
+    // Validated against this store's server-priced subtotal (never the
+    // client's numbers). A code that no longer qualifies (missing / expired /
+    // exhausted / min-spend) is dropped instead of blocking the purchase —
+    // the buyer simply pays the undiscounted total.
+    let couponDiscount = 0;
+    let appliedCoupon: { id: string; code: string } | null = null;
+    if (couponCode) {
+      const couponCheck = await validateCoupon({
+        storeId,
+        code: couponCode,
+        subtotal: totalAmount,
+      });
+      if (couponCheck.ok) {
+        couponDiscount = couponCheck.discountAmount;
+        appliedCoupon = { id: couponCheck.coupon.id, code: couponCheck.coupon.code };
+      } else {
+        console.warn(
+          `Checkout coupon ${couponCode} rejected for store ${storeId}: ${couponCheck.code}`
+        );
+      }
+    }
+
     // Smart Loyalty engine: apply the VIP tier discount and any points the
     // shopper chose to redeem. `finalTotal` is what gets charged + stored.
+    // The coupon comes off first so loyalty never discounts an amount the
+    // shopper has already been credited for.
     const loyaltyResult = await computeCheckoutLoyalty({
       storeId,
       customerPhone: customerPhone || "",
-      grossTotal: totalAmount,
+      grossTotal: roundMoney(Math.max(0, totalAmount - couponDiscount)),
       requestedPoints: Math.max(0, Math.floor(Number(redeemPoints) || 0)),
     });
     const loyaltyDiscountAmount = roundMoney(
       loyaltyResult.vipDiscount + loyaltyResult.redemptionDiscount
     );
+    const totalDiscountAmount = roundMoney(couponDiscount + loyaltyDiscountAmount);
     const finalTotal = loyaltyResult.finalTotal;
     const paymentItems =
-      loyaltyDiscountAmount > 0
-        ? applyDiscountToItems(items, loyaltyDiscountAmount)
-        : items;
+      totalDiscountAmount > 0
+        ? applyDiscountToItems(cartItems, totalDiscountAmount)
+        : cartItems;
+
+    // Product prices are stored in the store's base currency. The shopper may
+    // pay in any supported currency, so every charge line is converted here,
+    // server-side, with the same trusted rate table the storefront displays.
+    // This closes the "send a cheaper currency but keep the base amount" hole.
+    const storeCurrency = storeData.currency || "EGP";
+    const chargeItems = paymentItems.map((item) => ({
+      ...item,
+      unitPrice: convertAmount(item.unitPrice, storeCurrency, currency),
+    }));
 
     const finalizeLoyalty = (orderId: string) =>
       finalizeCheckoutLoyalty({
@@ -162,7 +248,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
       deductWarehouseStockForOrder({
         storeId,
         customerAddress: customerAddress || "",
-        items,
+        items: cartItems,
       });
 
     // Anti-Return Fraud Shield: score the buyer before the order is persisted.
@@ -181,6 +267,64 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
       );
     };
 
+    // Order + order items + the coupon usage claim are written in ONE
+    // transaction: an order can never exist without its lines, and
+    // `coupons.times_used` can never drift from the orders that redeemed it
+    // (the `times_used < max_uses` predicate re-checks the limit under the
+    // row lock, so two concurrent checkouts cannot both take the last use).
+    const createOrder = (values: typeof orders.$inferInsert) =>
+      db.transaction(async (tx) => {
+        const [order] = await tx.insert(orders).values(values).returning();
+
+        await tx.insert(orderItems).values(
+          cartItems.map((item) => ({
+            orderId: order.id,
+            productId: item.productId,
+            quantity: item.quantity,
+            unitPrice: String(item.unitPrice),
+          }))
+        );
+
+        if (appliedCoupon) {
+          const claimed = await tx
+            .update(coupons)
+            .set({ timesUsed: sql`${coupons.timesUsed} + 1` })
+            .where(
+              and(
+                eq(coupons.id, appliedCoupon.id),
+                eq(coupons.storeId, storeId),
+                sql`${coupons.timesUsed} < ${coupons.maxUses}`
+              )
+            )
+            .returning({ id: coupons.id });
+
+          if (claimed.length === 0) {
+            throw new CouponError(
+              "COUPON_EXHAUSTED",
+              "This coupon has reached its usage limit"
+            );
+          }
+        }
+
+        return order;
+      });
+
+    // Best-effort compensation: gives the claim back when the payment session
+    // (which runs AFTER the order was persisted) could not be created.
+    const releaseCouponClaim = async () => {
+      if (!appliedCoupon) return;
+      try {
+        await db
+          .update(coupons)
+          .set({ timesUsed: sql`GREATEST(${coupons.timesUsed} - 1, 0)` })
+          .where(
+            and(eq(coupons.id, appliedCoupon.id), eq(coupons.storeId, storeId))
+          );
+      } catch (error) {
+        console.warn("Failed to release coupon claim:", error);
+      }
+    };
+
     switch (paymentMethod) {
       case "stripe": {
         if (!storeData.stripeEnabled || !storeData.stripeAccountId) {
@@ -190,54 +334,57 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
           );
         }
 
-        const stripeItems = paymentItems.map((item) => ({
-          name: item.productId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          productId: item.productId,
-        }));
-
-        const result = await createStripeCheckoutSession({
+        // Create the order BEFORE the Stripe session so its id can be embedded
+        // in the session/payment-intent metadata — that is how the webhook
+        // (api/webhooks/stripe) matches the payment to this exact order.
+        const orderId = randomUUID();
+        const order = await createOrder({
+          id: orderId,
           storeId,
-          stripeAccountId: storeData.stripeAccountId,
-          currency,
-          items: stripeItems,
-          customerEmail,
           customerName,
-          customerPhone,
-          customerAddress,
-          successUrl: defaultSuccessUrl,
-          cancelUrl: defaultCancelUrl,
-          metadata: {
-            order_notes: notes || "",
-          },
+          customerPhone: customerPhone || "",
+          customerAddress: customerAddress || "",
+          notes: notes || "",
+          totalAmount: finalTotal.toFixed(2),
+          discountAmount: totalDiscountAmount.toFixed(2),
+          couponCode: appliedCoupon?.code ?? null,
+          status: "PENDING",
+          paymentMethod: "stripe",
         });
 
-        const orderResult = await db
-          .insert(orders)
-          .values({
+        let result;
+        try {
+          const stripeItems = chargeItems.map((item) => ({
+            name: item.productId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            productId: item.productId,
+          }));
+
+          result = await createStripeCheckoutSession({
             storeId,
+            stripeAccountId: storeData.stripeAccountId,
+            currency,
+            items: stripeItems,
+            customerEmail,
             customerName,
-            customerPhone: customerPhone || "",
-            customerAddress: customerAddress || "",
-            notes: notes || "",
-            totalAmount: finalTotal.toFixed(2),
-            discountAmount: loyaltyDiscountAmount.toFixed(2),
-            status: "Pending",
-            paymentMethod: "stripe",
-          })
-          .returning();
-
-        const order = orderResult[0];
-
-        const orderItemsData = items.map((item) => ({
-          orderId: order.id,
-          productId: item.productId,
-          quantity: item.quantity,
-          unitPrice: String(item.unitPrice),
-        }));
-
-        await db.insert(orderItems).values(orderItemsData);
+            customerPhone,
+            customerAddress,
+            successUrl: defaultSuccessUrl,
+            cancelUrl: defaultCancelUrl,
+            metadata: {
+              order_notes: notes || "",
+              order_id: orderId,
+            },
+          });
+        } catch (error) {
+          // Compensate: never leave an orphaned Pending order (nor a consumed
+          // coupon use) when the payment session could not be created. The
+          // items row is removed by the `on delete cascade` of the order.
+          await db.delete(orders).where(eq(orders.id, orderId));
+          await releaseCouponClaim();
+          throw error;
+        }
 
         const loyaltyOutcome = await finalizeLoyalty(order.id);
         await fulfilFromWarehouse();
@@ -266,7 +413,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
           );
         }
 
-        const paddleItems = paymentItems.map((item) => ({
+        const paddleItems = chargeItems.map((item) => ({
           name: item.productId,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
@@ -289,31 +436,18 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
           },
         });
 
-        const orderResult = await db
-          .insert(orders)
-          .values({
-            storeId,
-            customerName,
-            customerPhone: customerPhone || "",
-            customerAddress: customerAddress || "",
-            notes: notes || "",
-            totalAmount: finalTotal.toFixed(2),
-            discountAmount: loyaltyDiscountAmount.toFixed(2),
-            status: "Pending",
-            paymentMethod: "paddle",
-          })
-          .returning();
-
-        const order = orderResult[0];
-
-        const orderItemsData = items.map((item) => ({
-          orderId: order.id,
-          productId: item.productId,
-          quantity: item.quantity,
-          unitPrice: String(item.unitPrice),
-        }));
-
-        await db.insert(orderItems).values(orderItemsData);
+        const order = await createOrder({
+          storeId,
+          customerName,
+          customerPhone: customerPhone || "",
+          customerAddress: customerAddress || "",
+          notes: notes || "",
+          totalAmount: finalTotal.toFixed(2),
+          discountAmount: totalDiscountAmount.toFixed(2),
+          couponCode: appliedCoupon?.code ?? null,
+          status: "PENDING",
+          paymentMethod: "paddle",
+        });
 
         const loyaltyOutcome = await finalizeLoyalty(order.id);
         await fulfilFromWarehouse();
@@ -332,47 +466,49 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
         // hold the order behind a PENDING_VERIFICATION gate and message them.
         const risk = await assessRisk();
 
-        const orderResult = await db
-          .insert(orders)
-          .values({
-            storeId,
-            customerName,
-            customerPhone: customerPhone || "",
-            customerAddress: customerAddress || "",
-            notes: notes || "",
-            totalAmount: finalTotal.toFixed(2),
-            discountAmount: loyaltyDiscountAmount.toFixed(2),
-            status: "Pending",
-            paymentMethod,
-            codVerificationStatus: "PENDING_VERIFICATION",
-            riskScore: risk.riskScore,
-            riskReasons: risk.riskReasons,
-          })
-          .returning();
-
-        const order = orderResult[0];
-
-        const orderItemsData = items.map((item) => ({
-          orderId: order.id,
-          productId: item.productId,
-          quantity: item.quantity,
-          unitPrice: String(item.unitPrice),
-        }));
-
-        await db.insert(orderItems).values(orderItemsData);
+        const order = await createOrder({
+          storeId,
+          customerName,
+          customerPhone: customerPhone || "",
+          customerAddress: customerAddress || "",
+          notes: notes || "",
+          totalAmount: finalTotal.toFixed(2),
+          discountAmount: totalDiscountAmount.toFixed(2),
+          couponCode: appliedCoupon?.code ?? null,
+          status: "PENDING",
+          paymentMethod,
+          codVerificationStatus: "PENDING_VERIFICATION",
+          riskScore: risk.riskScore,
+          riskReasons: risk.riskReasons,
+        });
 
         const loyaltyOutcome = await finalizeLoyalty(order.id);
         await fulfilFromWarehouse();
 
-        // Fire-and-forget: a WhatsApp outage must never break checkout.
+        // Metered + fire-and-forget: a WhatsApp outage or an empty credit
+        // balance must never break checkout. The credit is deducted (with its
+        // ledger row) before the provider call and refunded on a failed send.
         let codVerification: CodVerificationSendResult | null = null;
         try {
-          codVerification = await triggerCodVerification(order.id, {
-            locale,
-            origin: request.nextUrl.origin,
-          });
+          const codOutcome = await sendMeteredWhatsApp(
+            storeId,
+            "COD verification (checkout)",
+            () =>
+              triggerCodVerification(order.id, {
+                locale,
+                origin: request.nextUrl.origin,
+              })
+          );
+          codVerification = codOutcome.result;
         } catch (error) {
-          console.error("COD verification trigger failed:", error);
+          if (error instanceof PaywallError) {
+            console.warn(
+              "COD verification skipped (WhatsApp credits):",
+              error.code
+            );
+          } else {
+            console.error("COD verification trigger failed:", error);
+          }
         }
 
         const manualInstructions = storeData.manualPaymentInstructions ||
@@ -404,6 +540,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
         );
     }
   } catch (error) {
+    // The coupon claim happens inside the order transaction; if the last use
+    // was taken concurrently the whole order rolls back and the buyer gets a
+    // specific 400 instead of a generic 500.
+    if (error instanceof CouponError) {
+      return NextResponse.json(
+        { message: error.message, code: error.code },
+        { status: error.status }
+      ) as NextResponse<CheckoutResponse>;
+    }
     console.error("Checkout error:", error);
     return createErrorResponse(error, "Failed to process checkout") as NextResponse<CheckoutResponse>;
   }

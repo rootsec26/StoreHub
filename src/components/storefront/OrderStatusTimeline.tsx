@@ -3,6 +3,7 @@
 import { CheckCircle2, ClipboardCheck, Package, Truck, XCircle } from "lucide-react";
 
 import { useI18n } from "@/lib/i18n";
+import { normalizeOrderStatus } from "@/lib/order-state-machine";
 import {
   TRACKING_STEP_KEYS,
   getTrackingStepIndex,
@@ -25,7 +26,7 @@ interface OrderStatusTimelineProps {
 export default function OrderStatusTimeline({ status }: OrderStatusTimelineProps) {
   const { t } = useI18n();
 
-  const cancelled = status === "Cancelled";
+  const cancelled = normalizeOrderStatus(status) === "CANCELLED";
   const currentIndex = cancelled ? -1 : getTrackingStepIndex(status);
   const currentStepKey: TrackingStepKey =
     TRACKING_STEP_KEYS[Math.min(Math.max(currentIndex, 0), 3)];

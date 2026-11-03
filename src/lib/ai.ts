@@ -34,6 +34,7 @@ export interface MarketingPostInput {
   platform: AiPlatform;
   price?: string;
   keywords?: string;
+  tone?: "promotional" | "urgent" | "casual";
 }
 
 export interface BusinessInsightsInput {
@@ -159,9 +160,10 @@ const PLATFORM_RULES: Record<AiPlatform, string> = {
 };
 
 function mockMarketingPost(input: MarketingPostInput): string {
-  const { productName, storeName, platform, price, keywords } = input;
+  const { productName, storeName, platform, price, keywords, tone } = input;
   const priceClause = price ? ` بمجرد ${price} جنيه فقط` : "";
   const angle = keywords ? ` ${clamp(keywords, 120)}.` : "";
+  const toneModifier = tone === "urgent" ? "offer ending soon" : tone === "casual" ? "check it out" : "great deal";
 
   switch (platform) {
     case "facebook":
@@ -169,7 +171,7 @@ function mockMarketingPost(input: MarketingPostInput): string {
         `🔥 عرض لا يفوّت: ${productName}${priceClause}!`,
         ``,
         `جودة تثق بها وتجربة تسوق تستحقها.${angle}`,
-        `اطلبه الآن من ${storeName} واستمتع بتوصيل سريع حتى بابك، واستفسارك يسعدنا قبل الطلب.`,
+        `اطلبه الآن من ${storeName} واستمتع بتوصيل سريع حتى بابك، واستفسارك يسعدنا قبل الطلب. ${toneModifier}`,
         ``,
         `👉 اطلب الآن قبل نفاد الكمية.`,
         ``,
@@ -180,7 +182,7 @@ function mockMarketingPost(input: MarketingPostInput): string {
         `✨ هل تبحث عن ${productName} المثالي؟`,
         ``,
         `جودة تُلاحظ من أول استخدام 🚀${angle}`,
-        `متاح الآن${priceClause} — والطلب في خطوات فقط 💫`,
+        `متاح الآن${priceClause} — والطلب في خطوات فقط 💫 ${toneModifier}`,
         ``,
         `🔗 اطلب الآن من ${storeName}`,
         `Tag صديقك اللي يحتاج هذا المنتج 👇`,
@@ -190,7 +192,7 @@ function mockMarketingPost(input: MarketingPostInput): string {
     case "tiktok":
       return [
         `انتبه 👀 ${productName} صار متاح${priceClause}!`,
-        `طلبه الآن من ${storeName} قبل نفاد الكمية ⚡${angle}`,
+        `طلبه الآن من ${storeName} قبل نفاد الكمية ⚡${angle} ${toneModifier}`,
         `اكتب "أريد" في التعليقات وسنوصل لك التفاصيل 👇🔥`,
         ``,
         `#تسوق_اونلاين #عروض #توصيل_سريع #ريلز`,
@@ -206,6 +208,7 @@ export async function generateMarketingPost(
   const price = clamp((input.price ?? "").trim(), 32);
   const keywords = clamp((input.keywords ?? "").trim(), 400);
 
+  const toneLabels = { promotional: "نبرة تسويقية مقنعة", urgent: "نبرة عاجلة تحفز على الشراء", casual: "نبرة ودية وغير رسمية" };
   const system = [
     "أنت خبير تسويق اجتماعي تكتب منشورات إعلانية بالعربية الفصحى العصرية.",
     "اكتب منشورًا جاهزًا للنشر يروّج للمنتج بأسلوب مقنع ومليء بالإيموجي المناسبة.",
@@ -213,6 +216,7 @@ export async function generateMarketingPost(
     PLATFORM_RULES[input.platform],
     "ممنوع استخدام Markdown أو عناوين أو تنسيق الأكواد، وأعد النص فقط دون أي مقدمات.",
     "اذكر اسم المتجر في المنشور ولا تختلق أرقامًا أو عروضًا غير مذكورة.",
+    `النبرة المطلوبة: ${(input.tone && toneLabels[input.tone]) || "نبرة تسويقية"}`,
   ].join(" ");
 
   const user = [
@@ -220,6 +224,7 @@ export async function generateMarketingPost(
     `اسم المتجر: ${storeName}`,
     price ? `السعر: ${price} EGP` : "السعر: غير محدد",
     keywords ? `زاوية الترويج: ${keywords}` : "لا توجد زاوية ترويج محددة — ابتكر عرضًا عامًا جذابًا.",
+    input.tone ? `النبرة: ${input.tone}` : "",
   ].join("\n");
 
   const generated = await complete(system, user, 500);

@@ -13,14 +13,17 @@ import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
 import { DEFAULT_THEME_CONFIG } from "@/lib/theme-config";
-import { deductWarehouseStockForOrder } from "@/lib/warehouses-server";
+import { deductWarehouseStockForOrder, restockOrder } from "@/lib/warehouses-server";
 import {
   isValidTransition,
   validateStoreAccess,
   canManageOrders,
   hasAdminOverride,
+  normalizeOrderStatus,
 } from "@/lib/order-state-machine";
+import { orderStatusIs } from "@/lib/order-status-sql";
 import { validateRequest, orderCreateSchema, orderStatusUpdateSchema, formatZodError } from "@/lib/validators";
+import type { OrderStatus } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import {
   evaluateOrderRisk,
@@ -30,6 +33,7 @@ import {
   expireStaleCodVerifications,
   triggerCodVerification,
 } from "@/lib/orders/cod-verification";
+import { PaywallError, sendMeteredWhatsApp } from "@/lib/paywall";
 
 // Get orders
 export async function GET(request: NextRequest) {
@@ -68,7 +72,12 @@ export async function GET(request: NextRequest) {
     const pendingRows = await db
       .select({ id: orders.id })
       .from(orders)
-      .where(and(eq(orders.storeId, safeStore.id), eq(orders.status, "Pending")));
+      .where(
+        and(
+          eq(orders.storeId, safeStore.id),
+          orderStatusIs(orders.status, "PENDING")
+        )
+      );
     const pendingIds = pendingRows.map((row) => row.id);
 
     // Lightweight payload for the realtime badge / polling fallback.
@@ -198,7 +207,7 @@ export async function POST(request: NextRequest) {
         customerAddress: customerAddress || "",
         notes: notes || "",
         totalAmount: String(totalAmount.toFixed(2)),
-        status: "Pending",
+        status: "PENDING",
         ...(isCodOrder && paymentMethod && risk
           ? {
               paymentMethod,
@@ -231,10 +240,19 @@ export async function POST(request: NextRequest) {
     });
 
     if (isCodOrder) {
+      // Metered: deduct-before-send (atomic + ledger), refund on failure.
       try {
-        await triggerCodVerification(order.id, { origin: request.nextUrl.origin });
+        await sendMeteredWhatsApp(
+          storeId,
+          "COD verification (order create)",
+          () => triggerCodVerification(order.id, { origin: request.nextUrl.origin })
+        );
       } catch (error) {
-        console.error("COD verification trigger failed:", error);
+        if (error instanceof PaywallError) {
+          console.warn("COD verification skipped (WhatsApp credits):", error.code);
+        } else {
+          console.error("COD verification trigger failed:", error);
+        }
       }
     }
 
@@ -289,8 +307,18 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-const { id, status } = validation.data;
-    const orderIdToUse = id || "";
+const { id, orderId, status } = validation.data;
+    const orderIdToUse = id || orderId || "";
+
+    // Canonical status only — legacy spellings are normalized, unknown values
+    // are rejected with 400 instead of being written to the database.
+    const targetStatus = normalizeOrderStatus(status);
+    if (!targetStatus) {
+      return NextResponse.json(
+        { error: "Invalid status", code: "INVALID_STATUS" },
+        { status: 400 }
+      );
+    }
 
     // Use transaction for atomicity: lock order row, validate transition, update, audit log
     const result = await db.transaction(async (tx) => {
@@ -307,17 +335,26 @@ const { id, status } = validation.data;
       }
 
       const currentOrder = orderRows[0];
-      const previousStatus = currentOrder.status as "PENDING" | "CONFIRMED" | "PROCESSING" | "READY" | "SHIPPED" | "DELIVERED" | "CANCELLED";
+      const previousStatus =
+        normalizeOrderStatus(currentOrder.status) ?? currentOrder.status;
 
-      // Bypass status transition check for dashboard admins
-      // if (!isValidTransition(previousStatus, status, hasAdminOverride(session.role))) {
-      //   throw new Error("INVALID_TRANSITION");
-      // }
+      // Everyone follows the transition matrix; OWNER only keeps the single
+      // documented escape hatch (CANCELLED → DELIVERED). The old full bypass
+      // let a cancelled order be reopened into any state.
+      const isAdmin = hasAdminOverride(session.role);
+      if (
+        !isValidTransition(previousStatus as OrderStatus, targetStatus, isAdmin)
+      ) {
+        throw new Error("INVALID_TRANSITION");
+      }
 
-// Update order status
+      const cancelling =
+        targetStatus === "CANCELLED" && previousStatus !== "CANCELLED";
+
+      // Update order status
       const updated = await tx
         .update(orders)
-        .set({ status })
+        .set({ status: targetStatus })
         .where(and(eq(orders.id, orderIdToUse), eq(orders.storeId, safeStore.id)))
         .returning();
 
@@ -325,12 +362,16 @@ const { id, status } = validation.data;
         throw new Error("FORBIDDEN");
       }
 
+      if (cancelling) {
+        await restockOrder(tx, { orderId: orderIdToUse, storeId: safeStore.id });
+      }
+
       // Audit log
       await tx.insert(orderStatusLogs).values({
         orderId: orderIdToUse,
         storeId: safeStore.id,
         previousStatus,
-        newStatus: status,
+        newStatus: targetStatus,
         changedByUserId: session.id,
         ipAddress:
           request.headers.get("x-forwarded-for") ??

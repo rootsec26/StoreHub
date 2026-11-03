@@ -22,8 +22,11 @@ import { isPlanActive as isPlanActiveRow, normalizePlan, type Plan } from "@/lib
  *   paid-plan features (`PLAN_EXPIRED` / `PAYMENT_REQUIRED`, 402).
  * - `hasFeatureAccess` answers whether a monthly add-on (e.g. `white_label`)
  *   is currently entitled (requires an active paid plan).
+ * - `sendMeteredWhatsApp` / `runMeteredAI` are the metered dispatch paths:
+ *   balance + ledger row are written in one transaction before the provider
+ *   call, and the credit is given back when the call fails.
  * - `resolveApiFeatureGate` lets the request middleware block gated API
- *   routes before the handler runs.
+ *   routes before the handler runs (a path can match several gates).
  */
 
 export type { CreditType };
@@ -51,6 +54,9 @@ export class PaywallError extends Error {
     this.status = status;
   }
 }
+
+/** Either the pool handle or a `db.transaction(...)` handle. */
+type DbExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export interface StoreEntitlements {
   storeId: string;
@@ -262,7 +268,8 @@ async function deductCredits(
   storeId: string,
   column: "aiCredits" | "whatsappCredits",
   cost: number,
-  exhausted: PaywallErrorCode
+  exhausted: PaywallErrorCode,
+  runner: DbExecutor = db
 ): Promise<number | null> {
   if (!isValidUuid(storeId)) {
     throw new PaywallError("STORE_NOT_FOUND", "Store not found", 404);
@@ -281,7 +288,7 @@ async function deductCredits(
   // Strict window check first: expired balances are never spendable, even
   // when the numeric balance is still positive.
   try {
-    const rows = await db
+    const rows = await runner
       .select({ expiresAt: expiryColumn })
       .from(stores)
       .where(eq(stores.id, storeId))
@@ -304,7 +311,7 @@ async function deductCredits(
     const patch: PgUpdateSetSource<typeof stores> = {};
     patch[column] = sql`${stores[column]} - ${cost}`;
 
-    const rows = await db
+    const rows = await runner
       .update(stores)
       .set(patch)
       .where(and(eq(stores.id, storeId), sql`${stores[column]} >= ${cost}`))
@@ -322,7 +329,7 @@ async function deductCredits(
   }
 
   // No row updated: either the store does not exist or the balance is empty.
-  const current = await db
+  const current = await runner
     .select({ id: stores.id, expiresAt: expiryColumn })
     .from(stores)
     .where(eq(stores.id, storeId))
@@ -379,6 +386,230 @@ export async function canUseWhatsAppCredits(
     cost,
     "WHATSAPP_CREDITS_EXHAUSTED"
   );
+}
+
+export interface MeteredSendOutcome<T> {
+  /** True when the provider accepted the message (per `isDelivered`/flag). */
+  delivered: boolean;
+  /** Balance after the deduction; `null` means the store is unmetered. */
+  creditsRemaining: number | null;
+  /** True when the credit was given back because the send failed. */
+  refunded: boolean;
+  /** Whatever the send callback returned; `null` when it threw. */
+  result: T | null;
+}
+
+/**
+ * Derives a delivery verdict from whatever a send callback returns:
+ *  - `null`/`undefined` (order vanished, nothing attempted) → false
+ *  - `boolean` (`sendWhatsAppText`) → the boolean itself
+ *  - object with a `delivered` flag (`CodVerificationSendResult`,
+ *    social `SendOutcome`) → that flag
+ *  - anything else (void success) → true
+ */
+function detectDelivery(result: unknown): boolean {
+  if (result === null || result === undefined) return false;
+  if (typeof result === "boolean") return result;
+  if (typeof result === "object" && "delivered" in result) {
+    const flag = (result as { delivered?: unknown }).delivered;
+    return typeof flag === "boolean" ? flag : true;
+  }
+  return true;
+}
+
+/**
+ * Gives a previously deducted credit back (balance + matching positive ledger
+ * row, same transaction). Best-effort: failures are logged and `null` is
+ * returned so the original operation error is never masked.
+ */
+async function refundCredits(
+  storeId: string,
+  type: CreditType,
+  cost: number,
+  description: string
+): Promise<number | null> {
+  const column = type === "ai" ? "aiCredits" : "whatsappCredits";
+  try {
+    return await db.transaction(async (tx) => {
+      const patch: PgUpdateSetSource<typeof stores> = {};
+      patch[column] = sql`${stores[column]} + ${cost}`;
+
+      const rows = await tx
+        .update(stores)
+        .set(patch)
+        .where(eq(stores.id, storeId))
+        .returning({ balance: stores[column] });
+      if (rows.length === 0) return null;
+
+      const balance = rows[0].balance;
+      await tx.insert(storeCredits).values({
+        storeId,
+        creditType: type,
+        amount: Math.abs(cost),
+        balanceAfter: balance,
+        description: `Refund: ${description}`,
+      });
+      return balance;
+    });
+  } catch (error) {
+    console.warn(`[paywall] ${type} credit refund failed:`, error);
+    return null;
+  }
+}
+
+/**
+ * The single metered dispatch path for every outbound WhatsApp (and social)
+ * message the platform sends on a store's behalf:
+ *
+ *   1. deduct `cost` credits + write the `store_credits` ledger row in ONE
+ *      transaction, BEFORE the provider call — concurrent requests can no
+ *      longer race past a stale pre-check (N sends for 1 credit) and a
+ *      balance change always lands with its audit row;
+ *   2. run `send()`;
+ *   3. refund the credit when the send throws or reports `delivered: false`,
+ *      so a provider outage or rejected message never costs the store.
+ *
+ * Throws `PaywallError` (HTTP 402) when the balance is empty/expired —
+ * nothing is sent in that case. When the paywall schema is not migrated yet
+ * the send proceeds unmetered (`creditsRemaining: null`), matching the
+ * existing degrade-to-unmetered behaviour of `deductCredits`.
+ */
+export async function sendMeteredWhatsApp<T>(
+  storeId: string,
+  description: string,
+  send: () => Promise<T>,
+  options?: { cost?: number; isDelivered?: (result: T) => boolean }
+): Promise<MeteredSendOutcome<T>> {
+  const cost = options?.cost ?? 1;
+
+  let creditsRemaining: number | null = null;
+  try {
+    await db.transaction(async (tx) => {
+      const balance = await deductCredits(
+        storeId,
+        "whatsappCredits",
+        cost,
+        "WHATSAPP_CREDITS_EXHAUSTED",
+        tx
+      );
+      creditsRemaining = balance;
+      if (balance !== null) {
+        await tx.insert(storeCredits).values({
+          storeId,
+          creditType: "whatsapp",
+          amount: -Math.abs(cost),
+          balanceAfter: balance,
+          description,
+        });
+      }
+    });
+  } catch (error) {
+    if (error instanceof PaywallError) throw error;
+    if (!isMissingSchemaObject(error)) throw error;
+    // Partially migrated paywall: roll back to unmetered dispatch.
+    logSchemaFallback("sendMeteredWhatsApp", error);
+    creditsRemaining = null;
+  }
+
+  let result: T;
+  try {
+    result = await send();
+  } catch (error) {
+    if (creditsRemaining !== null) {
+      await refundCredits(storeId, "whatsapp", cost, description);
+    }
+    throw error;
+  }
+
+  const delivered = options?.isDelivered
+    ? options.isDelivered(result)
+    : detectDelivery(result);
+
+  if (!delivered && creditsRemaining !== null) {
+    const refundedBalance = await refundCredits(
+      storeId,
+      "whatsapp",
+      cost,
+      description
+    );
+    return {
+      delivered: false,
+      creditsRemaining: refundedBalance ?? creditsRemaining,
+      refunded: refundedBalance !== null,
+      result,
+    };
+  }
+
+  return { delivered, creditsRemaining, refunded: false, result };
+}
+
+export interface MeteredRunOutcome<T> {
+  result: T;
+  /** Balance after the deduction; `null` means the store is unmetered. */
+  creditsRemaining: number | null;
+}
+
+/**
+ * The single metered path for every AI generation the platform runs on a
+ * store's behalf:
+ *
+ *   1. deduct `cost` AI credits AND write the `store_credits` ledger row in
+ *      ONE transaction, BEFORE the provider call — the balance change always
+ *      lands with its audit row, and concurrent requests can no longer race
+ *      past a stale pre-check;
+ *   2. run `generate()`;
+ *   3. refund the credit when the generation throws, so a provider outage
+ *      never burns the store's credits.
+ *
+ * Throws `PaywallError` (HTTP 402) when the balance is empty/expired —
+ * nothing is generated in that case. When the paywall schema is not migrated
+ * yet the generation proceeds unmetered (`creditsRemaining: null`).
+ */
+export async function runMeteredAI<T>(
+  storeId: string,
+  cost: number,
+  description: string,
+  generate: () => Promise<T>
+): Promise<MeteredRunOutcome<T>> {
+  let creditsRemaining: number | null = null;
+  try {
+    await db.transaction(async (tx) => {
+      const balance = await deductCredits(
+        storeId,
+        "aiCredits",
+        cost,
+        "AI_CREDITS_EXHAUSTED",
+        tx
+      );
+      creditsRemaining = balance;
+      if (balance !== null) {
+        await tx.insert(storeCredits).values({
+          storeId,
+          creditType: "ai",
+          amount: -Math.abs(cost),
+          balanceAfter: balance,
+          description,
+        });
+      }
+    });
+  } catch (error) {
+    if (error instanceof PaywallError) throw error;
+    if (!isMissingSchemaObject(error)) throw error;
+    logSchemaFallback("runMeteredAI", error);
+    creditsRemaining = null;
+  }
+
+  let result: T;
+  try {
+    result = await generate();
+  } catch (error) {
+    if (creditsRemaining !== null) {
+      await refundCredits(storeId, "ai", cost, description);
+    }
+    throw error;
+  }
+
+  return { result, creditsRemaining };
 }
 
 /**
@@ -660,34 +891,30 @@ export interface ApiFeatureGate {
 
 /** API routes that are paywalled, checked before the handler runs. */
 export const API_FEATURE_GATES: readonly ApiFeatureGate[] = [
+  { prefix: "/api/ai/", check: "active_plan" },
   { prefix: "/api/ai/", check: "ai_credits" },
   { prefix: "/api/whatsapp/", check: "whatsapp_credits" },
+  { prefix: "/api/shipping/fulfill", check: "active_plan" },
 ];
 
-function gateForPath(pathname: string): ApiFeatureGate | null {
-  return (
-    API_FEATURE_GATES.find((gate) => pathname.startsWith(gate.prefix)) ?? null
-  );
+/**
+ * A path can match several gates (e.g. AI routes need both an active plan and
+ * credits) — every match must pass, so they are evaluated as an ordered list
+ * rather than the first prefix win.
+ */
+function gatesForPath(pathname: string): ApiFeatureGate[] {
+  return API_FEATURE_GATES.filter((gate) => pathname.startsWith(gate.prefix));
 }
 
 /** True when the path is gated at all (used to skip the DB check otherwise). */
 export function isGatedApiPath(pathname: string): boolean {
-  return gateForPath(pathname) !== null;
+  return gatesForPath(pathname).length > 0;
 }
 
-/**
- * Feature-gate check used by the request middleware. Never deducts credits —
- * it only reports whether the request may proceed. Expired entitlements are
- * blocked with HTTP 402 (`CREDITS_EXPIRED` / `PLAN_EXPIRED`).
- */
-export async function resolveApiFeatureGate(
-  pathname: string,
-  storeId: string | undefined | null
+async function evaluateGate(
+  gate: ApiFeatureGate,
+  storeId: string
 ): Promise<FeatureGateBlock | null> {
-  const gate = gateForPath(pathname);
-  if (!gate) return null;
-  if (!storeId) return null; // no store session -> the route answers 401/404
-
   if (gate.check === "ai_credits" || gate.check === "whatsapp_credits") {
     const type: CreditType = gate.check === "ai_credits" ? "ai" : "whatsapp";
     const entitlements = await getStoreEntitlements(storeId);
@@ -738,6 +965,28 @@ export async function resolveApiFeatureGate(
       error:
         "Your paid plan has expired. Redeem a plan code from Billing to continue.",
     };
+  }
+
+  return null;
+}
+
+/**
+ * Feature-gate check used by the request middleware. Never deducts credits —
+ * it only reports whether the request may proceed. Every gate matching the
+ * path must pass; the first failure wins. Expired entitlements are blocked
+ * with HTTP 402 (`CREDITS_EXPIRED` / `PLAN_EXPIRED`).
+ */
+export async function resolveApiFeatureGate(
+  pathname: string,
+  storeId: string | undefined | null
+): Promise<FeatureGateBlock | null> {
+  const gates = gatesForPath(pathname);
+  if (gates.length === 0) return null;
+  if (!storeId) return null; // no store session -> the route answers 401/404
+
+  for (const gate of gates) {
+    const block = await evaluateGate(gate, storeId);
+    if (block) return block;
   }
 
   return null;

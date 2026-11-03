@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { orderItems, orders, products, stores } from "@/db/schema";
 import { getSession } from "@/lib/auth";
 import { REVENUE_ORDER_STATUS, REVENUE_PAYMENT_STATUS } from "@/lib/order-metrics";
+import { orderStatusIs, orderStatusNotIn } from "@/lib/order-status-sql";
 import type {
   AnalyticsBucket,
   AnalyticsResponse,
@@ -85,14 +86,14 @@ export async function GET() {
       }
     }
 
-    // Revenue condition: Completed AND paid (case-insensitive payment match)
+    // Revenue condition: DELIVERED AND paid (case-insensitive payment match)
     const revenueCondition = and(
-      eq(orders.status, REVENUE_ORDER_STATUS),
+      orderStatusIs(orders.status, REVENUE_ORDER_STATUS),
       sql`LOWER(${orders.paymentStatus}) = ${REVENUE_PAYMENT_STATUS}`
     );
 
     // Valid orders for counting (not cancelled)
-    const validOrderCondition = sql`${orders.status} != 'Cancelled'`;
+    const validOrderCondition = orderStatusNotIn(orders.status, ["CANCELLED"]);
 
     // --- Summary: Total orders, total revenue, completed orders, AOV ---
     const summaryResult = await db

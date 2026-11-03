@@ -4,7 +4,7 @@ import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { activationCodes } from "@/db/schema";
 import { createErrorResponse } from "@/lib/errors";
-import { isLocalhostRequest } from "@/lib/admin";
+import { isAdminAuthorized } from "@/lib/admin";
 import {
   ACTIVATION_CODE_SPECS,
   isActivationCodeType,
@@ -42,8 +42,8 @@ function toDTO(row: CodeRow): ActivationCodeDTO {
   };
 }
 
-async function requireLocalhost() {
-  if (await isLocalhostRequest()) return null;
+async function requireAdmin() {
+  if (await isAdminAuthorized()) return null;
   return NextResponse.json(
     { error: "Not found", code: "NOT_FOUND" },
     { status: 404 }
@@ -52,7 +52,7 @@ async function requireLocalhost() {
 
 /** GET /api/admin/codes — every generated voucher with its status. */
 export async function GET() {
-  const denied = await requireLocalhost();
+  const denied = await requireAdmin();
   if (denied) return denied;
 
   try {
@@ -75,7 +75,7 @@ export async function GET() {
  * Generates single or batch vouchers the operator sends to merchants.
  */
 export async function POST(request: NextRequest) {
-  const denied = await requireLocalhost();
+  const denied = await requireAdmin();
   if (denied) return denied;
 
   try {

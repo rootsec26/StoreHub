@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { eq, and, sql } from "drizzle-orm";
-import { orders, orderItems, products, stores, orderStatusLogs } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
+import { orders, stores, orderStatusLogs } from "@/db/schema";
 import { createErrorResponse } from "@/lib/errors";
-import { isValidTransition } from "@/lib/order-state-machine";
+import { isValidTransition, normalizeOrderStatus } from "@/lib/order-state-machine";
+import { restockOrder } from "@/lib/warehouses-server";
+import type { OrderStatus } from "@/lib/types";
 import { revalidatePath } from "next/cache";
+import { verifyOrderToken } from "@/lib/order-tokens";
+import { isAuthenticatedStoreOwner } from "@/lib/orders/order-access";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { orderId, storeSlug } = body;
+    const { orderId, storeSlug, token } = body as {
+      orderId?: string;
+      storeSlug?: string;
+      token?: string;
+    };
 
     if (!orderId || !storeSlug) {
       return NextResponse.json(
@@ -34,6 +42,28 @@ export async function POST(request: NextRequest) {
 
     const storeId = storeResult[0].id;
 
+    // Cancellation is a destructive action. Accept either a signed
+    // cancel-purpose token (customer link) or an authenticated store session.
+    if (token) {
+      if (!verifyOrderToken(token, { orderId, purpose: "cancel" })) {
+        return NextResponse.json(
+          {
+            error: "Invalid or expired cancellation link",
+            code: "INVALID_ORDER_TOKEN",
+          },
+          { status: 401 }
+        );
+      }
+    } else if (!(await isAuthenticatedStoreOwner(storeId))) {
+      return NextResponse.json(
+        {
+          error: "A valid cancellation link or merchant session is required",
+          code: "ORDER_TOKEN_REQUIRED",
+        },
+        { status: 401 }
+      );
+    }
+
     // Use transaction for atomicity: lock order, validate transition, update, restock, audit log
     const result = await db.transaction(async (tx) => {
       // Lock the order row
@@ -49,33 +79,33 @@ export async function POST(request: NextRequest) {
       }
 
       const order = orderRows[0];
-      const previousStatus = order.status as "Pending" | "Confirmed" | "Preparing" | "Ready" | "Shipped" | "Completed" | "Cancelled";
+      const normalizedStatus = normalizeOrderStatus(order.status);
 
-      // Validate state machine transition (only Pending → Cancelled allowed for customers)
-      if (!isValidTransition(previousStatus, "Cancelled", false)) {
+      // Idempotency: an already-cancelled order must not restock inventory a
+      // second time (the state machine treats same→same as valid).
+      if (normalizedStatus === "CANCELLED") {
+        return order;
+      }
+
+      const previousStatus = normalizedStatus ?? order.status;
+
+      // Validate state machine transition (only Pending → Cancelled allowed
+      // for customers). Unknown/legacy spellings are normalized first so a
+      // genuine "Pending" row is not rejected as invalid.
+      if (
+        !normalizedStatus ||
+        !isValidTransition(previousStatus as OrderStatus, "CANCELLED", false)
+      ) {
         throw new Error("INVALID_TRANSITION");
       }
 
-      // Get order items to restock inventory
-      const items = await tx
-        .select()
-        .from(orderItems)
-        .where(eq(orderItems.orderId, orderId));
-
-      // Restock inventory for each item
-      for (const item of items) {
-        await tx
-          .update(products)
-          .set({
-            stock: sql`${products.stock} + ${item.quantity}`,
-          })
-          .where(eq(products.id, item.productId));
-      }
+      // Return catalog + branch stock for the cancelled lines
+      await restockOrder(tx, { orderId, storeId });
 
       // Update order status to cancelled
       const updatedOrder = await tx
         .update(orders)
-        .set({ status: "Cancelled" })
+        .set({ status: "CANCELLED" })
         .where(eq(orders.id, orderId))
         .returning();
 
@@ -88,7 +118,7 @@ export async function POST(request: NextRequest) {
         orderId,
         storeId,
         previousStatus,
-        newStatus: "Cancelled",
+        newStatus: "CANCELLED",
         changedByUserId: null, // Customer-initiated
         ipAddress:
           request.headers.get("x-forwarded-for") ??
@@ -99,27 +129,28 @@ export async function POST(request: NextRequest) {
       return updatedOrder[0];
     });
 
-    if (result instanceof Error) {
-      if (result.message === "ORDER_NOT_FOUND") {
-        return NextResponse.json(
-          { error: "Order not found", code: "ORDER_NOT_FOUND" },
-          { status: 404 }
-        );
-      }
-      if (result.message === "INVALID_TRANSITION") {
-        return NextResponse.json(
-          { error: "Only pending orders can be cancelled", code: "INVALID_STATUS" },
-          { status: 400 }
-        );
-      }
-    }
-
     // Revalidate cache
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/orders");
 
-    return NextResponse.json({ order: result });
+    return NextResponse.json({
+      order: { id: result.id, status: result.status },
+    });
   } catch (error) {
+    // db.transaction re-throws the sentinels — map them here (the old inner
+    // `result instanceof Error` branch was unreachable dead code → 500s).
+    if (error instanceof Error && error.message === "ORDER_NOT_FOUND") {
+      return NextResponse.json(
+        { error: "Order not found", code: "ORDER_NOT_FOUND" },
+        { status: 404 }
+      );
+    }
+    if (error instanceof Error && error.message === "INVALID_TRANSITION") {
+      return NextResponse.json(
+        { error: "Only pending orders can be cancelled", code: "INVALID_STATUS" },
+        { status: 400 }
+      );
+    }
     console.error("Cancel order error:", error);
     return createErrorResponse(error, "Failed to cancel order");
   }

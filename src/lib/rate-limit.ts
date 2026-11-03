@@ -79,6 +79,30 @@ export const aiRateLimiter = createRateLimiter({
   message: "Too many AI requests. Please wait before trying again.",
 });
 
+/** Guards the metered WhatsApp resend quick action (spends credits per send). */
+export const resendVerificationRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 10,
+  keyPrefix: "resend-verification",
+  message: "Too many verification resend attempts. Please wait before trying again.",
+});
+
+/** Throttles public phone-keyed loyalty profile lookups (enumeration guard). */
+export const storefrontLoyaltyRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 30,
+  keyPrefix: "storefront-loyalty",
+  message: "Too many loyalty lookups. Please wait before trying again.",
+});
+
+/** Throttles the public guest abandoned-cart auto-save endpoint. */
+export const abandonedCartRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 60,
+  keyPrefix: "abandoned-cart",
+  message: "Too many cart sync requests. Please slow down.",
+});
+
 export async function withRateLimit(
   request: NextRequest,
   limiter: (req: NextRequest) => Promise<NextResponse | null>

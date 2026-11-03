@@ -674,7 +674,7 @@ export async function createDraftOrder(params: {
         .filter(Boolean)
         .join(" — "),
       totalAmount: total.toFixed(2),
-      status: "Pending",
+      status: "PENDING",
       paymentMethod: "cod",
       channel: "online",
     })

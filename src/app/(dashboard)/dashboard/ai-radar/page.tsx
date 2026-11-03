@@ -16,6 +16,7 @@ import {
 
 import { useI18n } from "@/lib/i18n";
 import { normalizeWhatsAppNumber } from "@/lib/whatsapp";
+import { normalizeOrderStatus } from "@/lib/order-state-machine";
 
 interface Order {
   id: string;
@@ -72,7 +73,9 @@ function useAbandonedCarts(): { carts: AbandonedCart[]; loading: boolean } {
         const allOrders = data.orders || [];
 
         // Filter pending orders as abandoned carts
-        const pending = allOrders.filter((o: any) => o.status === "Pending");
+        const pending = allOrders.filter(
+          (o: any) => normalizeOrderStatus(o.status) === "PENDING"
+        );
 
         // Transform to abandoned cart format
         const carts = pending.map((o: any) => ({
@@ -125,7 +128,9 @@ function useCODRiskAnalysis(): {
         const allOrders = data.orders || [];
 
         // Get pending COD orders
-        const pending = allOrders.filter((o: any) => o.status === "Pending");
+        const pending = allOrders.filter(
+          (o: any) => normalizeOrderStatus(o.status) === "PENDING"
+        );
 
         // Analyze each order with heuristics
         const analyzed = pending.map((o: any) => {

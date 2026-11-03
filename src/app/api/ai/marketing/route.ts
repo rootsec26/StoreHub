@@ -7,9 +7,9 @@ import { db } from "@/db";
 import { products, stores } from "@/db/schema";
 import { createErrorResponse } from "@/lib/errors";
 import {
-  canUseAICredits,
   PaywallError,
-  recordCreditUsage,
+  requireActivePlan,
+  runMeteredAI,
 } from "@/lib/paywall";
 import { withRateLimit, aiRateLimiter } from "@/lib/rate-limit";
 
@@ -72,9 +72,22 @@ export async function POST(request: NextRequest) {
     const product = productResult[0];
     const selectedPlatform = platform as AiPlatform;
 
-    let creditsRemaining: number | null = null;
+    let outcome: {
+      result: Awaited<ReturnType<typeof generateMarketingPost>>;
+      creditsRemaining: number | null;
+    };
     try {
-      creditsRemaining = await canUseAICredits(userStore[0].id, 1);
+      await requireActivePlan(userStore[0].id);
+      outcome = await runMeteredAI(userStore[0].id, 1, "AI marketing post", () =>
+        generateMarketingPost({
+          productName: product.name,
+          storeName: userStore[0].name,
+          platform: selectedPlatform,
+          price: product.price,
+          keywords,
+          tone: body.tone || "promotional",
+        })
+      );
     } catch (error) {
       if (error instanceof PaywallError) {
         return NextResponse.json(
@@ -85,28 +98,14 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    const result = await generateMarketingPost({
-      productName: product.name,
-      storeName: userStore[0].name,
-      platform: selectedPlatform,
-      price: product.price,
-      keywords,
-    });
-
-    await recordCreditUsage(
-      userStore[0].id,
-      "ai",
-      1,
-      creditsRemaining,
-      "AI marketing post"
-    );
-
     return NextResponse.json({
-      post: result.text,
+      post: outcome.result.text,
       platform: selectedPlatform,
       productName: product.name,
-      source: result.source,
-      ...(creditsRemaining !== null ? { creditsRemaining } : {}),
+      source: outcome.result.source,
+      ...(outcome.creditsRemaining !== null
+        ? { creditsRemaining: outcome.creditsRemaining }
+        : {}),
     });
   } catch (error) {
     console.error("AI marketing error:", error);

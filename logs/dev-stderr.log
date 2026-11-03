@@ -1,0 +1,65 @@
+[api/orders/resend-verification] WhatsApp provider rejected/failed (store 0ddbd866-322a-4ff6-b70c-abdbea415b74, order 974a6521-464f-42b8-8a10-224d832fb79a): WhatsApp provider not configured
+[api/dashboard/stats] "totalProducts" aggregation failed, using fallback 0: Error: Failed query: select COUNT(*)::int from "products" where "products"."store_id" = $1
+params: 0ddbd866-322a-4ff6-b70c-abdbea415b74
+caused by: error: relation "products" does not exist
+(code=42P01)
+[api/shipping?summary=1] carrier integration check failed (continuing without carrier metrics): Error: Failed query: select "api_key", "is_active" from "shipping_integrations" where "shipping_integrations"."store_id" = $1
+params: 0ddbd866-322a-4ff6-b70c-abdbea415b74
+caused by: error: relation "shipping_integrations" does not exist
+(code=42P01)
+[api/orders/resend-verification] unhandled error: Error: Failed query: select "order_items"."quantity", "order_items"."unit_price", "products"."name" from "order_items" left join "products" on "products"."id" = "order_items"."product_id" where "order_items"."order_id" = $1
+params: 974a6521-464f-42b8-8a10-224d832fb79a
+    at NodePgPreparedQuery.queryWithCache (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\node_modules_drizzle-orm_03rhnsk._.js:8642:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\node_modules_drizzle-orm_03rhnsk._.js:8888:28
+    at async triggerCodVerification (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\[root-of-the-server]__0wr9pf9._.js:2674:19)
+    at async sendMeteredWhatsApp (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\[root-of-the-server]__0wr9pf9._.js:3432:18)
+    at async POST (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\[root-of-the-server]__12ghnz.._.js:3370:23)
+    at async AppRouteRouteModule.do (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:40115)
+    at async AppRouteRouteModule.handle (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:47395)
+    at async responseGenerator (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\node_modules_next_0keczv9._.js:24011:38)
+    at async AppRouteRouteModule.handleResponse (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:1:228552)
+    at async handleResponse (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\node_modules_next_0keczv9._.js:24074:32)
+    at async Module.handler (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\node_modules_next_0keczv9._.js:24128:13)
+    at async DevServer.renderToResponseWithComponentsImpl (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\base-server.js:1462:9)
+    at async DevServer.renderPageComponent (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\base-server.js:1514:24)
+    at async DevServer.renderToResponseImpl (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\base-server.js:1564:32)
+    at async DevServer.pipeImpl (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\base-server.js:1044:25)
+    at async NextNodeServer.handleCatchallRenderRequest (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\base-server.js:935:17)
+    at async E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\lib\start-server.js:225:13)
+caused by: error: relation "products" does not exist
+    at E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\node_modules_drizzle-orm_03rhnsk._.js:8895:28
+    at async NodePgPreparedQuery.queryWithCache (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\node_modules_drizzle-orm_03rhnsk._.js:8640:24)
+    at async E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\node_modules_drizzle-orm_03rhnsk._.js:8888:28
+    at async triggerCodVerification (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\[root-of-the-server]__0wr9pf9._.js:2674:19)
+    at async sendMeteredWhatsApp (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\[root-of-the-server]__0wr9pf9._.js:3432:18)
+    at async POST (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\[root-of-the-server]__12ghnz.._.js:3370:23)
+    at async AppRouteRouteModule.do (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:40115)
+    at async AppRouteRouteModule.handle (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:47395)
+    at async responseGenerator (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\node_modules_next_0keczv9._.js:24011:38)
+    at async AppRouteRouteModule.handleResponse (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:1:228552)
+    at async handleResponse (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\node_modules_next_0keczv9._.js:24074:32)
+    at async Module.handler (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\.next\dev\server\chunks\node_modules_next_0keczv9._.js:24128:13)
+    at async DevServer.renderToResponseWithComponentsImpl (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\base-server.js:1462:9)
+    at async DevServer.renderPageComponent (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\base-server.js:1514:24)
+    at async DevServer.renderToResponseImpl (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\base-server.js:1564:32)
+    at async DevServer.pipeImpl (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\base-server.js:1044:25)
+    at async NextNodeServer.handleCatchallRenderRequest (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\base-server.js:935:17)
+    at async E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (E:\StoreHub\multi-tenant-e-commerce-saas-mvp\node_modules\next\dist\server\lib\start-server.js:225:13)
+(code=42P01)

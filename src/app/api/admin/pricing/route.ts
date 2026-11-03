@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { activationCodePricing } from "@/db/schema";
 import { createErrorResponse } from "@/lib/errors";
-import { isLocalhostRequest } from "@/lib/admin";
+import { isAdminAuthorized } from "@/lib/admin";
 import {
   ACTIVATION_CODE_TYPES,
   ACTIVATION_CODE_SPECS,
@@ -13,8 +13,8 @@ import {
 
 export const runtime = "nodejs";
 
-async function requireLocalhost() {
-  if (await isLocalhostRequest()) return null;
+async function requireAdmin() {
+  if (await isAdminAuthorized()) return null;
   return NextResponse.json(
     { error: "Not found", code: "NOT_FOUND" },
     { status: 404 }
@@ -74,7 +74,7 @@ function getDefaultPricing() {
 
 /** GET /api/admin/pricing — all pricing records for activation code types. */
 export async function GET() {
-  const denied = await requireLocalhost();
+  const denied = await requireAdmin();
   if (denied) return denied;
 
   try {
@@ -134,7 +134,7 @@ export async function GET() {
 
 /** PATCH /api/admin/pricing — update pricing for a single activation code type. */
 export async function PATCH(request: NextRequest) {
-  const denied = await requireLocalhost();
+  const denied = await requireAdmin();
   if (denied) return denied;
 
   const body = await request.json().catch(() => null);

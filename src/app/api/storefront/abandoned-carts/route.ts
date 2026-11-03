@@ -3,6 +3,7 @@ import { and, desc, eq, or } from "drizzle-orm";
 import { db } from "@/db";
 import { abandonedCarts, stores } from "@/db/schema";
 import { createErrorResponse } from "@/lib/errors";
+import { abandonedCartRateLimiter, withRateLimit } from "@/lib/rate-limit";
 import { normalizeWhatsAppNumber } from "@/lib/whatsapp";
 import {
   cartQuantity,
@@ -16,25 +17,32 @@ function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+const MAX_CART_ITEMS = 100;
+const MAX_ITEM_QUANTITY = 999;
+
 function sanitizeItems(value: unknown): AbandonedCartItem[] {
   if (!Array.isArray(value)) return [];
 
   const items: AbandonedCartItem[] = [];
-  for (const raw of value) {
+  for (const raw of value.slice(0, MAX_CART_ITEMS)) {
     if (!raw || typeof raw !== "object") continue;
     const item = raw as Record<string, unknown>;
-    const productId = asText(item.productId);
-    const name = asText(item.name);
+    const productId = asText(item.productId).slice(0, 120);
+    const name = asText(item.name).slice(0, 200);
     if (!productId && !name) continue;
 
-    const quantity = Math.max(1, Math.floor(Number(item.quantity) || 1));
+    const quantity = Math.min(
+      MAX_ITEM_QUANTITY,
+      Math.max(1, Math.floor(Number(item.quantity) || 1))
+    );
     const price = Number.parseFloat(String(item.price ?? "0"));
+    const safePrice = Number.isFinite(price) && price > 0 ? price : 0;
     items.push({
       productId,
       name,
-      price: (Number.isFinite(price) ? price : 0).toFixed(2),
+      price: safePrice.toFixed(2),
       quantity,
-      imageUrl: asText(item.imageUrl),
+      imageUrl: asText(item.imageUrl).slice(0, 500),
     });
   }
   return items;
@@ -71,6 +79,12 @@ async function resolveStore(body: Record<string, unknown>) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const rateLimitResponse = await withRateLimit(
+      request,
+      abandonedCartRateLimiter
+    );
+    if (rateLimitResponse) return rateLimitResponse;
+
     const body = (await request.json().catch(() => ({}))) as Record<
       string,
       unknown
@@ -126,11 +140,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ saved: false, reason: "INCOMPLETE" });
     }
 
-    const computedTotal = cartTotal(items);
-    const rawTotal = Number.parseFloat(String(body.totalAmount ?? ""));
-    const totalAmount = (
-      Number.isFinite(rawTotal) && rawTotal > 0 ? rawTotal : computedTotal
-    ).toFixed(2);
+    // Always derive the snapshot total from the sanitized line items. The
+    // client-supplied `totalAmount` is display-only and must not be trusted
+    // (it feeds dashboard abandoned/recovered revenue metrics).
+    const totalAmount = cartTotal(items).toFixed(2);
 
     // 1) Same recovery token wins (guest came back through the WhatsApp link).
     if (recoveryToken) {

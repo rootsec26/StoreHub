@@ -246,7 +246,9 @@ export const orders = pgTable(
     discountAmount: numeric("discount_amount", { precision: 10, scale: 2 })
       .notNull()
       .default("0"),
-    status: text("status").notNull().default("Pending"),
+    // Canonical uppercase status — see src/lib/order-state-machine.ts and
+    // migration 0019_normalize_order_status.sql for the legacy spellings.
+    status: text("status").notNull().default("PENDING"),
     // Smart POS & Cashier Sales Engine: where the sale happened + payment capture
     channel: text("channel").notNull().default("online"),
     paymentStatus: text("payment_status").notNull().default("unpaid"),
@@ -530,6 +532,48 @@ export const loyaltyTransactions = pgTable(
     index("loyalty_transactions_store_id_idx").on(table.storeId),
     index("loyalty_transactions_customer_id_idx").on(table.customerId),
     index("loyalty_transactions_order_id_idx").on(table.orderId),
+  ]
+);
+
+// ============================================
+// PRICE ALERTS / WISHLIST DROPS
+// ============================================
+// Guest-facing drop notifications: a shopper can ask to be notified (by phone
+// or email) if the price of a specific product falls below the price they saw.
+// One row per product + contact + current notified baseline price. `status` is
+// pending | notified | dismissed. Store owners can review these under the store
+// they own (not part of this task's public API scope).
+export const priceAlerts = pgTable(
+  "price_alerts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    // Normalized contact: either an E.164 phone or a lowercase email.
+    contactType: text("contact_type").notNull(),
+    contactValue: text("contact_value").notNull(),
+    // The price (as string, same format as products.price) the shopper saw
+    // when they requested the alert. Notifications are sent when the live price
+    // drops below this baseline.
+    baselinePrice: text("baseline_price").notNull(),
+    status: text("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("price_alerts_store_id_idx").on(table.storeId),
+    index("price_alerts_product_id_idx").on(table.productId),
+    uniqueIndex("price_alerts_contact_product_unique").on(
+      table.storeId,
+      table.productId,
+      table.contactType,
+      table.contactValue
+    ),
   ]
 );
 

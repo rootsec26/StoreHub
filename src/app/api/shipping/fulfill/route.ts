@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { stores } from "@/db/schema";
 import { getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
+import { PaywallError, requireActivePlan } from "@/lib/paywall";
 import { absoluteUrl } from "@/lib/site";
 import { fulfillOrderBatch, MAX_FULFILL_BATCH } from "@/lib/shipping-fulfillment";
 
@@ -33,6 +34,20 @@ export async function POST(request: NextRequest) {
         { error: "Store not found", code: "STORE_NOT_FOUND" },
         { status: 404 }
       );
+    }
+
+    // Carrier booking is a paid-plan feature: enforce it in the handler too,
+    // so API-key / token-less callers cannot reach the carrier integrations.
+    try {
+      await requireActivePlan(store.id);
+    } catch (error) {
+      if (error instanceof PaywallError) {
+        return NextResponse.json(
+          { error: error.message, code: error.code },
+          { status: error.status }
+        );
+      }
+      throw error;
     }
 
     const body = await request.json().catch(() => null);

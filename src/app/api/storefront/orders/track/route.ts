@@ -5,6 +5,10 @@ import { orderItems, orders, products, shippingZones, stores } from "@/db/schema
 import { createErrorResponse } from "@/lib/errors";
 import { summarizeShipment } from "@/lib/shipping";
 import { isValidOrderId, isValidPhoneNumber, normalizePhoneDigits } from "@/lib/order-tracking";
+import { createOrderToken, verifyOrderToken } from "@/lib/order-tokens";
+import { isAuthenticatedStoreOwner } from "@/lib/orders/order-access";
+import { normalizeOrderStatus } from "@/lib/order-state-machine";
+import { buildTrackingOrder } from "@/lib/orders/tracking-dto";
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,6 +16,7 @@ export async function GET(request: NextRequest) {
     const slug = searchParams.get("slug")?.trim() || "";
     const orderId = searchParams.get("id")?.trim() || "";
     const phone = searchParams.get("phone")?.trim() || "";
+    const token = searchParams.get("token") || searchParams.get("order_token");
 
     if (!slug) {
       return NextResponse.json(
@@ -90,6 +95,21 @@ export async function GET(request: NextRequest) {
 
     const order = orderResult[0];
 
+    // Full customer details require either a signed tracking token or an
+    // authenticated merchant session.
+    const tokenPayload = token
+      ? verifyOrderToken(token, { orderId: order.id, purpose: "track" })
+      : null;
+    const owner = tokenPayload
+      ? false
+      : await isAuthenticatedStoreOwner(storeId);
+    const fullAccess = Boolean(tokenPayload || owner);
+    const canCancel =
+      fullAccess && normalizeOrderStatus(order.status) === "PENDING";
+    const cancelToken = canCancel
+      ? createOrderToken({ orderId: order.id, purpose: "cancel" })
+      : null;
+
     let zoneDays: number | null = null;
     if (order.shippingZoneId) {
       const zoneRows = await db
@@ -118,15 +138,21 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      order: {
-        ...order,
-        items: items.map((item) => ({
+      order: buildTrackingOrder(
+        order,
+        items.map((item) => ({
           ...item,
           product: productMap.get(item.productId) || null,
         })),
-      },
+        fullAccess
+      ),
       // Branded live tracking page payload (progress + carrier + ETA).
       shipping: summarizeShipment(order, zoneDays),
+      permissions: {
+        fullAccess,
+        canCancel,
+        cancelToken,
+      },
     });
   } catch (error) {
     console.error("Track order error:", error);

@@ -22,6 +22,23 @@ export type CouponValidation =
     };
 
 /**
+ * Thrown when a coupon claim fails while an order is being persisted (e.g. the
+ * last remaining use was taken by a concurrent checkout). Carries the HTTP
+ * status the API route should answer with.
+ */
+export class CouponError extends Error {
+  readonly code: CouponValidationCode;
+  readonly status: number;
+
+  constructor(code: CouponValidationCode, message: string, status = 400) {
+    super(message);
+    this.name = "CouponError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+/**
  * Validates a coupon against a cart subtotal without side effects.
  * Shared by the storefront checkout (preview) and the checkout API (charge).
  */

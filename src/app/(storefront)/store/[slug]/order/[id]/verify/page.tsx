@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/lib/i18n";
+import { normalizeOrderStatus } from "@/lib/order-state-machine";
 import { accentThemeStyle, normalizeAccent } from "@/lib/theme";
 import { convertAndFormatPrice } from "@/lib/currency";
 import { useStoreCurrency } from "@/components/CurrencySelector";
@@ -46,9 +47,29 @@ type ViewState = "loading" | "ready" | "submitting" | "confirmed" | "cancelled" 
  * https://[store].storehub.com/order/[id]/verify
  */
 export default function CodVerifyPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
+          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        </div>
+      }
+    >
+      <CodVerifyContent />
+    </Suspense>
+  );
+}
+
+function CodVerifyContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
   const orderId = params.id as string;
+
+  const trackToken =
+    searchParams.get("token") || searchParams.get("order_token") || "";
+  const confirmToken = searchParams.get("confirm_token") || "";
+  const cancelToken = searchParams.get("cancel_token") || "";
 
   const { t, locale, formatDateTime } = useI18n();
 
@@ -82,7 +103,9 @@ export default function CodVerifyPage() {
       .catch(() => null);
 
     const orderRequest = fetch(
-      `/api/storefront/orders/track?slug=${encodeURIComponent(slug)}&id=${encodeURIComponent(orderId)}`,
+      `/api/storefront/orders/track?slug=${encodeURIComponent(slug)}&id=${encodeURIComponent(orderId)}${
+        trackToken ? `&token=${encodeURIComponent(trackToken)}` : ""
+      }`,
       { cache: "no-store" }
     )
       .then((res) => (res.ok ? res.json() : null))
@@ -109,7 +132,7 @@ export default function CodVerifyPage() {
         setOrder(loaded);
         if (loaded.codVerificationStatus === "VERIFIED") {
           setState("confirmed");
-        } else if (loaded.status === "Cancelled") {
+        } else if (normalizeOrderStatus(loaded.status) === "CANCELLED") {
           setState("cancelled");
         } else {
           setState("ready");
@@ -119,7 +142,7 @@ export default function CodVerifyPage() {
         setState("error");
         setError(t("verify.failed"));
       });
-  }, [slug, orderId, t]);
+  }, [slug, orderId, t, trackToken]);
 
   async function respond(decision: "CONFIRMED" | "CANCELLED") {
     if (!order || state === "submitting") return;
@@ -134,6 +157,11 @@ export default function CodVerifyPage() {
           order_id: order.id,
           status: decision,
           store_slug: slug,
+          // The action token embedded in the WhatsApp/fallback link proves the
+          // customer is allowed to make this exact decision.
+          token:
+            (decision === "CONFIRMED" ? confirmToken : cancelToken) ||
+            undefined,
         }),
       });
       const data = await res.json();

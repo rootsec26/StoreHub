@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { orders } from "@/db/schema";
 import {
   applyCodVerificationDecision,
   CodVerificationError,
   parseCodReplyId,
 } from "@/lib/orders/cod-verification";
+import { verifyOrderToken } from "@/lib/order-tokens";
+import { isValidOrderId, normalizePhoneDigits } from "@/lib/order-tracking";
+import { isCodOrder } from "@/lib/orders/cod-shared";
 
 /**
  * WhatsApp Cloud API webhook.
@@ -20,11 +26,30 @@ import {
 
 interface WebhookMessage {
   id?: string;
+  from?: string;
   type?: string;
   interactive?: {
     type?: string;
     button_reply?: { id?: string; title?: string };
   };
+}
+
+interface WebhookChangeValue {
+  metadata?: { phone_number_id?: string; display_phone_number?: string };
+  messages?: WebhookMessage[];
+}
+
+function phonesMatch(left: string, right: string): boolean {
+  const a = normalizePhoneDigits(left);
+  const b = normalizePhoneDigits(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  // WhatsApp sends the full international number while orders may store the
+  // local form (e.g. 201012345678 vs 01012345678). Compare the shorter suffix
+  // only when it is long enough to be meaningful.
+  const minLength = Math.min(a.length, b.length);
+  if (minLength < 7) return false;
+  return a.endsWith(b) || b.endsWith(a);
 }
 
 function verifySignature(rawBody: string, signatureHeader: string | null): boolean {
@@ -76,7 +101,7 @@ export async function POST(request: NextRequest) {
 
   let payload: {
     entry?: Array<{
-      changes?: Array<{ value?: { messages?: WebhookMessage[] } }>;
+      changes?: Array<{ value?: WebhookChangeValue }>;
     }>;
   };
   try {
@@ -85,35 +110,109 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const messages =
-    payload.entry?.flatMap(
-      (entry) => entry.changes?.flatMap((change) => change.value?.messages ?? []) ?? []
-    ) ?? [];
+  const expectedPhoneNumberId = (
+    process.env.WHATSAPP_PHONE_NUMBER_ID || ""
+  ).trim();
 
   let applied = 0;
-  for (const message of messages) {
-    if (message.type !== "interactive" || message.interactive?.type !== "button_reply") {
-      continue;
-    }
-    const replyId = message.interactive.button_reply?.id;
-    if (!replyId) continue;
+  for (const entry of payload.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      const value = change.value;
+      if (!value) continue;
 
-    const parsed = parseCodReplyId(replyId);
-    if (!parsed) continue;
-
-    try {
-      const result = await applyCodVerificationDecision({
-        orderId: parsed.orderId,
-        decision: parsed.decision,
-        ipAddress: "whatsapp-webhook",
-      });
-      if (result.changed) applied += 1;
-    } catch (error) {
-      if (error instanceof CodVerificationError) {
-        console.warn(`WhatsApp COD reply ignored (${error.code})`);
+      const receivedPhoneNumberId = value.metadata?.phone_number_id || "";
+      if (
+        expectedPhoneNumberId &&
+        receivedPhoneNumberId &&
+        receivedPhoneNumberId !== expectedPhoneNumberId
+      ) {
+        console.warn(
+          `WhatsApp COD reply ignored: received phone number ${receivedPhoneNumberId} does not belong to this deployment`
+        );
         continue;
       }
-      console.error("WhatsApp COD webhook error:", error);
+
+      for (const message of value.messages ?? []) {
+        if (
+          message.type !== "interactive" ||
+          message.interactive?.type !== "button_reply"
+        ) {
+          continue;
+        }
+        const replyId = message.interactive.button_reply?.id;
+        if (!replyId) continue;
+
+        const parsed = parseCodReplyId(replyId);
+        if (!parsed || !isValidOrderId(parsed.orderId)) continue;
+
+        const expectedPurpose =
+          parsed.decision === "CONFIRMED" ? "cod_confirm" : "cod_cancel";
+
+        // Reject replies whose embedded token is missing, expired or was
+        // minted for a different action/order.
+        if (
+          !verifyOrderToken(parsed.token, {
+            orderId: parsed.orderId,
+            purpose: expectedPurpose,
+          })
+        ) {
+          console.warn("WhatsApp COD reply ignored: invalid or expired token");
+          continue;
+        }
+
+        const orderRows = await db
+          .select({
+            storeId: orders.storeId,
+            customerPhone: orders.customerPhone,
+            status: orders.status,
+            paymentMethod: orders.paymentMethod,
+            codVerificationStatus: orders.codVerificationStatus,
+          })
+          .from(orders)
+          .where(eq(orders.id, parsed.orderId))
+          .limit(1);
+
+        const order = orderRows[0];
+        if (!order) {
+          console.warn("WhatsApp COD reply ignored: order not found");
+          continue;
+        }
+
+        // Bind the decision to the phone that received the message.
+        if (!phonesMatch(message.from || "", order.customerPhone || "")) {
+          console.warn(
+            "WhatsApp COD reply ignored: sender does not match the order phone"
+          );
+          continue;
+        }
+
+        if (!isCodOrder(order)) {
+          console.warn("WhatsApp COD reply ignored: order is not COD");
+          continue;
+        }
+
+        if (order.codVerificationStatus !== "PENDING_VERIFICATION") {
+          console.warn(
+            "WhatsApp COD reply ignored: verification is not pending"
+          );
+          continue;
+        }
+
+        try {
+          const result = await applyCodVerificationDecision({
+            orderId: parsed.orderId,
+            decision: parsed.decision,
+            ipAddress: "whatsapp-webhook",
+          });
+          if (result.changed) applied += 1;
+        } catch (error) {
+          if (error instanceof CodVerificationError) {
+            console.warn(`WhatsApp COD reply ignored (${error.code})`);
+            continue;
+          }
+          console.error("WhatsApp COD webhook error:", error);
+        }
+      }
     }
   }
 

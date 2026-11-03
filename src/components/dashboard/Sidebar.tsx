@@ -23,6 +23,7 @@ import {
   Award,
   Warehouse,
   Bot,
+  Barcode,
 } from "lucide-react";
 
 import { useI18n } from "@/lib/i18n";
@@ -36,6 +37,7 @@ export const HOME_NAV_ITEM = { href: "/", labelKey: "nav.home", icon: Home } as 
 
 export const NAV_ITEMS = [
   { href: "/dashboard/products", labelKey: "nav.products", icon: Package },
+  { href: "/dashboard/barcodes", labelKey: "nav.barcodes", icon: Barcode },
   { href: "/dashboard/categories", labelKey: "nav.categories", icon: FolderOpen },
   { href: "/dashboard/orders", labelKey: "nav.orders", icon: ShoppingCart },
   {

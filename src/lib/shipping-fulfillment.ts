@@ -20,6 +20,7 @@ import {
   type CarrierAccount,
 } from "@/lib/shipping-carriers";
 import { absoluteUrl } from "@/lib/site";
+import { normalizeOrderStatus, findTransitionPath } from "@/lib/order-state-machine";
 
 /**
  * Auto-routing fulfillment engine.
@@ -140,10 +141,11 @@ async function bookOrder(
   const trackingUrl = absoluteUrl(shipmentTrackingPath(store.slug, order.id));
   const nextShippingStatus =
     order.shippingStatus === "UNFULFILLED" ? "LABEL_CREATED" : order.shippingStatus;
+  const normalizedOrderStatus = normalizeOrderStatus(order.status);
   const nextOrderStatus =
-    order.status === "Completed" || order.status === "Cancelled"
-      ? order.status
-      : "Shipped";
+    normalizedOrderStatus && findTransitionPath(normalizedOrderStatus, "SHIPPED")
+      ? "SHIPPED"
+      : (normalizedOrderStatus ?? order.status);
 
   const updated = await db
     .update(orders)

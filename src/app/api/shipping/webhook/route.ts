@@ -17,8 +17,10 @@ import {
  * Payload (loosely typed on purpose, carriers differ):
  *   { "tracking_number": "BOS261003K7X9Q2", "status": "OUT_FOR_DELIVERY" }
  *
- * Optional `x-shipping-signature: sha256=<hmac>` is required when
- * SHIPPING_WEBHOOK_SECRET or the carrier integration's api_secret is set.
+ * `x-shipping-signature: sha256=<hmac>` MUST be present and valid: the secret
+ * comes from SHIPPING_WEBHOOK_SECRET or the carrier integration's api_secret.
+ * When neither is resolvable the request is rejected with 401 (fail closed),
+ * because a DELIVERED event also flips the order to Completed + Paid.
  *
  * On DELIVERED the order flips to Completed + Paid (revenue accrual) and the
  * buyer receives a WhatsApp delivery receipt.
@@ -135,11 +137,22 @@ export async function POST(request: NextRequest) {
 
     const carrierHint = pickString(payload, ["carrier", "provider", "data.carrier"]);
     const secret = await resolveWebhookSecret(trackingNumber, carrierHint);
-    if (secret) {
-      const signature = request.headers.get("x-shipping-signature");
-      if (!verifySignature(rawBody, signature, secret)) {
-        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-      }
+    if (!secret) {
+      // Fail closed: without a configured secret (env or carrier integration)
+      // there is nothing to verify the delivery against, so unsigned status
+      // changes — including forced DELIVERED/Paid flips — are rejected.
+      return NextResponse.json(
+        { error: "Webhook secret is not configured", code: "WEBHOOK_SECRET_MISSING" },
+        { status: 401 }
+      );
+    }
+
+    const signature = request.headers.get("x-shipping-signature");
+    if (!verifySignature(rawBody, signature, secret)) {
+      return NextResponse.json(
+        { error: "Invalid signature", code: "INVALID_SIGNATURE" },
+        { status: 401 }
+      );
     }
 
     const result = await applyCarrierStatusUpdate({

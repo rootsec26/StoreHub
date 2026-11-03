@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
-import { getValidNextStatuses } from "@/lib/order-state-machine";
+import { getValidNextStatuses, normalizeOrderStatus } from "@/lib/order-state-machine";
 import type { OrderStatus } from "@/lib/types";
 import { useOrdersRealtime } from "@/lib/realtime";
 import {
@@ -251,7 +251,7 @@ export default function ShippingLabelsPage() {
       const res = await fetch("/api/orders", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: order.id, status: "Cancelled" }),
+        body: JSON.stringify({ id: order.id, status: "CANCELLED" }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -565,9 +565,10 @@ export default function ShippingLabelsPage() {
                             onClick={() => void handleCancel(order)}
                             disabled={
                               busy === "cancel" ||
-                              !getValidNextStatuses(order.status as OrderStatus).includes(
-                                "Cancelled"
-                              )
+                              !getValidNextStatuses(
+                                (normalizeOrderStatus(order.status) ??
+                                  order.status) as OrderStatus
+                              ).includes("CANCELLED")
                             }
                             title={t("hub.action.cancel")}
                             aria-label={t("hub.action.cancel")}

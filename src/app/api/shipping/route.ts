@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { orderItems, orders, shippingZones, stores } from "@/db/schema";
-import { and, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
+import {
+  orderItems,
+  orders,
+  orderStatusLogs,
+  shippingIntegrations,
+  shippingZones,
+  stores,
+} from "@/db/schema";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
-import { createErrorResponse } from "@/lib/errors";
+import { createErrorResponse, formatErrorForLog } from "@/lib/errors";
+import { findTransitionPath, normalizeOrderStatus } from "@/lib/order-state-machine";
+import { orderStatusNotIn } from "@/lib/order-status-sql";
 import {
   FULFILLED_ORDER_STATUSES,
   SHIPMENT_FILTERS,
@@ -34,8 +43,129 @@ async function getOwnedStore(sessionId: string) {
 function unfulfilledCondition(storeId: string) {
   return and(
     eq(orders.storeId, storeId),
-    notInArray(orders.status, [...FULFILLED_ORDER_STATUSES])
+    orderStatusNotIn(orders.status, FULFILLED_ORDER_STATUSES)
   );
+}
+
+/** Shipment buckets that are still moving through a carrier. */
+const PENDING_SHIPMENT_STATUSES = [
+  "UNFULFILLED",
+  "LABEL_CREATED",
+  "PICKED_UP",
+  "OUT_FOR_DELIVERY",
+] as const;
+
+/** Zeroed metrics returned whenever the summary cannot be computed. */
+const EMPTY_SHIPPING_SUMMARY = {
+  unfulfilledCount: 0,
+  totalShipments: 0,
+  pending: 0,
+};
+
+interface CarrierHealth {
+  /** Carrier accounts that actually hold an API key. */
+  configured: number;
+  /** Carrier accounts toggled on. */
+  active: number;
+  /** True when at least one active account holds credentials. */
+  connected: boolean;
+}
+
+/**
+ * Best-effort carrier health: which carrier accounts hold keys and are
+ * enabled. Never throws — a missing `shipping_integrations` table or an
+ * unreachable provider only reports "not connected".
+ */
+async function getCarrierHealth(storeId: string): Promise<CarrierHealth> {
+  try {
+    const rows = await db
+      .select({
+        apiKey: shippingIntegrations.apiKey,
+        isActive: shippingIntegrations.isActive,
+      })
+      .from(shippingIntegrations)
+      .where(eq(shippingIntegrations.storeId, storeId));
+
+    const withKeys = rows.filter((row) => Boolean(row.apiKey?.trim()));
+    return {
+      configured: withKeys.length,
+      active: rows.filter((row) => row.isActive).length,
+      connected: withKeys.some((row) => row.isActive),
+    };
+  } catch (error) {
+    console.error(
+      `[api/shipping?summary=1] carrier integration check failed (continuing without carrier metrics): ${formatErrorForLog(
+        error,
+        { includeStack: false }
+      )}`
+    );
+    return { configured: 0, active: 0, connected: false };
+  }
+}
+
+/**
+ * Sidebar badge metrics (`GET /api/shipping?summary=1`).
+ *
+ * Safe by construction: missing carrier keys, an unmigrated
+ * `shipping_integrations` table or an unreachable database all degrade to the
+ * empty metrics object with HTTP 200 instead of a 5xx that would break the
+ * dashboard shell. Every failure is logged with `console.error`.
+ */
+async function getShippingSummary(sessionId: string): Promise<NextResponse> {
+  try {
+    const store = await getOwnedStore(sessionId);
+    if (!store) {
+      return NextResponse.json(
+        { error: "Store not found", code: "STORE_NOT_FOUND" },
+        { status: 404 }
+      );
+    }
+
+    const [unfulfilledRows, totalRows, pendingRows] = await Promise.all([
+      db
+        .select({ value: sql<number | null>`count(*)::int` })
+        .from(orders)
+        .where(unfulfilledCondition(store.id)),
+      db
+        .select({ value: sql<number | null>`count(*)::int` })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.storeId, store.id),
+            isNotNull(orders.carrierName)
+          )
+        ),
+      db
+        .select({ value: sql<number | null>`count(*)::int` })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.storeId, store.id),
+            isNotNull(orders.carrierName),
+            inArray(orders.shippingStatus, [...PENDING_SHIPMENT_STATUSES])
+          )
+        ),
+    ]);
+
+    const carriers = await getCarrierHealth(store.id);
+
+    const countOf = (rows: { value: number | null }[] | undefined): number =>
+      Number(rows?.[0]?.value ?? 0) || 0;
+
+    return NextResponse.json({
+      unfulfilledCount: countOf(unfulfilledRows),
+      totalShipments: countOf(totalRows),
+      pending: countOf(pendingRows),
+      carriers,
+    });
+  } catch (error) {
+    console.error(
+      `[api/shipping?summary=1] summary query failed, returning fallback metrics: ${formatErrorForLog(
+        error
+      )}`
+    );
+    return NextResponse.json({ ...EMPTY_SHIPPING_SUMMARY, degraded: true });
+  }
 }
 
 function toLabelStore(
@@ -74,7 +204,7 @@ function normalizeOrder(
     shippingStatus: row.shippingStatus ?? "UNFULFILLED",
     airwayBillUrl: row.airwayBillUrl ?? null,
     estimatedDeliveryAt:
-      row.status === "Cancelled"
+      (normalizeOrderStatus(row.status) ?? row.status) === "CANCELLED"
         ? null
         : estimateDeliveryDate(
             { createdAt: row.createdAt, zoneDays },
@@ -93,23 +223,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Sidebar badge: answered from a hardened path that can never 5xx.
+    if (request.nextUrl.searchParams.get("summary") === "1") {
+      return await getShippingSummary(session.id);
+    }
+
     const store = await getOwnedStore(session.id);
     if (!store) {
       return NextResponse.json(
         { error: "Store not found", code: "STORE_NOT_FOUND" },
         { status: 404 }
       );
-    }
-
-    const summaryOnly = request.nextUrl.searchParams.get("summary") === "1";
-
-    if (summaryOnly) {
-      const [row] = await db
-        .select({ value: sql<number>`count(*)::int` })
-        .from(orders)
-        .where(unfulfilledCondition(store.id));
-
-      return NextResponse.json({ unfulfilledCount: row?.value ?? 0 });
     }
 
     const filter = request.nextUrl.searchParams.get("filter") || "";
@@ -124,7 +248,7 @@ export async function GET(request: NextRequest) {
       condition = and(
         eq(orders.storeId, store.id),
         eq(orders.shippingStatus, "UNFULFILLED"),
-        notInArray(orders.status, ["Completed", "Cancelled"])
+        orderStatusNotIn(orders.status, ["DELIVERED", "CANCELLED"])
       );
     } else if (bucket) {
       condition = and(
@@ -174,7 +298,7 @@ export async function GET(request: NextRequest) {
         and(
           eq(orders.storeId, store.id),
           eq(orders.shippingStatus, "UNFULFILLED"),
-          notInArray(orders.status, ["Completed", "Cancelled"])
+          orderStatusNotIn(orders.status, ["DELIVERED", "CANCELLED"])
         )
       );
     const transit = await db
@@ -208,7 +332,9 @@ export async function GET(request: NextRequest) {
       filter: bucket ?? (filter || "ready"),
     });
   } catch (error) {
-    console.error("Get shipping queue error:", error);
+    console.error(
+      `[api/shipping] GET failed for store queue: ${formatErrorForLog(error)}`
+    );
     return createErrorResponse(error, "Failed to fetch orders ready for shipping");
   }
 }
@@ -342,19 +468,50 @@ export async function PATCH(request: NextRequest) {
         typeof body?.courierName === "string" && body.courierName.trim()
           ? body.courierName.trim()
           : null;
+      const ipAddress =
+        request.headers.get("x-forwarded-for") ??
+        request.headers.get("x-real-ip") ??
+        "unknown";
+
+      let updated = 0;
+      const skipped: { orderId: string; code: string }[] = [];
 
       for (const order of targets) {
-        const values: Partial<typeof orders.$inferInsert> = { status: "Shipped" };
+        const current = normalizeOrderStatus(order.status);
+        if (!current || !findTransitionPath(current, "SHIPPED")) {
+          skipped.push({ orderId: order.id, code: "INVALID_TRANSITION" });
+          continue;
+        }
+
+        const values: Partial<typeof orders.$inferInsert> = { status: "SHIPPED" };
         if (!order.trackingNumber) values.trackingNumber = generateTrackingNumber();
         if (courier) values.courierName = courier;
 
-        await db
-          .update(orders)
-          .set(values)
-          .where(and(eq(orders.id, order.id), eq(orders.storeId, store.id)));
+        await db.transaction(async (tx) => {
+          const applied = await tx
+            .update(orders)
+            .set(values)
+            .where(and(eq(orders.id, order.id), eq(orders.storeId, store.id)))
+            .returning({ id: orders.id });
+
+          if (applied.length === 0) return;
+
+          if (current !== "SHIPPED") {
+            await tx.insert(orderStatusLogs).values({
+              orderId: order.id,
+              storeId: store.id,
+              previousStatus: order.status,
+              newStatus: "SHIPPED",
+              changedByUserId: session.id,
+              ipAddress,
+            });
+          }
+
+          updated += 1;
+        });
       }
 
-      return NextResponse.json({ updated: orderIds.length });
+      return NextResponse.json({ updated, skipped });
     }
 
     return NextResponse.json(
@@ -362,7 +519,9 @@ export async function PATCH(request: NextRequest) {
       { status: 400 }
     );
   } catch (error) {
-    console.error("Shipping action error:", error);
+    console.error(
+      `[api/shipping] PATCH failed for bulk action: ${formatErrorForLog(error)}`
+    );
     return createErrorResponse(error, "Failed to update shipping queue");
   }
 }

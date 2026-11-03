@@ -3,7 +3,11 @@ import { z } from "zod";
 export const checkoutItemSchema = z.object({
   productId: z.string().uuid("Invalid product ID"),
   quantity: z.number().int().positive("Quantity must be a positive integer"),
-  unitPrice: z.number().nonnegative("Unit price must be non-negative"),
+  /**
+   * Informational only — checkout re-prices every line from the products row
+   * of the target store, so a tampered value here is ignored server-side.
+   */
+  unitPrice: z.number().nonnegative("Unit price must be non-negative").optional(),
 });
 
 export const checkoutRequestSchema = z.object({
@@ -19,6 +23,8 @@ export const checkoutRequestSchema = z.object({
   successUrl: z.string().url("Invalid success URL").optional(),
   cancelUrl: z.string().url("Invalid cancel URL").optional(),
   redeemPoints: z.number().int().nonnegative().optional(),
+  /** Discount code applied to the order (validated server-side per store). */
+  couponCode: z.string().trim().min(1, "Coupon code is required").max(64).optional(),
   /** Language used for the automated WhatsApp COD verification message. */
   locale: z.enum(["en", "ar"]).optional(),
 });

@@ -7,10 +7,14 @@ import { createErrorResponse } from "@/lib/errors";
 import { DEFAULT_THEME_CONFIG } from "@/lib/theme-config";
 import {
   isValidTransition,
+  isValidOrderStatus,
+  normalizeOrderStatus,
   validateStoreAccess,
   canManageOrders,
   hasAdminOverride,
 } from "@/lib/order-state-machine";
+import type { OrderStatus } from "@/lib/types";
+import { restockOrder } from "@/lib/warehouses-server";
 import { revalidatePath } from "next/cache";
 
 interface RouteParams {
@@ -64,17 +68,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const validStatuses = [
-      "Pending",
-      "Confirmed",
-      "Preparing",
-      "Ready",
-      "Shipped",
-      "Completed",
-      "Cancelled",
-    ];
-
-    if (!validStatuses.includes(status)) {
+    // Accept both canonical and legacy spellings; normalize to the canonical
+    // uppercase enum before validating/writing.
+    const targetStatus = normalizeOrderStatus(status);
+    if (!targetStatus || !isValidOrderStatus(targetStatus)) {
       return NextResponse.json(
         { error: "Invalid status", code: "INVALID_STATUS" },
         { status: 400 }
@@ -96,18 +93,19 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       }
 
       const currentOrder = orderRows[0];
-      const previousStatus = currentOrder.status as "Pending" | "Confirmed" | "Preparing" | "Ready" | "Shipped" | "Completed" | "Cancelled";
+      const previousStatus =
+        normalizeOrderStatus(currentOrder.status) ?? currentOrder.status;
 
-      // Validate state machine transition
+      // Validate state machine transition (admins get the documented override)
       const isAdmin = hasAdminOverride(session.role);
-      if (!isValidTransition(previousStatus, status, isAdmin)) {
+      if (!isValidTransition(previousStatus as OrderStatus, targetStatus, isAdmin)) {
         throw new Error("INVALID_TRANSITION");
       }
 
       // Update order status
       const updated = await tx
         .update(orders)
-        .set({ status })
+        .set({ status: targetStatus })
         .where(and(eq(orders.id, id), eq(orders.storeId, safeStore.id)))
         .returning();
 
@@ -115,12 +113,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         throw new Error("FORBIDDEN");
       }
 
+      if (targetStatus === "CANCELLED" && previousStatus !== "CANCELLED") {
+        await restockOrder(tx, { orderId: id, storeId: safeStore.id });
+      }
+
       // Audit log
       await tx.insert(orderStatusLogs).values({
         orderId: id,
         storeId: safeStore.id,
         previousStatus,
-        newStatus: status,
+        newStatus: targetStatus,
         changedByUserId: session.id,
         ipAddress:
           request.headers.get("x-forwarded-for") ??
@@ -131,27 +133,26 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return updated[0];
     });
 
-    if (result instanceof Error) {
-      if (result.message === "FORBIDDEN") {
-        return NextResponse.json(
-          { error: "Forbidden: Order not found in your store", code: "FORBIDDEN" },
-          { status: 403 }
-        );
-      }
-      if (result.message === "INVALID_TRANSITION") {
-        return NextResponse.json(
-          { error: "Invalid status transition", code: "INVALID_TRANSITION" },
-          { status: 400 }
-        );
-      }
-    }
-
     // Revalidate cache
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/orders");
 
     return NextResponse.json({ order: result });
   } catch (error) {
+    // db.transaction re-throws these sentinels — the inner `instanceof Error`
+    // branch below never runs, so map them here (was: generic 500).
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json(
+        { error: "Forbidden: Order not found in your store", code: "FORBIDDEN" },
+        { status: 403 }
+      );
+    }
+    if (error instanceof Error && error.message === "INVALID_TRANSITION") {
+      return NextResponse.json(
+        { error: "Invalid status transition", code: "INVALID_TRANSITION" },
+        { status: 400 }
+      );
+    }
     console.error("Update order error:", error);
     return createErrorResponse(error, "Failed to update order");
   }

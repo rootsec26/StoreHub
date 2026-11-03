@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, Copy, Loader2, Megaphone, Package, Sparkles } from "lucide-react";
+import { Check, Copy, Loader2, Megaphone, Package, Sparkles, Download } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 
@@ -47,15 +47,17 @@ export default function MarketingPage() {
   const [productId, setProductId] = useState("");
   const [platform, setPlatform] = useState<PlatformId>("facebook");
   const [keywords, setKeywords] = useState("");
+  const [tone, setTone] = useState<"promotional" | "urgent" | "casual">("promotional");
 
   const [generating, setGenerating] = useState(false);
   const [post, setPost] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [postMeta, setPostMeta] = useState<{
     product: string;
     platform: PlatformId;
   } | null>(null);
   const [source, setSource] = useState<"openai" | "mock" | null>(null);
-  const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -96,7 +98,7 @@ export default function MarketingPage() {
       const res = await fetch("/api/ai/marketing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, platform, keywords }),
+        body: JSON.stringify({ productId, platform, keywords, tone }),
       });
       if (!res.ok) throw new Error("Failed to generate post");
 
@@ -132,6 +134,25 @@ export default function MarketingPage() {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setToast(t("ai.copyFailed"));
+    }
+  }
+
+  async function exportTemplate(text: string) {
+    if (!text) return;
+    setExporting(true);
+    try {
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ad-copy-${Date.now()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setToast(t("marketing.exported"));
+    } catch {
+      setToast(t("ai.exportFailed"));
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -242,13 +263,29 @@ export default function MarketingPage() {
                 <label className="mb-1 block text-sm font-medium text-slate-700">
                   {t("marketing.angle")}
                 </label>
-                <textarea
-                  value={keywords}
-                  onChange={(e) => setKeywords(e.target.value)}
-                  rows={2}
-                  placeholder={t("marketing.anglePlaceholder")}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex-1">
+                    <textarea
+                      value={keywords}
+                      onChange={(e) => setKeywords(e.target.value)}
+                      rows={2}
+                      placeholder={t("marketing.anglePlaceholder")}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
+                    <select
+                      value={tone}
+                      onChange={(e) => setTone(e.target.value as "promotional" | "urgent" | "casual")}
+                      className="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                      <option value="promotional">{t("tone.promotional")}</option>
+                      <option value="urgent">{t("tone.urgent")}</option>
+                      <option value="casual">{t("tone.casual")}</option>
+                    </select>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500">{t("tone.description")}</p>
               </div>
 
               <button
@@ -294,7 +331,13 @@ export default function MarketingPage() {
                     <Copy className="h-3.5 w-3.5" />
                   )}
                   {t("ai.copy")}
-                </button>
+                </button><button
+                  type="button"
+                  onClick={() => exportTemplate(post)}
+                  disabled={!post || exporting}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-100 disabled:opacity-50"
+                >
+                  <Download className="h-3.5 w-3.5" /> Export Template</button>
                 <button
                   type="button"
                   onClick={handleGenerate}

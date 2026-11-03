@@ -12,6 +12,7 @@ import type {
   CategoryData,
 } from "./storefront-view";
 import { resolveThemeConfig } from "@/lib/theme-config";
+import { hasFeatureAccess } from "@/lib/paywall";
 import { getStorePromotions } from "@/lib/storefront";
 import StorefrontRenderer from "./storefront-renderer";
 
@@ -130,6 +131,11 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
   const currency = safeCurrency(storeRow.currency);
   const supportedCurrencies = safeSupportedCurrencies(storeRow.supportedCurrencies);
 
+  // White-label is a paid entitlement, never just the stored flag.
+  const hasWhiteLabel = storeRow.hasWhiteLabel
+    ? await hasFeatureAccess(storeRow.id, "white_label")
+    : false;
+
   // Fetch products and categories using Drizzle
   let productRows: Awaited<ReturnType<typeof fetchProducts>> = [];
   try {
@@ -160,7 +166,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     accentColor: storeRow.accentColor ?? "",
     currency,
     supportedCurrencies,
-    hasWhiteLabel: storeRow.hasWhiteLabel ?? false,
+    hasWhiteLabel,
     themeConfig: resolveThemeConfig(storeRow.themeConfig),
   };
 

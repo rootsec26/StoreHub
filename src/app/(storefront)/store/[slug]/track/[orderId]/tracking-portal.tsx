@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
+import { normalizeOrderStatus } from "@/lib/order-state-machine";
 import { accentGradient, accentThemeStyle, normalizeAccent } from "@/lib/theme";
 import { canOptimizeImage } from "@/lib/images";
 import { storePath } from "@/lib/site";
@@ -80,6 +81,7 @@ const STEP_LABEL_KEYS: Record<TrackingProgressStep, TranslationKey> = {
 interface TrackingPortalProps {
   store: TrackingStoreData;
   order: TrackingOrderData;
+  token?: string;
 }
 
 /**
@@ -87,7 +89,7 @@ interface TrackingPortalProps {
  * `/store/[slug]/track/[orderId]`. Polls the tracking API so the timeline
  * moves on its own whenever the carrier reports a new scan.
  */
-export default function TrackingPortal({ store, order }: TrackingPortalProps) {
+export default function TrackingPortal({ store, order, token }: TrackingPortalProps) {
   const { t, locale, formatDate, formatDateTime } = useI18n();
 
   const [shipping, setShipping] = useState<ShipmentSummary>(order.shipping);
@@ -103,15 +105,19 @@ export default function TrackingPortal({ store, order }: TrackingPortalProps) {
   );
 
   const currentIndex = shipping.progressIndex;
-  const isCancelled = orderStatus === "Cancelled";
-  const isComplete = orderStatus === "Completed" || shipping.status === "DELIVERED";
+  const canonicalOrderStatus = normalizeOrderStatus(orderStatus);
+  const isCancelled = canonicalOrderStatus === "CANCELLED";
+  const isComplete =
+    canonicalOrderStatus === "DELIVERED" ||
+    normalizeOrderStatus(shipping.status) === "DELIVERED";
   const shortId = order.id.slice(0, 8).toUpperCase();
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
+      const tokenQuery = token ? `&token=${encodeURIComponent(token)}` : "";
       const res = await fetch(
-        `/api/storefront/orders/track?slug=${encodeURIComponent(store.slug)}&id=${encodeURIComponent(order.id)}`,
+        `/api/storefront/orders/track?slug=${encodeURIComponent(store.slug)}&id=${encodeURIComponent(order.id)}${tokenQuery}`,
         { cache: "no-store" }
       );
       if (!res.ok) return;
@@ -123,7 +129,7 @@ export default function TrackingPortal({ store, order }: TrackingPortalProps) {
     } finally {
       setRefreshing(false);
     }
-  }, [order.id, store.slug]);
+  }, [order.id, store.slug, token]);
 
   useEffect(() => {
     if (isComplete || isCancelled) return;
@@ -156,15 +162,15 @@ export default function TrackingPortal({ store, order }: TrackingPortalProps) {
 
   const statusBadge = (() => {
     const map: Record<string, { label: string; className: string }> = {
-      Pending: { label: t("orders.status.pending"), className: "bg-amber-100 text-amber-800" },
-      Confirmed: { label: t("orders.status.confirmed"), className: "bg-blue-100 text-blue-800" },
-      Preparing: { label: t("orders.status.preparing"), className: "bg-purple-100 text-purple-800" },
-      Ready: { label: t("orders.status.ready"), className: "bg-indigo-100 text-indigo-800" },
-      Shipped: { label: t("orders.status.shipped"), className: "bg-cyan-100 text-cyan-800" },
-      Completed: { label: t("orders.status.completed"), className: "bg-emerald-100 text-emerald-800" },
-      Cancelled: { label: t("orders.status.cancelled"), className: "bg-red-100 text-red-800" },
+      PENDING: { label: t("orders.status.pending"), className: "bg-amber-100 text-amber-800" },
+      CONFIRMED: { label: t("orders.status.confirmed"), className: "bg-blue-100 text-blue-800" },
+      PROCESSING: { label: t("orders.status.processing"), className: "bg-purple-100 text-purple-800" },
+      READY: { label: t("orders.status.ready"), className: "bg-indigo-100 text-indigo-800" },
+      SHIPPED: { label: t("orders.status.shipped"), className: "bg-cyan-100 text-cyan-800" },
+      DELIVERED: { label: t("orders.status.delivered"), className: "bg-emerald-100 text-emerald-800" },
+      CANCELLED: { label: t("orders.status.cancelled"), className: "bg-red-100 text-red-800" },
     };
-    const entry = map[orderStatus] || {
+    const entry = (canonicalOrderStatus ? map[canonicalOrderStatus] : undefined) ?? {
       label: orderStatus,
       className: "bg-slate-100 text-slate-800",
     };
@@ -172,9 +178,9 @@ export default function TrackingPortal({ store, order }: TrackingPortalProps) {
       <span
         className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${entry.className}`}
       >
-        {orderStatus === "Cancelled" ? (
+        {canonicalOrderStatus === "CANCELLED" ? (
           <XCircle className="h-4 w-4" />
-        ) : orderStatus === "Completed" ? (
+        ) : canonicalOrderStatus === "DELIVERED" ? (
           <CheckCircle2 className="h-4 w-4" />
         ) : (
           <span className="relative flex h-2 w-2">

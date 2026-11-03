@@ -3,6 +3,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { customers, loyaltySettings, stores, vipTiers } from "@/db/schema";
 import { createErrorResponse } from "@/lib/errors";
+import { storefrontLoyaltyRateLimiter, withRateLimit } from "@/lib/rate-limit";
 import {
   normalizeLoyaltyPhone,
   settingsRecordFromRow,
@@ -47,6 +48,12 @@ async function resolveStore(params: URLSearchParams) {
  */
 export async function GET(request: NextRequest) {
   try {
+    const rateLimitResponse = await withRateLimit(
+      request,
+      storefrontLoyaltyRateLimiter
+    );
+    if (rateLimitResponse) return rateLimitResponse;
+
     const params = request.nextUrl.searchParams;
     const store = await resolveStore(params);
     if (!store) {

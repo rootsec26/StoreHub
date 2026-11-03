@@ -1,0 +1,125 @@
+﻿
+> build
+> next build
+
+ظû▓ Next.js 16.2.6 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+ظ£ô Compiled successfully in 8.8s
+  Running TypeScript ...
+  Finished TypeScript in 16.0s ...
+  Collecting page data using 15 workers ...
+  Generating static pages using 15 workers (0/87) ...
+  Generating static pages using 15 workers (21/87) 
+  Generating static pages using 15 workers (43/87) 
+  Generating static pages using 15 workers (65/87) 
+ظ£ô Generating static pages using 15 workers (87/87) in 656ms
+  Finalizing page optimization ...
+
+Route (app)
+ظ¤î ╞ْ /
+ظ¤£ ╞ْ /_not-found
+ظ¤£ ╞ْ /admin
+ظ¤£ ╞ْ /admin/codes
+ظ¤£ ╞ْ /api/abandoned-carts
+ظ¤£ ╞ْ /api/admin/codes
+ظ¤£ ╞ْ /api/admin/pricing
+ظ¤£ ╞ْ /api/ai/description
+ظ¤£ ╞ْ /api/ai/insights
+ظ¤£ ╞ْ /api/ai/marketing
+ظ¤£ ╞ْ /api/analytics
+ظ¤£ ╞ْ /api/auth/login
+ظ¤£ ╞ْ /api/auth/logout
+ظ¤£ ╞ْ /api/auth/me
+ظ¤£ ╞ْ /api/auth/signup
+ظ¤£ ╞ْ /api/billing
+ظ¤£ ╞ْ /api/billing/activate-addon
+ظ¤£ ╞ْ /api/billing/addons
+ظ¤£ ╞ْ /api/billing/credits
+ظ¤£ ╞ْ /api/billing/redeem-code
+ظ¤£ ╞ْ /api/categories
+ظ¤£ ╞ْ /api/checkout
+ظ¤£ ╞ْ /api/coupons
+ظ¤£ ╞ْ /api/coupons/validate
+ظ¤£ ╞ْ /api/customers
+ظ¤£ ╞ْ /api/dashboard/stats
+ظ¤£ ╞ْ /api/health
+ظ¤£ ╞ْ /api/loyalty
+ظ¤£ ╞ْ /api/onboarding
+ظ¤£ ╞ْ /api/orders
+ظ¤£ ╞ْ /api/orders/[id]
+ظ¤£ ╞ْ /api/orders/cancel
+ظ¤£ ╞ْ /api/orders/resend-verification
+ظ¤£ ╞ْ /api/orders/track
+ظ¤£ ╞ْ /api/orders/verify-cod
+ظ¤£ ╞ْ /api/payments/stripe/connect
+ظ¤£ ╞ْ /api/payments/stripe/test
+ظ¤£ ╞ْ /api/pos
+ظ¤£ ╞ْ /api/pricing
+ظ¤£ ╞ْ /api/products
+ظ¤£ ╞ْ /api/promotions
+ظ¤£ ╞ْ /api/shipping
+ظ¤£ ╞ْ /api/shipping/awb
+ظ¤£ ╞ْ /api/shipping/awb/[orderId]
+ظ¤£ ╞ْ /api/shipping/fulfill
+ظ¤£ ╞ْ /api/shipping/integrations
+ظ¤£ ╞ْ /api/shipping/webhook
+ظ¤£ ╞ْ /api/shipping/zones
+ظ¤£ ╞ْ /api/social/channels
+ظ¤£ ╞ْ /api/social/sessions
+ظ¤£ ╞ْ /api/storefront/abandoned-carts
+ظ¤£ ╞ْ /api/storefront/ai-assistant
+ظ¤£ ╞ْ /api/storefront/loyalty
+ظ¤£ ╞ْ /api/storefront/orders/track
+ظ¤£ ╞ْ /api/storefront/price-alerts
+ظ¤£ ╞ْ /api/stores
+ظ¤£ ╞ْ /api/stores/[id]
+ظ¤£ ╞ْ /api/stores/check-slug
+ظ¤£ ╞ْ /api/stores/domain
+ظ¤£ ╞ْ /api/stores/my
+ظ¤£ ╞ْ /api/supabase/token
+ظ¤£ ╞ْ /api/warehouses
+ظ¤£ ╞ْ /api/warehouses/transfers
+ظ¤£ ╞ْ /api/webhooks/social
+ظ¤£ ╞ْ /api/webhooks/stripe
+ظ¤£ ╞ْ /api/webhooks/whatsapp
+ظ¤£ ╞ْ /dashboard
+ظ¤£ ╞ْ /dashboard/abandoned-carts
+ظ¤£ ╞ْ /dashboard/ai-radar
+ظ¤£ ╞ْ /dashboard/ai-radar/social-bot
+ظ¤£ ╞ْ /dashboard/analytics
+ظ¤£ ╞ْ /dashboard/barcodes
+ظ¤£ ╞ْ /dashboard/billing
+ظ¤£ ╞ْ /dashboard/categories
+ظ¤£ ╞ْ /dashboard/customers
+ظ¤£ ╞ْ /dashboard/loyalty
+ظ¤£ ╞ْ /dashboard/marketing
+ظ¤£ ╞ْ /dashboard/orders
+ظ¤£ ╞ْ /dashboard/pos
+ظ¤£ ╞ْ /dashboard/products
+ظ¤£ ╞ْ /dashboard/promotions
+ظ¤£ ╞ْ /dashboard/settings
+ظ¤£ ╞ْ /dashboard/shipping
+ظ¤£ ╞ْ /dashboard/shipping-labels
+ظ¤£ ╞ْ /dashboard/warehouses
+ظ¤£ ╞ْ /login
+ظ¤£ ╞ْ /onboarding
+ظ¤£ ظùï /robots.txt
+ظ¤£ ╞ْ /sign-in
+ظ¤£ ╞ْ /signup
+ظ¤£ ╞ْ /sitemap.xml
+ظ¤£ ╞ْ /store/[slug]
+ظ¤£ ╞ْ /store/[slug]/checkout
+ظ¤£ ╞ْ /store/[slug]/order/[id]/verify
+ظ¤£ ╞ْ /store/[slug]/orders
+ظ¤£ ╞ْ /store/[slug]/product/[id]
+ظ¤£ ╞ْ /store/[slug]/track-order
+ظ¤¤ ╞ْ /store/[slug]/track/[orderId]
+
+
+╞ْ Proxy (Middleware)
+
+ظùï  (Static)   prerendered as static content
+╞ْ  (Dynamic)  server-rendered on demand
+

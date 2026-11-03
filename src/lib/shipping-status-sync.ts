@@ -7,8 +7,10 @@ import {
   type ShippingStatus,
 } from "@/lib/shipping";
 import { broadcastOrderUpdate } from "@/lib/realtime";
+import { findTransitionPath, normalizeOrderStatus } from "@/lib/order-state-machine";
 import { normalizeWhatsAppNumber } from "@/lib/whatsapp";
 import { sendWhatsAppText } from "@/lib/whatsapp-cloud";
+import { PaywallError, sendMeteredWhatsApp } from "@/lib/paywall";
 import { absoluteUrl } from "@/lib/site";
 
 /**
@@ -105,9 +107,14 @@ export async function applyCarrierStatusUpdate(
     };
 
     let delivered = false;
-    if (update.status === "DELIVERED" && order.status !== "Cancelled") {
+    const currentOrderStatus = normalizeOrderStatus(order.status);
+    if (
+      update.status === "DELIVERED" &&
+      currentOrderStatus &&
+      findTransitionPath(currentOrderStatus, "DELIVERED")
+    ) {
       delivered = true;
-      values.status = "Completed";
+      values.status = "DELIVERED";
       // Lowercase matches orders_payment_status_check + every other writer
       // (POS, Stripe); revenue metrics compare case-insensitively.
       values.paymentStatus = "paid";
@@ -196,8 +203,19 @@ async function notifyDelivery(order: typeof orders.$inferSelect): Promise<void> 
     if (!slug) return;
 
     const trackingUrl = absoluteUrl(shipmentTrackingPath(slug, order.id));
-    await sendWhatsAppText(to, buildDeliveryMessage(order.id, trackingUrl));
+    // Metered dispatch: deduct-before-send, refunded when the provider
+    // rejects the message (`sendWhatsAppText` reports failure, never throws).
+    await sendMeteredWhatsApp(order.storeId, "Delivery notification", () =>
+      sendWhatsAppText(to, buildDeliveryMessage(order.id, trackingUrl))
+    );
   } catch (error) {
+    if (error instanceof PaywallError) {
+      console.warn(
+        "Delivery WhatsApp notification skipped (WhatsApp credits):",
+        error.code
+      );
+      return;
+    }
     console.error("Delivery WhatsApp notification failed:", error);
   }
 }

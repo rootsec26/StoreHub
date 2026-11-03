@@ -1,11 +1,11 @@
 export const ORDER_STATUSES = [
-  "Pending",
-  "Confirmed",
-  "Preparing",
-  "Ready",
-  "Shipped",
-  "Completed",
-  "Cancelled",
+  "PENDING",
+  "CONFIRMED",
+  "PROCESSING",
+  "READY",
+  "SHIPPED",
+  "DELIVERED",
+  "CANCELLED",
 ] as const;
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number];

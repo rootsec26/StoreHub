@@ -4,10 +4,10 @@ import { generateBusinessInsights } from "@/lib/ai";
 import { getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
 import {
-  canUseAICredits,
   getStoreIdForOwner,
   PaywallError,
-  recordCreditUsage,
+  requireActivePlan,
+  runMeteredAI,
 } from "@/lib/paywall";
 import { withRateLimit, aiRateLimiter } from "@/lib/rate-limit";
 
@@ -82,9 +82,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let creditsRemaining: number | null = null;
+    let outcome: {
+      result: Awaited<ReturnType<typeof generateBusinessInsights>>;
+      creditsRemaining: number | null;
+    };
     try {
-      creditsRemaining = await canUseAICredits(storeId, 1);
+      await requireActivePlan(storeId);
+      outcome = await runMeteredAI(storeId, 1, "AI business insights", () =>
+        generateBusinessInsights({
+          totalOrders: toCount(body.totalOrders),
+          totalRevenue: toAmount(body.totalRevenue),
+          avgOrderValue: toAmount(body.avgOrderValue),
+          topProducts,
+        })
+      );
     } catch (error) {
       if (error instanceof PaywallError) {
         return NextResponse.json(
@@ -95,19 +106,12 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    const result = await generateBusinessInsights({
-      totalOrders: toCount(body.totalOrders),
-      totalRevenue: toAmount(body.totalRevenue),
-      avgOrderValue: toAmount(body.avgOrderValue),
-      topProducts,
-    });
-
-    await recordCreditUsage(storeId, "ai", 1, creditsRemaining, "AI business insights");
-
     return NextResponse.json({
-      insights: result.insights,
-      source: result.source,
-      ...(creditsRemaining !== null ? { creditsRemaining } : {}),
+      insights: outcome.result.insights,
+      source: outcome.result.source,
+      ...(outcome.creditsRemaining !== null
+        ? { creditsRemaining: outcome.creditsRemaining }
+        : {}),
     });
   } catch (error) {
     console.error("AI insights error:", error);

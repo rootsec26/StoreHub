@@ -159,6 +159,9 @@ async function bootstrap(storeId: string, set: StoreSet, get: StoreGet): Promise
   if (activeStoreId !== storeId) return;
 
   const token = await getSupabaseAccessToken();
+
+  // If realtime is not configured (SUPABASE_JWT_SECRET missing), gracefully fall
+  // back to polling so checkout submissions never fail when the WebSocket fails.
   if (!token) {
     startPolling(set);
     return;

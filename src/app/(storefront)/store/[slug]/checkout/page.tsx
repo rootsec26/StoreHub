@@ -316,6 +316,13 @@ function CheckoutContent() {
         paymentMethod: selectedPaymentMethod,
         currency: storeCurrency,
         redeemPoints: loyaltyRedeemed,
+        // Recovery links arrive with `?code=RECOVER10`; send it along so the
+        // advertised discount is actually applied server-side.
+        ...(recoveryCode &&
+        recoveryCode.trim().length > 0 &&
+        recoveryCode.trim().length <= 64
+          ? { couponCode: recoveryCode.trim() }
+          : {}),
         locale,
       };
 

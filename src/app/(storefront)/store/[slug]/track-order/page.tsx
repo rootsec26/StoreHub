@@ -38,6 +38,7 @@ import {
   type StorefrontStore,
   type TrackedOrder,
 } from "@/lib/order-tracking";
+import { normalizeOrderStatus } from "@/lib/order-state-machine";
 
 type SearchType = "orderId" | "phone";
 
@@ -49,6 +50,7 @@ function TrackOrderContent() {
   const { t, locale } = useI18n();
 
   const prefillId = searchParams.get("id") || searchParams.get("order_id") || "";
+  const accessToken = searchParams.get("token") || searchParams.get("order_token") || "";
 
   const [store, setStore] = useState<StorefrontStore | null>(null);
   const [order, setOrder] = useState<TrackedOrder | null>(null);
@@ -114,8 +116,11 @@ function TrackOrderContent() {
 
       try {
         const param = type === "orderId" ? "id" : "phone";
+        const tokenQuery = accessToken
+          ? `&token=${encodeURIComponent(accessToken)}`
+          : "";
         const res = await fetch(
-          `/api/storefront/orders/track?slug=${encodeURIComponent(slug)}&${param}=${encodeURIComponent(query)}`
+          `/api/storefront/orders/track?slug=${encodeURIComponent(slug)}&${param}=${encodeURIComponent(query)}${tokenQuery}`
         );
         const data = await res.json();
 
@@ -138,7 +143,7 @@ function TrackOrderContent() {
         return t("orders.searchFailed");
       }
     },
-    [slug, t]
+    [slug, t, accessToken]
   );
 
   useEffect(() => {
@@ -196,44 +201,45 @@ function TrackOrderContent() {
 
   function getStatusBadge(status: string) {
     const statuses: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-      Pending: {
+      PENDING: {
         label: t("orders.status.pending"),
         icon: <Clock className="h-4 w-4" />,
         color: "bg-amber-100 text-amber-800",
       },
-      Confirmed: {
+      CONFIRMED: {
         label: t("orders.status.confirmed"),
         icon: <CheckCircle2 className="h-4 w-4" />,
         color: "bg-blue-100 text-blue-800",
       },
-      Preparing: {
-        label: t("orders.status.preparing"),
+      PROCESSING: {
+        label: t("orders.status.processing"),
         icon: <Package className="h-4 w-4" />,
         color: "bg-purple-100 text-purple-800",
       },
-      Ready: {
+      READY: {
         label: t("orders.status.ready"),
         icon: <Truck className="h-4 w-4" />,
         color: "bg-indigo-100 text-indigo-800",
       },
-      Shipped: {
+      SHIPPED: {
         label: t("orders.status.shipped"),
         icon: <Truck className="h-4 w-4" />,
         color: "bg-cyan-100 text-cyan-800",
       },
-      Completed: {
-        label: t("orders.status.completed"),
+      DELIVERED: {
+        label: t("orders.status.delivered"),
         icon: <CheckCircle2 className="h-4 w-4 fill-current" />,
         color: "bg-emerald-100 text-emerald-800",
       },
-      Cancelled: {
+      CANCELLED: {
         label: t("orders.status.cancelled"),
         icon: <XCircle className="h-4 w-4" />,
         color: "bg-red-100 text-red-800",
       },
     };
 
-    const s = statuses[status] || {
+    const canonical = normalizeOrderStatus(status);
+    const s = (canonical ? statuses[canonical] : undefined) || {
       label: status,
       icon: <AlertCircle className="h-4 w-4" />,
       color: "bg-slate-100 text-slate-800",
@@ -418,12 +424,14 @@ function TrackOrderContent() {
                       <User className="h-4 w-4 shrink-0 text-slate-400" />
                       <span className="font-medium text-slate-900">{order.customerName}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 shrink-0 text-slate-400" />
-                      <span className="text-slate-600" dir="ltr">
-                        {order.customerPhone}
-                      </span>
-                    </div>
+                    {order.customerPhone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 shrink-0 text-slate-400" />
+                        <span className="text-slate-600" dir="ltr">
+                          {order.customerPhone}
+                        </span>
+                      </div>
+                    )}
                     {order.customerAddress && (
                       <div className="flex items-start gap-2">
                         <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />

@@ -67,7 +67,7 @@ CREATE TABLE orders (
   customer_address TEXT DEFAULT '',
   notes TEXT DEFAULT '',
   total_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
-  status TEXT NOT NULL DEFAULT 'Pending',
+  status TEXT NOT NULL DEFAULT 'PENDING',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

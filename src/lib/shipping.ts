@@ -1,18 +1,17 @@
 import { trackOrderPath } from "@/lib/order-tracking";
+import { normalizeOrderStatus } from "@/lib/order-state-machine";
 
-/** Order statuses that still need labels / dispatch (not yet fulfilled). */
 export const UNFULFILLED_ORDER_STATUSES = [
-  "Pending",
-  "Confirmed",
-  "Preparing",
-  "Ready",
+  "PENDING",
+  "CONFIRMED",
+  "PROCESSING",
+  "READY",
 ] as const;
 
 /** Statuses that close an order out of the fulfillment queue. */
 export const FULFILLED_ORDER_STATUSES = [
-  "Shipped",
-  "Completed",
-  "Cancelled",
+  "DELIVERED",
+  "CANCELLED",
 ] as const;
 
 /** Common couriers offered in the bulk "Mark as Shipped" toolbar. */
@@ -113,8 +112,9 @@ export function getShipmentProgressIndex(order: {
   status: string;
   shippingStatus?: string | null;
 }): number {
-  if (order.status === "Completed") return 4;
-  if (order.status === "Cancelled") return 4;
+  const status = normalizeOrderStatus(order.status);
+  if (status === "DELIVERED") return 4;
+  if (status === "CANCELLED") return 4;
 
   const shipping = order.shippingStatus ?? "UNFULFILLED";
   if (shipping === "DELIVERED") return 4;
@@ -123,8 +123,8 @@ export function getShipmentProgressIndex(order: {
   if (shipping === "RETURNED") return 4;
 
   // No label yet: fall back to the merchant-facing order status.
-  if (order.status === "Shipped" || order.status === "Ready") return 2;
-  if (order.status === "Pending") return 0;
+  if (status === "SHIPPED" || status === "READY") return 2;
+  if (status === "PENDING") return 0;
   return 1;
 }
 
@@ -164,7 +164,7 @@ export function summarizeShipment(
     carrierLabel: carrierLabel(carrier),
     trackingNumber: order.trackingNumber ?? null,
     estimatedDeliveryAt:
-      order.status === "Cancelled"
+      normalizeOrderStatus(order.status) === "CANCELLED"
         ? null
         : estimateDeliveryDate(
             { createdAt: order.createdAt, zoneDays },

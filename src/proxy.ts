@@ -7,6 +7,13 @@ import { stores } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getDefaultCurrencyForCountry } from "@/lib/currency";
 import { isGatedApiPath, resolveApiFeatureGate } from "@/lib/paywall";
+import {
+  ADMIN_TOKEN_COOKIE,
+  ADMIN_TOKEN_HEADER,
+  ADMIN_TOKEN_QUERY,
+  isDevelopmentAdminFallback,
+  verifyAdminToken,
+} from "@/lib/admin";
 
 const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) {
@@ -271,15 +278,21 @@ export async function proxy(request: NextRequest) {
     pathname === "/signup" ||
     pathname.startsWith("/store/");
 
-  // Admin routes require valid auth session AND localhost host validation
+  // Admin routes require a valid session AND strict admin-token authorization.
+  // Identity is a constant-time secret comparison — never Host/X-Forwarded-For.
   const isAdminPath = pathname === "/admin" || pathname.startsWith("/admin/");
   if (isAdminPath) {
-    const isLocalhost =
-      hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".localhost");
+    const queryToken = request.nextUrl.searchParams.get(ADMIN_TOKEN_QUERY);
+    const presentedToken =
+      queryToken ??
+      request.cookies.get(ADMIN_TOKEN_COOKIE)?.value ??
+      request.headers.get(ADMIN_TOKEN_HEADER);
+    const adminAuthorized =
+      verifyAdminToken(presentedToken) || isDevelopmentAdminFallback();
 
-    if (!isLocalhost) {
+    if (!adminAuthorized) {
       return NextResponse.json(
-        { error: "Forbidden: Admin access only allowed from localhost" },
+        { error: "Forbidden: Admin access requires a valid admin token" },
         { status: 403 }
       );
     }
@@ -293,6 +306,25 @@ export async function proxy(request: NextRequest) {
     } catch {
       const response = NextResponse.redirect(resolveUrl(request, "/login"));
       response.cookies.delete("session");
+      return response;
+    }
+
+    // Bootstrap the cookie from a one-time ?admin_token= visit, then strip the
+    // secret from the URL so it does not end up in history/referrers.
+    if (queryToken) {
+      const cleanUrl = new URL(request.url);
+      cleanUrl.searchParams.delete(ADMIN_TOKEN_QUERY);
+      const response =
+        cleanUrl.toString() === request.url
+          ? NextResponse.next()
+          : NextResponse.redirect(cleanUrl);
+      response.cookies.set(ADMIN_TOKEN_COOKIE, queryToken, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 8,
+      });
       return response;
     }
 

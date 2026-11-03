@@ -4,6 +4,7 @@ import { products, stores } from "@/db/schema";
 import { eq, and, count } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import { effectivePlan, normalizePlan, productLimitFor } from "@/lib/plans";
+import { hasFeatureAccess } from "@/lib/paywall";
 import { createErrorResponse } from "@/lib/errors";
 
 // Get products for store
@@ -15,9 +16,28 @@ export async function GET(request: NextRequest) {
     const onlyVisible = request.nextUrl.searchParams.get("visible") === "true";
 
     if (slug) {
-      // Public: get products by store slug
+      // Public: get products by store slug.
+      // Only expose storefront-safe columns — never payment credentials,
+      // plan/credit balances or the owner id.
       const storeResult = await db
-        .select()
+        .select({
+          id: stores.id,
+          name: stores.name,
+          slug: stores.slug,
+          description: stores.description,
+          category: stores.category,
+          logoUrl: stores.logoUrl,
+          coverUrl: stores.coverUrl,
+          phone: stores.phone,
+          address: stores.address,
+          accentColor: stores.accentColor,
+          currency: stores.currency,
+          supportedCurrencies: stores.supportedCurrencies,
+          themeConfig: stores.themeConfig,
+          stripeEnabled: stores.stripeEnabled,
+          paddleEnabled: stores.paddleEnabled,
+          manualPaymentInstructions: stores.manualPaymentInstructions,
+        })
         .from(stores)
         .where(eq(stores.slug, slug))
         .limit(1);
@@ -26,7 +46,14 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
       }
 
-      const conditions = [eq(products.storeId, storeResult[0].id)];
+      // White-label is a paid entitlement: the stored flag only counts while
+      // the store still holds it (expired plans lose the branded storefront).
+      const store = {
+        ...storeResult[0],
+        hasWhiteLabel: await hasFeatureAccess(storeResult[0].id, "white_label"),
+      };
+
+      const conditions = [eq(products.storeId, store.id)];
       if (onlyVisible) {
         conditions.push(eq(products.isVisible, true));
       }
@@ -36,7 +63,7 @@ export async function GET(request: NextRequest) {
         .from(products)
         .where(and(...conditions));
 
-      return NextResponse.json({ products: result, store: storeResult[0] });
+      return NextResponse.json({ products: result, store });
     }
 
     if (!session?.id) {
