@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { stores } from "@/db/schema";
-import { getSession } from "@/lib/auth";
+import { resolveStoreAccess, getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
 import { PaywallError, requireActivePlan } from "@/lib/paywall";
 import { absoluteUrl } from "@/lib/site";
@@ -23,12 +23,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userStore = await db
-      .select({ id: stores.id })
-      .from(stores)
-      .where(eq(stores.ownerId, session.id))
-      .limit(1);
-    const store = userStore[0];
+    const storeAccess = await resolveStoreAccess(session.id);
+    const store = storeAccess ? { id: storeAccess.store.id } : undefined;
     if (!store) {
       return NextResponse.json(
         { error: "Store not found", code: "STORE_NOT_FOUND" },

@@ -33,7 +33,9 @@ export default function LoginPage() {
         return;
       }
 
-      router.push(data.redirect || "/dashboard");
+      const next = new URLSearchParams(window.location.search).get("next");
+      const safeNext = next && next.startsWith("/") ? next : null;
+      router.push(safeNext || data.redirect || "/dashboard");
       router.refresh();
     } catch {
       setError(t("auth.somethingWrong"));

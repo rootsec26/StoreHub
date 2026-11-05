@@ -2,19 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { coupons, orders, stores } from "@/db/schema";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
-import { getSession } from "@/lib/auth";
+import { resolveStoreAccess, getSession } from "@/lib/auth";
 import { REVENUE_ORDER_STATUS } from "@/lib/order-metrics";
 import { orderStatusIs } from "@/lib/order-status-sql";
 import { createErrorResponse } from "@/lib/errors";
 import { couponStatus, type CouponRecord } from "@/lib/promotions";
 
 async function getOwnedStore(sessionId: string) {
-  const userStore = await db
-    .select({ id: stores.id })
-    .from(stores)
-    .where(eq(stores.ownerId, sessionId))
-    .limit(1);
-  return userStore[0];
+  const access = await resolveStoreAccess(sessionId);
+  return access?.store;
 }
 
 function toRecord(row: typeof coupons.$inferSelect): CouponRecord {

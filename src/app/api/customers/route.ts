@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { orders, stores } from "@/db/schema";
-import { getSession } from "@/lib/auth";
+import { resolveStoreAccess, getSession } from "@/lib/auth";
 import { REVENUE_ORDER_STATUS } from "@/lib/order-metrics";
 import type {
   CustomerSummary,
@@ -23,11 +23,8 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    const userStore = await db
-      .select({ id: stores.id })
-      .from(stores)
-      .where(eq(stores.ownerId, session.id))
-      .limit(1);
+    const storeAccess = await resolveStoreAccess(session.id);
+    const userStore = storeAccess ? [{ id: storeAccess.store.id }] : [];
 
     if (userStore.length === 0) {
       return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });

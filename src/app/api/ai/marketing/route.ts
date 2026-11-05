@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 
 import { AI_PLATFORMS, generateMarketingPost, type AiPlatform } from "@/lib/ai";
-import { getSession } from "@/lib/auth";
+import { resolveStoreAccess, getSession } from "@/lib/auth";
 import { db } from "@/db";
 import { products, stores } from "@/db/schema";
 import { createErrorResponse } from "@/lib/errors";
@@ -45,11 +45,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Input is too long", code: "INPUT_TOO_LONG" }, { status: 400 });
     }
 
-    const userStore = await db
-      .select({ id: stores.id, name: stores.name })
-      .from(stores)
-      .where(eq(stores.ownerId, session.id))
-      .limit(1);
+    const storeAccess = await resolveStoreAccess(session.id);
+    const userStore = storeAccess
+      ? [{ id: storeAccess.store.id, name: storeAccess.store.name }]
+      : [];
 
     if (userStore.length === 0) {
       return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });

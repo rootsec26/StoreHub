@@ -9,7 +9,7 @@ import {
   stores,
   vipTiers,
 } from "@/db/schema";
-import { getSession } from "@/lib/auth";
+import { resolveStoreAccess, getSession } from "@/lib/auth";
 import {
   DEFAULT_LOYALTY_SETTINGS,
   DEFAULT_VIP_TIERS,
@@ -27,12 +27,8 @@ import { createErrorResponse } from "@/lib/errors";
 export const runtime = "nodejs";
 
 async function getOwnedStore(sessionId: string) {
-  const userStore = await db
-    .select({ id: stores.id, slug: stores.slug })
-    .from(stores)
-    .where(eq(stores.ownerId, sessionId))
-    .limit(1);
-  return userStore[0];
+  const access = await resolveStoreAccess(sessionId);
+  return access?.store;
 }
 
 /**

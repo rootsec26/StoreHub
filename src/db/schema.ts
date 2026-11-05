@@ -1134,3 +1134,71 @@ export const notificationEvents = pgTable(
     ),
   ]
 );
+
+// ============================================
+// TEAM MANAGEMENT (store members + invitations)
+// ============================================
+// `stores.owner_id` is the single OWNER. Extra staff are rows here with
+// role = 'ADMIN'. Invitations are single-use tokens redeemed through
+// POST /api/team/accept (see src/app/accept-invite/page.tsx).
+export const STORE_MEMBER_ROLES = ["ADMIN"] as const;
+export const storeMembers = pgTable(
+  "store_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role").notNull().default("ADMIN"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("store_members_store_user_unique").on(
+      table.storeId,
+      table.userId
+    ),
+    index("store_members_user_idx").on(table.userId),
+    index("store_members_store_idx").on(table.storeId),
+  ]
+);
+
+export const INVITATION_STATUSES = [
+  "PENDING",
+  "ACCEPTED",
+  "REVOKED",
+  "EXPIRED",
+] as const;
+
+export const storeInvitations = pgTable(
+  "store_invitations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    role: text("role").notNull().default("ADMIN"),
+    token: text("token").unique().notNull(),
+    status: text("status").notNull().default("PENDING"),
+    invitedByUserId: uuid("invited_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    acceptedByUserId: uuid("accepted_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("store_invitations_store_idx").on(table.storeId, table.status),
+    index("store_invitations_email_idx").on(table.email),
+  ]
+);

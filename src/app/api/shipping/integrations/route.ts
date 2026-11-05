@@ -3,7 +3,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { shippingIntegrations, stores } from "@/db/schema";
-import { getSession } from "@/lib/auth";
+import { resolveStoreAccess, getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
 import { formatZodError, validateRequest } from "@/lib/validators";
 import {
@@ -52,12 +52,8 @@ function serialize(row: IntegrationRow) {
 }
 
 async function getOwnedStore(sessionId: string) {
-  const userStore = await db
-    .select({ id: stores.id })
-    .from(stores)
-    .where(eq(stores.ownerId, sessionId))
-    .limit(1);
-  return userStore[0];
+  const access = await resolveStoreAccess(sessionId);
+  return access?.store;
 }
 
 /** Lists the store's carrier accounts (secrets always masked). */

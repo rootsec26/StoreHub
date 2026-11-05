@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { orders, stores } from "@/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
-import { getSession } from "@/lib/auth";
+import { getAccessibleStores, getSession } from "@/lib/auth";
 import { validateRequest, formatZodError } from "@/lib/validators";
 import {
   createErrorResponse,
@@ -97,11 +97,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userStore = await db
-      .select()
-      .from(stores)
-      .where(eq(stores.ownerId, session.id))
-      .limit(1);
+    const userStore = await getAccessibleStores(session.id);
     if (userStore.length === 0) {
       return NextResponse.json(
         { error: "Store not found", code: "STORE_NOT_FOUND" },

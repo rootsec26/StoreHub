@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { abandonedCarts, stores } from "@/db/schema";
-import { getSession } from "@/lib/auth";
+import { resolveStoreAccess, getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
 import {
   computeAbandonedSummary,
@@ -13,12 +13,8 @@ import {
 export const runtime = "nodejs";
 
 async function getOwnedStore(sessionId: string) {
-  const userStore = await db
-    .select({ id: stores.id, slug: stores.slug })
-    .from(stores)
-    .where(eq(stores.ownerId, sessionId))
-    .limit(1);
-  return userStore[0];
+  const access = await resolveStoreAccess(sessionId);
+  return access?.store;
 }
 
 function toRecord(row: typeof abandonedCarts.$inferSelect): AbandonedCartRecord {

@@ -211,7 +211,7 @@ export function validateStoreAccess(
  * @returns true if has permission
  */
 export function canManageOrders(role?: string): boolean {
-  return role === "OWNER" || role === "STAFF_MANAGE_ORDERS";
+  return role === "OWNER" || role === "ADMIN" || role === "STAFF_MANAGE_ORDERS";
 }
 
 /**

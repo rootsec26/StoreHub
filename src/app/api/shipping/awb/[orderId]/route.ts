@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { stores } from "@/db/schema";
-import { getSession } from "@/lib/auth";
+import { resolveStoreAccess, getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
 import { buildAwbLabel, fetchAwbContext } from "@/lib/shipping-awb";
 import { createAwbPdf } from "@/lib/shipping-pdf";
@@ -23,12 +23,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const { orderId } = await params;
-    const userStore = await db
-      .select({ id: stores.id })
-      .from(stores)
-      .where(eq(stores.ownerId, session.id))
-      .limit(1);
-    const store = userStore[0];
+    const storeAccess = await resolveStoreAccess(session.id);
+    const store = storeAccess ? { id: storeAccess.store.id } : undefined;
     if (!store) {
       return NextResponse.json(
         { error: "Store not found", code: "STORE_NOT_FOUND" },

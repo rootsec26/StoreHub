@@ -3,7 +3,7 @@ import { and, eq, gte, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { orders, orderItems, products, stores } from "@/db/schema";
-import { getSession } from "@/lib/auth";
+import { getAccessibleStores, getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
 
 const PAYMENT_METHODS = ["cash", "card"] as const;
@@ -59,11 +59,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userStore = await db
-      .select()
-      .from(stores)
-      .where(eq(stores.ownerId, session.id))
-      .limit(1);
+    const userStore = await getAccessibleStores(session.id);
 
     if (userStore.length === 0) {
       return NextResponse.json(

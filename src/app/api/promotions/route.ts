@@ -2,17 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { promotions, stores } from "@/db/schema";
 import { and, asc, eq, gt } from "drizzle-orm";
-import { getSession } from "@/lib/auth";
+import { resolveStoreAccess, getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
 import { promotionState, type PromotionRecord } from "@/lib/promotions";
 
 async function getOwnedStore(sessionId: string) {
-  const userStore = await db
-    .select({ id: stores.id, slug: stores.slug })
-    .from(stores)
-    .where(eq(stores.ownerId, sessionId))
-    .limit(1);
-  return userStore[0];
+  const access = await resolveStoreAccess(sessionId);
+  return access?.store;
 }
 
 function toRecord(row: typeof promotions.$inferSelect): PromotionRecord {

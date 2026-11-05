@@ -9,7 +9,7 @@ import {
   stores,
 } from "@/db/schema";
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
-import { getSession } from "@/lib/auth";
+import { resolveStoreAccess, getSession } from "@/lib/auth";
 import { createErrorResponse, formatErrorForLog } from "@/lib/errors";
 import { findTransitionPath, normalizeOrderStatus } from "@/lib/order-state-machine";
 import { orderStatusNotIn } from "@/lib/order-status-sql";
@@ -25,19 +25,8 @@ import {
 const MAX_BULK_ORDERS = 100;
 
 async function getOwnedStore(sessionId: string) {
-  const userStore = await db
-    .select({
-      id: stores.id,
-      name: stores.name,
-      slug: stores.slug,
-      logoUrl: stores.logoUrl,
-      phone: stores.phone,
-      address: stores.address,
-    })
-    .from(stores)
-    .where(eq(stores.ownerId, sessionId))
-    .limit(1);
-  return userStore[0];
+  const access = await resolveStoreAccess(sessionId);
+  return access?.store;
 }
 
 function unfulfilledCondition(storeId: string) {

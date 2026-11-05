@@ -8,7 +8,7 @@ import {
   stores,
   type SocialPlatform,
 } from "@/db/schema";
-import { getSession } from "@/lib/auth";
+import { resolveStoreAccess, getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
 import {
   decryptSocialSecret,
@@ -59,13 +59,8 @@ async function getStoreId(): Promise<string | null> {
   const session = await getSession();
   if (!session?.id) return null;
 
-  const userStore = await db
-    .select({ id: stores.id })
-    .from(stores)
-    .where(eq(stores.ownerId, session.id))
-    .limit(1);
-
-  return userStore.length > 0 ? userStore[0].id : null;
+  const access = await resolveStoreAccess(session.id);
+  return access?.store.id ?? null;
 }
 
 export async function GET(request: NextRequest) {

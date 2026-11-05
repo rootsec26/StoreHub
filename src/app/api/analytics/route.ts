@@ -3,7 +3,7 @@ import { asc, eq, sql, and, gte, desc } from "drizzle-orm";
 
 import { db } from "@/db";
 import { orderItems, orders, products, stores } from "@/db/schema";
-import { getSession } from "@/lib/auth";
+import { resolveStoreAccess, getSession } from "@/lib/auth";
 import { REVENUE_ORDER_STATUS, REVENUE_PAYMENT_STATUS } from "@/lib/order-metrics";
 import { orderStatusIs, orderStatusNotIn } from "@/lib/order-status-sql";
 import type {
@@ -53,11 +53,8 @@ export async function GET() {
       );
     }
 
-    const userStore = await db
-      .select({ id: stores.id })
-      .from(stores)
-      .where(eq(stores.ownerId, session.id))
-      .limit(1);
+    const storeAccess = await resolveStoreAccess(session.id);
+    const userStore = storeAccess ? [{ id: storeAccess.store.id }] : [];
 
     if (userStore.length === 0) {
       return NextResponse.json(

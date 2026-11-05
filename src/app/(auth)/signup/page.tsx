@@ -32,8 +32,10 @@ export default function SignupPage() {
         return;
       }
 
-      if (res.ok && data.redirectUrl) {
-        window.location.href = data.redirectUrl;
+      if (res.ok) {
+        const next = new URLSearchParams(window.location.search).get("next");
+        const safeNext = next && next.startsWith("/") ? next : null;
+        window.location.href = safeNext || data.redirectUrl || "/onboarding";
       }
     } catch (err) {
       console.error("[signup] unexpected error:", err);

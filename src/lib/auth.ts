@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { db } from "@/db";
-import { users, stores } from "@/db/schema";
+import { users, stores, storeMembers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 const jwtSecret = process.env.JWT_SECRET;
@@ -18,7 +18,7 @@ export interface SessionUser {
   storeId?: string;
   storeSlug?: string;
   storeName?: string;
-  role?: "OWNER" | "STAFF_MANAGE_ORDERS" | "STAFF_VIEW_ORDERS";
+  role?: "OWNER" | "ADMIN" | "STAFF_MANAGE_ORDERS" | "STAFF_VIEW_ORDERS";
 }
 
 // Hash password
@@ -67,23 +67,76 @@ export async function createSession(user: SessionUser): Promise<string> {
   return token;
 }
 
+export type StoreAccessRole = "OWNER" | "ADMIN";
+
+export interface StoreAccess {
+  store: typeof stores.$inferSelect;
+  role: StoreAccessRole;
+}
+
+/**
+ * Resolve which store a user can operate on and with which role.
+ * The store owner wins first; otherwise the first `store_members` row
+ * (role ADMIN) grants access to that member's store.
+ */
+export async function resolveStoreAccess(
+  userId: string
+): Promise<StoreAccess | null> {
+  const owned = await db
+    .select()
+    .from(stores)
+    .where(eq(stores.ownerId, userId))
+    .limit(1);
+
+  if (owned[0]) {
+    return { store: owned[0], role: "OWNER" };
+  }
+
+  const membership = await db
+    .select({ storeId: storeMembers.storeId })
+    .from(storeMembers)
+    .where(eq(storeMembers.userId, userId))
+    .limit(1);
+
+  if (!membership[0]) return null;
+
+  const memberStore = await db
+    .select()
+    .from(stores)
+    .where(eq(stores.id, membership[0].storeId))
+    .limit(1);
+
+  if (!memberStore[0]) return null;
+  return { store: memberStore[0], role: "ADMIN" };
+}
+
+/**
+ * Drop-in replacement for the legacy `stores.owner_id = session.id`
+ * lookup: returns a single-element array with the accessible store so
+ * existing `userStore[0]` / `userStore.length === 0` checks keep working
+ * for both owners and invited admins.
+ */
+export async function getAccessibleStores(
+  userId: string
+): Promise<(typeof stores.$inferSelect)[]> {
+  const access = await resolveStoreAccess(userId);
+  return access ? [access.store] : [];
+}
+
 // Get session with store info
 export async function getSessionWithStore(): Promise<SessionUser | null> {
   const session = await getSession();
   if (!session) return null;
 
-  // If session doesn't have store info, try to fetch it
+  // If session doesn't have store info, try to fetch it (owner or member)
   if (!session.storeId) {
-    const store = await db
-      .select({ id: stores.id, slug: stores.slug, name: stores.name })
-      .from(stores)
-      .where(eq(stores.ownerId, session.id))
-      .limit(1);
+    const access = await resolveStoreAccess(session.id);
 
-    if (store.length > 0) {
-      session.storeId = store[0].id;
-      session.storeSlug = store[0].slug;
-      session.storeName = store[0].name;
+    if (access) {
+      session.storeId = access.store.id;
+      session.storeSlug = access.store.slug;
+      session.storeName = access.store.name;
+      session.role = access.role;
     }
   }
 
@@ -107,24 +160,20 @@ export async function login(
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) return null;
 
-  // Get store info
-  const store = await db
-    .select({ id: stores.id, slug: stores.slug, name: stores.name })
-    .from(stores)
-    .where(eq(stores.ownerId, user.id))
-    .limit(1);
+  // Get store info (owned store first, then team membership)
+  const access = await resolveStoreAccess(user.id);
 
   const sessionUser: SessionUser = {
     id: user.id,
     email: user.email,
     name: user.name,
-    role: store.length > 0 ? "OWNER" : undefined,
+    role: access?.role,
   };
 
-  if (store.length > 0) {
-    sessionUser.storeId = store[0].id;
-    sessionUser.storeSlug = store[0].slug;
-    sessionUser.storeName = store[0].name;
+  if (access) {
+    sessionUser.storeId = access.store.id;
+    sessionUser.storeSlug = access.store.slug;
+    sessionUser.storeName = access.store.name;
   }
 
   const token = await createSession(sessionUser);

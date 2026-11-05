@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { categories, stores } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getSession } from "@/lib/auth";
+import { getAccessibleStores, getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
 
 // Get categories
@@ -36,11 +36,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Dashboard: get categories for user's store
-    const userStore = await db
-      .select()
-      .from(stores)
-      .where(eq(stores.ownerId, session.id))
-      .limit(1);
+    const userStore = await getAccessibleStores(session.id);
 
     if (userStore.length === 0) {
       return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
@@ -76,11 +72,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userStore = await db
-      .select()
-      .from(stores)
-      .where(eq(stores.ownerId, session.id))
-      .limit(1);
+    const userStore = await getAccessibleStores(session.id);
 
     if (userStore.length === 0) {
       return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
@@ -109,11 +101,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    const userStore = await db
-      .select()
-      .from(stores)
-      .where(eq(stores.ownerId, session.id))
-      .limit(1);
+    const userStore = await getAccessibleStores(session.id);
 
     if (userStore.length === 0) {
       return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
