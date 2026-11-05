@@ -7,16 +7,13 @@ export function cleanUrlInput(raw: string | null | undefined): string {
   if (typeof raw !== "string") return "";
 
   let value = raw.trim();
-  while (value.length >= 2) {
-    const first = value.charAt(0);
-    const last = value.charAt(value.length - 1);
-    const paired =
-      (first === '"' && last === '"') || (first === "'" && last === "'");
-    if (!paired) break;
-    value = value.slice(1, -1).trim();
-  }
+  // Drop accidental `NAME=` / `=` prefixes left by pasted .env fragments
+  // (e.g. `="https://..."`), which would otherwise corrupt the URL.
+  value = value.replace(/^(?:[A-Za-z_][A-Za-z0-9_]*=|=+)/, "").trim();
+  // Strip wrapping quotes — paired or stray.
+  value = value.replace(/^["']+|["']+$/g, "");
 
-  return value;
+  return value.trim();
 }
 
 export function ensureProtocol(

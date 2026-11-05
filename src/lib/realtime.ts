@@ -11,6 +11,7 @@ import {
   getSupabaseBrowserClient,
 } from "@/lib/supabase/browser";
 import type { Order, OrderStatus, OrdersSummary } from "@/lib/types";
+import { cleanUrlInput, ensureProtocol } from "@/lib/url";
 import { createClient } from "@supabase/supabase-js";
 
 const POLL_INTERVAL_MS = 30_000;
@@ -305,8 +306,13 @@ export async function broadcastOrderUpdate(
   if (typeof window !== "undefined") return;
 
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl = ensureProtocol(
+      cleanUrlInput(process.env.NEXT_PUBLIC_SUPABASE_URL),
+      "https"
+    );
+    const supabaseServiceKey = cleanUrlInput(
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
 
     if (!supabaseUrl || !supabaseServiceKey) {
       console.warn("[realtime] Supabase credentials not configured for broadcast");

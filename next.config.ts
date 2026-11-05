@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
+import { cleanUrlInput } from "./src/lib/url";
 
 function supabaseHost(): string | null {
-  const raw = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "")
-    .trim()
-    .replace(/^['"]+|['"]+$/g, "");
+  const raw = cleanUrlInput(process.env.NEXT_PUBLIC_SUPABASE_URL);
   if (!raw) return null;
   try {
     const withProtocol = /^[a-z][a-z0-9+\-.]*:\/\//i.test(raw)
