@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  getSupabaseAccessToken,
-  getSupabaseBrowserClient,
-  invalidateSupabaseToken,
-} from "@/lib/supabase/browser";
+import { getSupabaseAnonClient } from "@/lib/supabase/browser";
 import { cleanUrlInput, safeParseUrl, urlToString } from "@/lib/url";
 
 /** Public bucket created by `supabase/storage.sql`. */
@@ -147,41 +143,34 @@ function describeStorageError(
   };
 }
 
-let bucketCheckPromise: Promise<void> | null = null;
-
-/**
- * Best-effort verification that the `store-assets` bucket exists. The server
- * route creates it (service role) when configured; failures are logged and
- * swallowed so uploads still surface the real Storage error.
- */
-function ensureStoreAssetsBucket(): Promise<void> {
-  if (!bucketCheckPromise) {
-    bucketCheckPromise = fetch("/api/supabase/bucket", { method: "GET" })
-      .then(async (res) => {
-        if (!res.ok) {
-          console.warn("[storage] bucket check failed", res.status);
-        }
-      })
-      .catch((err) => {
-        console.warn("[storage] bucket check error", err);
-      });
-  }
-  return bucketCheckPromise;
-}
-
 async function uploadOnce(
   storeId: string,
   field: StoreAssetField,
   file: File
 ): Promise<UploadedAsset> {
-  const client = getSupabaseBrowserClient();
+  const client = getSupabaseAnonClient();
   const path = buildStoreAssetPath(storeId, field, file.name, file.type);
 
-  const { error } = await client.storage.from(STORAGE_BUCKET).upload(path, file, {
-    upsert: true,
-    contentType: file.type,
-    cacheControl: "31536000",
-  });
+  let error: { message?: string; status?: number; statusCode?: string; error?: string } | null = null;
+  try {
+    ({ error } = await client.storage.from(STORAGE_BUCKET).upload(path, file, {
+      upsert: true,
+      contentType: file.type,
+      cacheControl: "31536000",
+    }));
+  } catch (err) {
+    // Network-level failure (offline, DNS, CORS) — surface a clear message.
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[storage] upload threw", {
+      storeId,
+      field,
+      fileName: file.name,
+      bucket: STORAGE_BUCKET,
+      path,
+      message,
+    });
+    throw new StoreAssetError("upload-failed", `Network error during upload: ${message}`);
+  }
 
   if (error) {
     const details = describeStorageError(STORAGE_BUCKET, path, error);
@@ -193,10 +182,6 @@ async function uploadOnce(
       fileType: file.type,
       ...details,
     });
-
-    if (error.status === 401 || error.status === 403) {
-      invalidateSupabaseToken();
-    }
 
     const suffix = [details.errorCode, details.message].filter(Boolean).join(": ");
     throw new StoreAssetError(
@@ -210,7 +195,8 @@ async function uploadOnce(
 
 /**
  * Uploads an image into the tenant's folder of the public `store-assets`
- * bucket. Storage RLS validates `{store_id}/*` ownership on every write.
+ * bucket using the anon-key client. Storage RLS validates `{store_id}/*`
+ * ownership on every write.
  */
 export async function uploadStoreAsset(
   storeId: string,
@@ -220,27 +206,13 @@ export async function uploadStoreAsset(
   const validation = validateImageFile(file);
   if (validation) throw new StoreAssetError(validation);
 
-  // Fail fast with an actionable message when SUPABASE_JWT_SECRET is unset.
-  const token = await getSupabaseAccessToken();
-  if (!token) throw new StoreAssetError("not-configured");
-
-  // Ensure the bucket exists once per session (no-op when unconfigured).
-  await ensureStoreAssetsBucket();
-
   try {
     return await uploadOnce(storeId, field, file);
   } catch (error) {
-    if (error instanceof StoreAssetError && error.code === "upload-failed") {
-      // Token may have expired mid-session — refresh once and retry.
-      invalidateSupabaseToken();
-      try {
-        return await uploadOnce(storeId, field, file);
-      } catch (retryError) {
-        if (retryError instanceof StoreAssetError) throw retryError;
-        throw new StoreAssetError("upload-failed");
-      }
-    }
-    throw error;
+    if (error instanceof StoreAssetError) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[storage] unexpected upload error", { storeId, field, message });
+    throw new StoreAssetError("upload-failed", message);
   }
 }
 
@@ -252,7 +224,7 @@ export async function removeStoreAsset(
   if (!path || !isStoreAssetPath(path, storeId)) return;
 
   try {
-    const client = getSupabaseBrowserClient();
+    const client = getSupabaseAnonClient();
     const { error } = await client.storage.from(STORAGE_BUCKET).remove([path]);
     if (error) {
       console.warn("[storage] asset removal failed", {

@@ -13,6 +13,7 @@ interface TokenCache {
 let tokenCache: TokenCache | null = null;
 let tokenRequest: Promise<string | null> | null = null;
 let browserClient: SupabaseClient | null = null;
+let anonClient: SupabaseClient | null = null;
 
 /** Drops the cached tenant token (e.g. after a 401 from Supabase). */
 export function invalidateSupabaseToken(): void {
@@ -58,9 +59,9 @@ export async function getSupabaseAccessToken(): Promise<string | null> {
  * minted token on every Storage/PostgREST/Realtime request, which is what makes
  * RLS (`auth.uid()`) resolve to the app user.
  */
-export function getSupabaseBrowserClient(): SupabaseClient {
-  if (browserClient) return browserClient;
-
+function createSupabaseClient(
+  accessToken?: () => Promise<string | null>
+): SupabaseClient {
   const url = ensureProtocol(
     cleanUrlInput(process.env.NEXT_PUBLIC_SUPABASE_URL),
     "https"
@@ -84,15 +85,37 @@ export function getSupabaseBrowserClient(): SupabaseClient {
   const normalizedUrl = urlToString(parsed);
 
   try {
-    browserClient = createClient(normalizedUrl, anonKey, {
-      accessToken: async () => getSupabaseAccessToken(),
-    });
+    return createClient(normalizedUrl, anonKey, accessToken ? { accessToken } : {});
   } catch (error) {
     throw new Error(
       `Unable to create the Supabase client for "${normalizedUrl}": ` +
         (error instanceof Error ? error.message : String(error))
     );
   }
+}
 
+/**
+ * Supabase browser client authenticated as the logged-in tenant.
+ *
+ * `accessToken` opts out of supabase-js's own auth stack and instead sends the
+ * minted token on every Storage/PostgREST/Realtime request, which is what makes
+ * RLS (`auth.uid()`) resolve to the app user.
+ */
+export function getSupabaseBrowserClient(): SupabaseClient {
+  if (!browserClient) {
+    browserClient = createSupabaseClient(() => getSupabaseAccessToken());
+  }
   return browserClient;
+}
+
+/**
+ * Plain Supabase client using only the public anon key — no minted JWT.
+ * Used for Storage uploads so a misconfigured SUPABASE_JWT_SECRET on the
+ * server cannot break uploads with "signature verification failed".
+ */
+export function getSupabaseAnonClient(): SupabaseClient {
+  if (!anonClient) {
+    anonClient = createSupabaseClient();
+  }
+  return anonClient;
 }
