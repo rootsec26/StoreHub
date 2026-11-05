@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import type { ReactNode } from "react";
 import { Cairo } from "next/font/google";
 import { I18nProvider } from "@/lib/i18n";
@@ -60,7 +61,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang={initialLocale} dir={initialLocale === "ar" ? "rtl" : "ltr"} suppressHydrationWarning>
       <body className={`bg-slate-50 text-slate-900 antialiased ${cairo.variable}`}>
-        <script dangerouslySetInnerHTML={{ __html: directionScript }} />
+        <Script
+          id="storehub-locale-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: directionScript }}
+        />
         <I18nProvider initialLocale={initialLocale}>{children}</I18nProvider>
       </body>
     </html>

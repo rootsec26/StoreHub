@@ -25,13 +25,18 @@ export const getStoreBySlug = cache(
   async (slug: string): Promise<StoreRecord | null> => {
     if (!slug || slug.length > 80 || !SLUG_PATTERN.test(slug)) return null;
 
-    const rows = await db
-      .select()
-      .from(stores)
-      .where(eq(stores.slug, slug))
-      .limit(1);
-
-    const store = rows[0];
+    let store: StoreRecord | undefined;
+    try {
+      const rows = await db
+        .select()
+        .from(stores)
+        .where(eq(stores.slug, slug))
+        .limit(1);
+      store = rows[0];
+    } catch (error) {
+      console.error(`Failed to fetch store "${slug}":`, error);
+      return null;
+    }
     if (!store) return null;
 
     // White-label branding is only served while the add-on is entitled.
@@ -73,19 +78,24 @@ export async function getStoreProduct(
   if (!storeId || !isValidUuid(storeId)) return null;
   if (!productId || !isValidUuid(productId)) return null;
 
-  const rows = await db
-    .select()
-    .from(products)
-    .where(
-      and(
-        eq(products.storeId, storeId),
-        eq(products.id, productId),
-        eq(products.isVisible, true)
+  try {
+    const rows = await db
+      .select()
+      .from(products)
+      .where(
+        and(
+          eq(products.storeId, storeId),
+          eq(products.id, productId),
+          eq(products.isVisible, true)
+        )
       )
-    )
-    .limit(1);
+      .limit(1);
 
-  return rows[0] ?? null;
+    return rows[0] ?? null;
+  } catch (error) {
+    console.error(`Failed to fetch product "${productId}" for store "${storeId}":`, error);
+    return null;
+  }
 }
 
 /**
@@ -135,13 +145,18 @@ export async function getCategoryName(
 ): Promise<string | null> {
   if (!categoryId || !isValidUuid(categoryId)) return null;
 
-  const rows = await db
-    .select({ name: categories.name })
-    .from(categories)
-    .where(eq(categories.id, categoryId))
-    .limit(1);
+  try {
+    const rows = await db
+      .select({ name: categories.name })
+      .from(categories)
+      .where(eq(categories.id, categoryId))
+      .limit(1);
 
-  return rows[0]?.name ?? null;
+    return rows[0]?.name ?? null;
+  } catch (error) {
+    console.error(`Failed to fetch category "${categoryId}":`, error);
+    return null;
+  }
 }
 
 export async function getSitemapStores(): Promise<

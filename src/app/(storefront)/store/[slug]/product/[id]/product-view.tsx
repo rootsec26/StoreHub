@@ -151,6 +151,8 @@ export default function ProductView({
                 alt={product.name}
                 fill
                 sizes="(max-width: 768px) 100vw, 50vw"
+                priority
+                loading="eager"
                 unoptimized={!canOptimizeImage(product.imageUrl)}
                 className="h-full w-full object-cover"
               />
