@@ -283,7 +283,7 @@ export default function DashboardLayout({
           </div>
         )}
 
-        <nav className="flex-1 px-3 py-4">
+        <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <SidebarNav
             pendingOrders={pendingCount}
             onNavigate={() => setSidebarOpen(false)}
