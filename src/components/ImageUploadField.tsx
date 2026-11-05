@@ -48,9 +48,14 @@ export default function ImageUploadField({
 
   function handleError(err: unknown) {
     if (err instanceof StoreAssetError) {
-      setError(t(ERROR_KEY[err.code]));
+      console.error("[upload] store asset upload failed", {
+        code: err.code,
+        message: err.message,
+      });
+      setError(err.message ? `${t(ERROR_KEY[err.code])} — ${err.message}` : t(ERROR_KEY[err.code]));
       return;
     }
+    console.error("[upload] unexpected error", err);
     setError(t("upload.failed"));
   }
 

@@ -123,6 +123,52 @@ export function validateImageFile(file: File): UploadErrorCode | null {
   return null;
 }
 
+interface StorageFailureDetails {
+  bucket: string;
+  path: string;
+  status?: number;
+  statusCode?: string;
+  errorCode?: string;
+  message: string;
+}
+
+function describeStorageError(
+  bucket: string,
+  path: string,
+  error: { message?: string; status?: number; statusCode?: string; error?: string }
+): StorageFailureDetails {
+  return {
+    bucket,
+    path,
+    status: error.status,
+    statusCode: error.statusCode,
+    errorCode: error.error,
+    message: error.message ?? "Unknown storage error",
+  };
+}
+
+let bucketCheckPromise: Promise<void> | null = null;
+
+/**
+ * Best-effort verification that the `store-assets` bucket exists. The server
+ * route creates it (service role) when configured; failures are logged and
+ * swallowed so uploads still surface the real Storage error.
+ */
+function ensureStoreAssetsBucket(): Promise<void> {
+  if (!bucketCheckPromise) {
+    bucketCheckPromise = fetch("/api/supabase/bucket", { method: "GET" })
+      .then(async (res) => {
+        if (!res.ok) {
+          console.warn("[storage] bucket check failed", res.status);
+        }
+      })
+      .catch((err) => {
+        console.warn("[storage] bucket check error", err);
+      });
+  }
+  return bucketCheckPromise;
+}
+
 async function uploadOnce(
   storeId: string,
   field: StoreAssetField,
@@ -138,10 +184,25 @@ async function uploadOnce(
   });
 
   if (error) {
+    const details = describeStorageError(STORAGE_BUCKET, path, error);
+    console.error("[storage] upload failed", {
+      storeId,
+      field,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      ...details,
+    });
+
     if (error.status === 401 || error.status === 403) {
       invalidateSupabaseToken();
     }
-    throw new StoreAssetError("upload-failed", error.message);
+
+    const suffix = [details.errorCode, details.message].filter(Boolean).join(": ");
+    throw new StoreAssetError(
+      "upload-failed",
+      `Storage upload failed${details.status ? ` (HTTP ${details.status})` : ""}: ${suffix || "unknown error"}`
+    );
   }
 
   return { path, publicUrl: getPublicAssetUrl(path) };
@@ -162,6 +223,9 @@ export async function uploadStoreAsset(
   // Fail fast with an actionable message when SUPABASE_JWT_SECRET is unset.
   const token = await getSupabaseAccessToken();
   if (!token) throw new StoreAssetError("not-configured");
+
+  // Ensure the bucket exists once per session (no-op when unconfigured).
+  await ensureStoreAssetsBucket();
 
   try {
     return await uploadOnce(storeId, field, file);
@@ -189,8 +253,17 @@ export async function removeStoreAsset(
 
   try {
     const client = getSupabaseBrowserClient();
-    await client.storage.from(STORAGE_BUCKET).remove([path]);
-  } catch {
+    const { error } = await client.storage.from(STORAGE_BUCKET).remove([path]);
+    if (error) {
+      console.warn("[storage] asset removal failed", {
+        bucket: STORAGE_BUCKET,
+        path,
+        status: error.status,
+        message: error.message,
+      });
+    }
+  } catch (err) {
     // Best-effort cleanup — orphaned files never break the product flow.
+    console.warn("[storage] asset removal error", err);
   }
 }
