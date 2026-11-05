@@ -5,6 +5,7 @@ import Image from "next/image";
 import { ImagePlus, Loader2, X } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
+import { compressImageForUpload } from "@/lib/imageCompress";
 import { canOptimizeImage, isValidImageUrl } from "@/lib/images";
 import {
   StoreAssetError,
@@ -40,7 +41,10 @@ export default function ImageUploadField({
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const busy = uploading || processing;
 
   function handleError(err: unknown) {
     if (err instanceof StoreAssetError) {
@@ -52,10 +56,16 @@ export default function ImageUploadField({
 
   async function handleFile(file: File) {
     setError(null);
-    setUploading(true);
+    const previewUrl = URL.createObjectURL(file);
+    setLocalPreview(previewUrl);
     try {
+      setProcessing(true);
+      const prepared = await compressImageForUpload(file);
+      setProcessing(false);
+      setUploading(true);
+
       const previous = value;
-      const asset = await uploadStoreAsset(storeId, field, file);
+      const asset = await uploadStoreAsset(storeId, field, prepared);
       onChange(asset.publicUrl);
 
       const oldPath = extractStoreAssetPath(previous, storeId);
@@ -65,7 +75,10 @@ export default function ImageUploadField({
     } catch (err) {
       handleError(err);
     } finally {
+      setProcessing(false);
       setUploading(false);
+      setLocalPreview(null);
+      URL.revokeObjectURL(previewUrl);
       if (inputRef.current) inputRef.current.value = "";
     }
   }
@@ -85,7 +98,21 @@ export default function ImageUploadField({
 
       <div className="flex items-start gap-3">
         <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-          {isValidImageUrl(value) ? (
+          {localPreview ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={localPreview}
+                alt={label}
+                className="h-full w-full object-cover"
+              />
+              {busy && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                  <Loader2 className="h-6 w-6 animate-spin text-white" />
+                </div>
+              )}
+            </>
+          ) : isValidImageUrl(value) ? (
             <Image
               src={value}
               alt={label}
@@ -106,22 +133,26 @@ export default function ImageUploadField({
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              disabled={uploading}
+              disabled={busy}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
-              {uploading ? (
+              {busy ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <ImagePlus className="h-3.5 w-3.5" />
               )}
-              {uploading ? t("upload.inProgress") : t("upload.choose")}
+              {processing
+                ? t("upload.processing")
+                : uploading
+                  ? t("upload.inProgress")
+                  : t("upload.choose")}
             </button>
 
             {value && (
               <button
                 type="button"
                 onClick={handleRemove}
-                disabled={uploading}
+                disabled={busy}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
               >
                 <X className="h-3.5 w-3.5" />

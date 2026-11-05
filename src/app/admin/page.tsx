@@ -1,449 +1,231 @@
 import Link from "next/link";
+import { desc } from "drizzle-orm";
+import {
+  ArrowRight,
+  BellRing,
+  Megaphone,
+  MessageSquareCode,
+  Store,
+  Ticket,
+  UserPlus,
+  Users,
+} from "lucide-react";
+
 import { db } from "@/db";
-import { users, stores, products, activationCodes, categories } from "@/db/schema";
-import { eq, count, desc } from "drizzle-orm";
-import { redirect } from "next/navigation";
+import { activationCodes } from "@/db/schema";
 import { isAdminAuthorized } from "@/lib/admin";
+import { getAdminOverview } from "@/lib/messaging/service";
 
 export const runtime = "nodejs";
 
-async function getMerchantsData() {
-  let allUsers: Array<{ id: string; email: string; name: string; createdAt: Date }> = [];
-  let allStores: Array<{ id: string; ownerId: string; name: string; slug: string; plan: string; createdAt: Date }> = [];
-  let productCounts: Array<{ storeId: string; count: number }> = [];
-  let dbError: Error | null = null;
-
+async function getCodeStats() {
   try {
-    allUsers = await db
-      .select({
-        id: users.id,
-        email: users.email,
-        name: users.name,
-        createdAt: users.createdAt,
-      })
-      .from(users);
-  } catch (error) {
-    dbError = error instanceof Error ? error : new Error("Failed to fetch users");
-    console.error("Error fetching users:", error);
-  }
-
-  try {
-    allStores = await db
-      .select({
-        id: stores.id,
-        ownerId: stores.ownerId,
-        name: stores.name,
-        slug: stores.slug,
-        plan: stores.plan,
-        createdAt: stores.createdAt,
-      })
-      .from(stores);
-  } catch (error) {
-    dbError = error instanceof Error ? error : new Error("Failed to fetch stores");
-    console.error("Error fetching stores:", error);
-  }
-
-  try {
-    productCounts = await db
-      .select({
-        storeId: products.storeId,
-        count: count(),
-      })
-      .from(products)
-      .groupBy(products.storeId);
-  } catch (error) {
-    dbError = error instanceof Error ? error : new Error("Failed to fetch product counts");
-    console.error("Error fetching product counts:", error);
-  }
-
-  const productCountMap = new Map(productCounts.map((p) => [p.storeId, Number(p.count)]));
-
-  const merchants = allUsers.map((user) => {
-    const userStores = allStores.filter((s) => s.ownerId === user.id);
-    const primaryStore = userStores[0];
-    const productCount = primaryStore ? productCountMap.get(primaryStore.id) || 0 : 0;
-    const plan = primaryStore ? primaryStore.plan : "free";
-
-    return {
-      user,
-      store: primaryStore,
-      productCount,
-      plan,
-    };
-  });
-
-  return { merchants, dbError };
-}
-
-async function getActivationCodesSummary() {
-  let codes: Array<typeof activationCodes.$inferSelect> = [];
-  let dbError: Error | null = null;
-
-  try {
-    codes = await db
+    const codes = await db
       .select()
       .from(activationCodes)
       .orderBy(desc(activationCodes.createdAt));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('relation "activation_codes" does not exist')) {
-      codes = [];
-    } else {
-      dbError = error instanceof Error ? error : new Error("Failed to fetch activation codes");
-      console.error("Error fetching activation codes:", error);
-    }
-  }
 
-  const available = codes.filter(
-    (code) =>
-      !code.isUsed &&
-      (!code.expiresAt || new Date(code.expiresAt).getTime() > Date.now())
-  ).length;
-
-  return {
-    total: codes.length,
-    available,
-    used: codes.filter((code) => code.isUsed).length,
-    dbError,
-  };
-}
-async function getStoreDetails(storeId: string) {
-  let storeProducts: Array<typeof products.$inferSelect> = [];
-  let storeCategories: Array<typeof categories.$inferSelect> = [];
-  let dbError: Error | null = null;
-
-  try {
-    storeProducts = await db
-      .select()
-      .from(products)
-      .where(eq(products.storeId, storeId))
-      .orderBy(desc(products.createdAt));
-  } catch (error) {
-    dbError = error instanceof Error ? error : new Error("Failed to fetch store products");
-    console.error("Error fetching store products:", error);
-  }
-
-  try {
-    storeCategories = await db
-      .select()
-      .from(categories)
-      .where(eq(categories.storeId, storeId));
-  } catch (error) {
-    dbError = error instanceof Error ? error : new Error("Failed to fetch store categories");
-    console.error("Error fetching store categories:", error);
-  }
-
-  return { products: storeProducts, categories: storeCategories, dbError };
-}
-
-export default async function AdminPage({ searchParams }: { searchParams: Promise<{ store?: string }> }) {
-  const adminAllowed = await isAdminAuthorized();
-  if (!adminAllowed) {
-    return notFound();
-  }
-
-  const params = await searchParams;
-  const selectedStoreId = params.store;
-
-  const [merchantsResult, codesResult] = await Promise.all([
-    getMerchantsData(),
-    getActivationCodesSummary(),
-  ]);
-
-  const merchants = merchantsResult.merchants;
-  const codeStats = codesResult;
-  const dbErrors = [
-    merchantsResult.dbError,
-    codesResult.dbError,
-  ].filter(Boolean) as Error[];
-
-  let storeDetails = null;
-  if (selectedStoreId) {
-    const storeDetailsResult = await getStoreDetails(selectedStoreId);
-    storeDetails = {
-      products: storeDetailsResult.products,
-      categories: storeDetailsResult.categories,
+    return {
+      total: codes.length,
+      available: codes.filter(
+        (code) =>
+          !code.isUsed &&
+          (!code.expiresAt || new Date(code.expiresAt).getTime() > Date.now())
+      ).length,
+      used: codes.filter((code) => code.isUsed).length,
     };
-    if (storeDetailsResult.dbError) {
-      dbErrors.push(storeDetailsResult.dbError);
-    }
+  } catch (error) {
+    console.error("Failed to load activation code stats:", error);
+    return { total: 0, available: 0, used: 0 };
   }
+}
 
-  const hasDbError = dbErrors.length > 0;
-
+function StatCard({
+  label,
+  value,
+  hint,
+  icon: Icon,
+  href,
+}: {
+  label: string;
+  value: number;
+  hint?: string;
+  icon: typeof Users;
+  href: string;
+}) {
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-      <div className="fixed top-4 right-4 z-50 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg font-mono text-sm">
-        🔒 LOCALHOST ONLY ADMIN PANEL
+    <Link
+      href={href}
+      className="group rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-colors hover:border-indigo-200"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-slate-500">{label}</p>
+        <span className="rounded-lg bg-indigo-50 p-2 text-indigo-600">
+          <Icon className="h-4 w-4" />
+        </span>
       </div>
-
-      {hasDbError && (
-        <div className="fixed top-4 left-4 right-4 z-50 mx-4 bg-amber-600 text-white px-4 py-3 rounded-lg shadow-lg font-mono text-sm flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <span>Database schema not synced or query failed. Some data may be missing.</span>
-          </div>
-          <details className="ml-4">
-            <summary className="cursor-pointer underline hover:no-underline">Details</summary>
-            <pre className="mt-2 text-xs bg-black/20 p-2 rounded overflow-auto max-h-40 whitespace-pre-wrap">
-              {dbErrors.map((e, i) => `${i + 1}. ${e.message}`).join("\n")}
-            </pre>
-          </details>
-        </div>
-      )}
-
-      <div className="max-w-7xl mx-auto px-4 py-8">
-          <header className="mb-8 flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Super Admin Dashboard</h1>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Localhost-only administration panel for StoreHub
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                Localhost Access
-              </span>
-            </div>
-          </header>
-
-          <div className="grid gap-6 lg:grid-cols-3">
-            <section className="lg:col-span-2">
-              <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">All Merchants</h2>
-              <div className="rounded-xl bg-white dark:bg-slate-800 shadow-sm overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-slate-50 dark:bg-slate-700">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Merchant</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Store</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Plan</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Products</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Joined</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {merchants.map((merchant) => (
-                      <tr key={merchant.user.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                        <td className="px-4 py-3">
-                          <div>
-                            <p className="font-medium text-slate-900 dark:text-white">{merchant.user.name}</p>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">{merchant.user.email}</p>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {merchant.store ? (
-                            <div>
-                              <p className="font-medium text-slate-900 dark:text-white">{merchant.store.name}</p>
-                              <p className="text-sm text-slate-500 dark:text-slate-400">/{merchant.store.slug}</p>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-slate-400">No store</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                              merchant.plan === "pro"
-                                ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-300"
-                                : "bg-slate-50 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
-                            }`}
-                          >
-                            {merchant.plan === "pro" ? "Pro" : "Free"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-900 dark:text-white">
-                          {merchant.productCount} {merchant.plan === "pro" ? " (∞)" : "/ 15"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
-                          {new Date(merchant.user.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          {merchant.store && (
-                            <a
-                              href={`/admin?store=${merchant.store.id}`}
-                              className="text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
-                            >
-                              View Details
-                            </a>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section className="space-y-6">
-              <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm">
-                <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">Quick Stats</h2>
-                <dl className="space-y-3">
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-slate-500 dark:text-slate-400">Total Merchants</dt>
-                    <dd className="font-semibold text-slate-900 dark:text-white">{merchants.length}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-slate-500 dark:text-slate-400">Pro Stores</dt>
-                    <dd className="font-semibold text-indigo-600 dark:text-indigo-400">
-                      {merchants.filter((m) => m.plan === "pro").length}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-slate-500 dark:text-slate-400">Free Stores</dt>
-                    <dd className="font-semibold text-slate-600 dark:text-slate-300">
-                      {merchants.filter((m) => m.plan === "free").length}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-slate-500 dark:text-slate-400">Total Products</dt>
-                    <dd className="font-semibold text-slate-900 dark:text-white">
-                      {merchants.reduce((sum, m) => sum + m.productCount, 0)}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-
-              <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Activation Codes</h2>
-                  <Link
-                    href="/admin/codes"
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
-                  >
-                    Manage codes
-                  </Link>
-                </div>
-                <dl className="space-y-3">
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-slate-500 dark:text-slate-400">Generated</dt>
-                    <dd className="font-semibold text-slate-900 dark:text-white">{codeStats.total}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-slate-500 dark:text-slate-400">Available</dt>
-                    <dd className="font-semibold text-emerald-600 dark:text-emerald-400">{codeStats.available}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-slate-500 dark:text-slate-400">Used</dt>
-                    <dd className="font-semibold text-slate-600 dark:text-slate-300">{codeStats.used}</dd>
-                  </div>
-                </dl>
-                <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
-                  Generate single or batch vouchers and send them to merchants on WhatsApp after payment.
-                </p>
-              </div>
-            </section>
-          </div>
-
-          {selectedStoreId && storeDetails && (
-            <section className="mt-8">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                  Store Details: {merchants.find((m) => m.store?.id === selectedStoreId)?.store?.name}
-                </h2>
-                <a
-                  href="/admin"
-                  className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
-                >
-                  ← Back to all merchants
-                </a>
-              </div>
-
-              <div className="grid gap-6 lg:grid-cols-2">
-                <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm">
-                  <h3 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
-                    Products ({storeDetails.products.length})
-                  </h3>
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {storeDetails.products.length === 0 ? (
-                      <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">No products</p>
-                    ) : (
-                      storeDetails.products.map((product) => (
-                        <div
-                          key={product.id}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-slate-900 dark:text-white truncate">
-                              {product.name}
-                            </p>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">
-                              {product.price} EGP · Stock: {product.stock}
-                            </p>
-                          </div>
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                              product.isVisible
-                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
-                                : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
-                            }`}
-                          >
-                            {product.isVisible ? "Visible" : "Hidden"}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm">
-                  <h3 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
-                    Categories ({storeDetails.categories.length})
-                  </h3>
-                  <div className="space-y-2">
-                    {storeDetails.categories.length === 0 ? (
-                      <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">No categories</p>
-                    ) : (
-                      storeDetails.categories.map((category) => (
-                        <div
-                          key={category.id}
-                          className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 p-3"
-                        >
-                          <p className="font-medium text-slate-900 dark:text-white">{category.name}</p>
-                          <span className="text-xs text-slate-500 dark:text-slate-400">
-                            {new Date(category.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          <section className="mt-8 rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Activation Code Generator</h2>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  Generate single or batch vouchers for plans and credit packages, then send them to merchants on WhatsApp.
-                </p>
-              </div>
-              <Link
-                href="/admin/codes"
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
-              >
-                Open Activation Codes
-              </Link>
-            </div>
-          </section>
-        </div>
-      </div>
+      <p className="mt-3 text-2xl font-bold tracking-tight text-slate-900">
+        {value.toLocaleString("en-US")}
+      </p>
+      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+    </Link>
   );
 }
 
-function notFound() {
+export default async function AdminOverviewPage() {
+  const allowed = await isAdminAuthorized();
+  if (!allowed) return <AdminOnly />;
+
+  const [overview, codes] = await Promise.all([
+    getAdminOverview().catch((error) => {
+      console.error("Failed to load admin overview:", error);
+      return {
+        totalMerchants: 0,
+        totalStores: 0,
+        newUsersLast7Days: 0,
+        broadcastsLast7Days: 0,
+        messagesLast7Days: 0,
+        unreadBroadcasts: 0,
+      };
+    }),
+    getCodeStats(),
+  ]);
+
+  const sections = [
+    {
+      href: "/admin/merchants",
+      title: "Merchants",
+      description: "Stores, plans and product counts.",
+      icon: Store,
+    },
+    {
+      href: "/admin/users",
+      title: "Users",
+      description: "All accounts with a Recent-7-days tab.",
+      icon: Users,
+    },
+    {
+      href: "/admin/broadcasts",
+      title: "Broadcasts",
+      description: "Send in-app announcements to store owners.",
+      icon: Megaphone,
+    },
+    {
+      href: "/admin/messages",
+      title: "Merchant messages",
+      description: "Read-only WhatsApp campaign logs with masked phones.",
+      icon: MessageSquareCode,
+    },
+    {
+      href: "/admin/codes",
+      title: "Activation codes",
+      description: "Generate and track plan / credit vouchers.",
+      icon: Ticket,
+    },
+  ];
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+    <div className="space-y-8">
+      <section>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          Overview
+        </h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Platform health at a glance. Counts cover the last 7 days where noted.
+        </p>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard
+          label="Total merchants"
+          value={overview.totalMerchants}
+          hint={`${overview.totalStores.toLocaleString("en-US")} stores`}
+          icon={Store}
+          href="/admin/merchants"
+        />
+        <StatCard
+          label="New users (7 days)"
+          value={overview.newUsersLast7Days}
+          icon={UserPlus}
+          href="/admin/users?tab=recent"
+        />
+        <StatCard
+          label="Unread broadcasts"
+          value={overview.unreadBroadcasts}
+          hint="Merchant inbox rows not opened yet"
+          icon={BellRing}
+          href="/admin/broadcasts"
+        />
+        <StatCard
+          label="Broadcasts sent (7 days)"
+          value={overview.broadcastsLast7Days}
+          icon={Megaphone}
+          href="/admin/broadcasts"
+        />
+        <StatCard
+          label="Merchant messages (7 days)"
+          value={overview.messagesLast7Days}
+          icon={MessageSquareCode}
+          href="/admin/messages"
+        />
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-medium text-slate-500">
+              Activation codes
+            </p>
+            <span className="rounded-lg bg-amber-50 p-2 text-amber-600">
+              <Ticket className="h-4 w-4" />
+            </span>
+          </div>
+          <p className="mt-3 text-2xl font-bold tracking-tight text-slate-900">
+            {codes.available.toLocaleString("en-US")}
+            <span className="ms-1 text-sm font-medium text-slate-500">
+              available
+            </span>
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            {codes.used.toLocaleString("en-US")} used ·{" "}
+            {codes.total.toLocaleString("en-US")} generated
+          </p>
+        </div>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {sections.map((section) => (
+          <Link
+            key={section.href}
+            href={section.href}
+            className="group flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-colors hover:border-indigo-200"
+          >
+            <span className="rounded-lg bg-slate-100 p-2 text-slate-600 group-hover:bg-indigo-50 group-hover:text-indigo-600">
+              <section.icon className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-slate-900">
+                  {section.title}
+                </span>
+                <ArrowRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-0.5" />
+              </span>
+              <span className="mt-0.5 block text-xs text-slate-500">
+                {section.description}
+              </span>
+            </span>
+          </Link>
+        ))}
+      </section>
+    </div>
+  );
+}
+
+function AdminOnly() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50">
       <div className="text-center">
         <h1 className="text-6xl font-bold text-slate-900">404</h1>
-        <p className="mt-4 text-lg text-slate-500">Admin panel is only accessible on localhost</p>
+        <p className="mt-4 text-lg text-slate-500">
+          Admin panel is only accessible on localhost
+        </p>
       </div>
     </div>
   );

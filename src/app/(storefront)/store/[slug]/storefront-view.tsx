@@ -33,7 +33,7 @@ import {
   type PromotionRecord,
 } from "@/lib/promotions";
 import { type ThemeConfig } from "@/lib/theme-config";
-import { Heart, HeartOff, History, Eye, Loader2 } from "lucide-react";
+import { Heart, HeartOff, History, Eye, Loader2, Bell } from "lucide-react";
 
 export interface StoreData {
   id: string;
@@ -78,6 +78,19 @@ export interface WishlistActions {
 export interface RecentlyViewedActions {
   items: ProductData[];
   add: (product: ProductData) => void;
+}
+
+interface StoreNotification {
+  id: string;
+  notificationId: string;
+  title: string;
+  body: string;
+  category: string;
+  priority: string;
+  status: string;
+  sentAt: string;
+  createdAt: string;
+  readAt: string | null;
 }
 
 interface StorefrontViewProps {
@@ -131,6 +144,14 @@ export default function StorefrontView({
   const [showCart, setShowCart] = useState(false);
   const [showWishlist, setShowWishlist] = useState(false);
   const [showRecentlyViewed, setShowRecentlyViewed] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifPhone, setNotifPhone] = useState("");
+  const [notifPhoneInput, setNotifPhoneInput] = useState("");
+  const [notifications, setNotifications] = useState<StoreNotification[]>([]);
+  const [notifUnread, setNotifUnread] = useState(0);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifError, setNotifError] = useState("");
+  const [notifLoaded, setNotifLoaded] = useState(false);
 
   const cart = useCartStore();
   const isHydrated = useCartStore((state) => state._hydrated ?? false);
@@ -138,6 +159,81 @@ export default function StorefrontView({
   useEffect(() => {
     useCartStore.setState({ _hydrated: true });
   }, []);
+
+  const notifStorageKey = `store-notifications-phone:${slug}`;
+
+  // Restore the phone the shopper used previously on this device.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(notifStorageKey);
+      if (saved) setNotifPhone(saved);
+    } catch {}
+  }, [notifStorageKey]);
+
+  async function fetchNotifications(phone: string, markRead = false) {
+    setNotifLoading(true);
+    setNotifError("");
+    try {
+      const res = await fetch(
+        `/api/storefront/notifications?slug=${encodeURIComponent(slug)}&phone=${encodeURIComponent(phone)}`
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || t("store.notificationsError"));
+      }
+      const items = (data.items ?? []) as StoreNotification[];
+      setNotifications(items);
+      setNotifLoaded(true);
+
+      const unread = Number(data.unreadCount ?? 0);
+      if (markRead && unread > 0) {
+        // Opening the inbox counts as reading — clear the badge server-side.
+        const ids = items.filter((item) => !item.readAt).map((item) => item.id);
+        fetch("/api/storefront/notifications", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slug, phone, ids }),
+        }).catch(() => {});
+        setNotifications((prev) =>
+          prev.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() }))
+        );
+        setNotifUnread(0);
+      } else {
+        setNotifUnread(unread);
+      }
+    } catch (err) {
+      setNotifError(err instanceof Error ? err.message : t("store.notificationsError"));
+    } finally {
+      setNotifLoading(false);
+    }
+  }
+
+  function openNotifications() {
+    setShowNotifications(!showNotifications);
+  }
+
+  function handleNotifPhoneSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const phone = notifPhoneInput.trim();
+    if (!phone) return;
+    setNotifPhone(phone);
+    setNotifPhoneInput("");
+    setNotifLoaded(false);
+    setNotifications([]);
+    try {
+      window.localStorage.setItem(notifStorageKey, phone);
+    } catch {}
+  }
+
+  // Load the inbox whenever the shopper's phone or the drawer state changes.
+  // Opening the drawer marks everything read; a closed drawer only refreshes
+  // the unread badge count.
+  useEffect(() => {
+    if (notifPhone) {
+      fetchNotifications(notifPhone, showNotifications);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifPhone, showNotifications]);
 
   const filteredProducts = products.filter((p) => {
     const matchesCategory =
@@ -276,6 +372,19 @@ export default function StorefrontView({
             <span className="hidden sm:inline">
               {locale === "ar" ? "AR · العربية" : "EN · English"}
             </span>
+          </button>
+
+          <button
+            onClick={openNotifications}
+            className="relative inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+            aria-label={t("store.notifications")}
+          >
+            <Bell className="h-4 w-4" />
+            {notifUnread > 0 && (
+              <span className="absolute -end-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-xs text-white">
+                {notifUnread > 9 ? "9+" : notifUnread}
+              </span>
+            )}
           </button>
 
           <button
@@ -680,6 +789,124 @@ export default function StorefrontView({
             </span>
           </button>
         </div>
+      )}
+
+      {/* Notifications / Customer Inbox Drawer */}
+      {showNotifications && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/50"
+            onClick={() => setShowNotifications(false)}
+          />
+          <div
+            className="fixed inset-y-0 end-0 z-50 w-full max-w-md overflow-y-auto shadow-xl"
+            style={{ backgroundColor: "var(--color-background)" }}
+          >
+            <div
+              className="flex items-center justify-between border-b px-4 py-4"
+              style={{ borderColor: "var(--color-primary-soft)" }}
+            >
+              <h2 className="text-lg font-semibold" style={{ color: "var(--color-text)" }}>
+                {t("store.notificationsTitle")}
+              </h2>
+              <button
+                onClick={() => setShowNotifications(false)}
+                style={{ color: "var(--color-text-muted)" }}
+                className="hover:opacity-70"
+                aria-label={t("common.close")}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {!notifPhone ? (
+              <form onSubmit={handleNotifPhoneSubmit} className="space-y-4 px-4 py-8">
+                <div className="text-center">
+                  <Bell className="mx-auto mb-4 h-12 w-12" style={{ color: "var(--color-text-muted)" }} />
+                  <p className="text-sm" style={{ color: "var(--color-text)" }}>
+                    {t("store.notificationsPhoneHint")}
+                  </p>
+                </div>
+                {notifError && (
+                  <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{notifError}</div>
+                )}
+                <input
+                  type="tel"
+                  value={notifPhoneInput}
+                  onChange={(e) => setNotifPhoneInput(e.target.value)}
+                  placeholder={t("store.notificationsPhonePlaceholder")}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
+                  dir="ltr"
+                />
+                <button
+                  type="submit"
+                  disabled={!notifPhoneInput.trim() || notifLoading}
+                  className="theme-btn-primary flex w-full items-center justify-center gap-2 py-2.5 text-sm font-semibold disabled:opacity-50"
+                >
+                  {notifLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {t("store.notificationsView")}
+                </button>
+              </form>
+            ) : notifLoading && !notifLoaded ? (
+              <div className="flex items-center justify-center gap-2 py-16">
+                <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--color-text-muted)" }} />
+                <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+                  {t("common.loading")}
+                </span>
+              </div>
+            ) : notifError ? (
+              <div className="px-4 py-16 text-center">
+                <p className="text-sm text-red-600">{notifError}</p>
+                <button
+                  onClick={() => fetchNotifications(notifPhone, true)}
+                  className="theme-btn-secondary mt-4 px-4 py-2 text-sm font-medium"
+                >
+                  {t("common.retry")}
+                </button>
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="py-16 text-center">
+                <Bell className="mx-auto mb-4 h-12 w-12" style={{ color: "var(--color-text-muted)" }} />
+                <p className="px-6 text-sm" style={{ color: "var(--color-text)" }}>
+                  {t("store.notificationsEmpty")}
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y px-4" style={{ borderColor: "var(--color-primary-soft)" }}>
+                {notifications.map((item) => (
+                  <div key={item.id} className="flex gap-3 py-4">
+                    <span
+                      className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${
+                        item.readAt ? "bg-slate-200" : "bg-amber-500"
+                      }`}
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="text-sm font-medium" style={{ color: "var(--color-text)" }}>
+                          {item.title}
+                        </h4>
+                        <span className="shrink-0 text-xs" style={{ color: "var(--color-text-muted)" }}>
+                          {new Date(item.sentAt).toLocaleDateString(locale, {
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
+                      </div>
+                      <p className="mt-1 whitespace-pre-line text-sm" style={{ color: "var(--color-text-muted)" }}>
+                        {item.body}
+                      </p>
+                      {item.category && item.category !== "GENERAL" && (
+                        <span className="mt-2 inline-block rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-xs font-medium" style={{ color: "var(--color-primary)" }}>
+                          {item.category.replace(/_/g, " ")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* Wishlist Drawer */}

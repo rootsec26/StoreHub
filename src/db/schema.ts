@@ -925,3 +925,212 @@ export const activationCodePricing = pgTable(
     index("activation_code_pricing_is_active_idx").on(table.isActive),
   ]
 );
+
+// ============================================
+// NOTIFICATIONS (merchant -> customer, admin -> merchant)
+// ============================================
+// See supabase/migrations/0021_notifications.sql for the authoritative DDL
+// (CHECK constraints + RLS). Two scopes share this table:
+//   MERCHANT_TO_CUSTOMER -> store-scoped WhatsApp campaigns
+//   ADMIN_TO_MERCHANT    -> platform-wide in-app announcements
+export const NOTIFICATION_SCOPES = [
+  "MERCHANT_TO_CUSTOMER",
+  "ADMIN_TO_MERCHANT",
+] as const;
+export type NotificationScope = (typeof NOTIFICATION_SCOPES)[number];
+
+export const NOTIFICATION_STATUSES = [
+  "DRAFT",
+  "SCHEDULED",
+  "QUEUED",
+  "SENDING",
+  "SENT",
+  "PARTIAL",
+  "FAILED",
+  "CANCELLED",
+] as const;
+export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];
+
+export const NOTIFICATION_CATEGORIES = [
+  "GENERAL",
+  "ANNOUNCEMENT",
+  "PROMOTION",
+  "ORDER_UPDATE",
+  "SYSTEM",
+] as const;
+export type NotificationCategory =
+  (typeof NOTIFICATION_CATEGORIES)[number];
+
+export const NOTIFICATION_PRIORITIES = [
+  "LOW",
+  "NORMAL",
+  "HIGH",
+  "URGENT",
+] as const;
+export type NotificationPriority =
+  (typeof NOTIFICATION_PRIORITIES)[number];
+
+export const NOTIFICATION_CHANNELS = ["IN_APP", "WHATSAPP"] as const;
+export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
+
+export const NOTIFICATION_AUDIENCE_TYPES = [
+  "ALL_CUSTOMERS",
+  "SELECTED_CUSTOMERS",
+  "CUSTOMER_SEGMENT",
+  "ALL_MERCHANTS",
+  "SELECTED_MERCHANTS",
+  "MERCHANT_PLAN",
+] as const;
+export type NotificationAudienceType =
+  (typeof NOTIFICATION_AUDIENCE_TYPES)[number];
+
+export const RECIPIENT_STATUSES = [
+  "PENDING",
+  "SENT",
+  "DELIVERED",
+  "FAILED",
+  "SKIPPED",
+  "READ",
+] as const;
+export type RecipientStatus = (typeof RECIPIENT_STATUSES)[number];
+
+export interface NotificationAudienceFilter {
+  customerIds?: string[];
+  merchantIds?: string[];
+  minSpend?: number;
+  vipTierId?: string;
+  lastOrderDays?: number;
+  loyaltyPoints?: number;
+  plan?: "free" | "pro";
+}
+
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    scope: text("scope").notNull(),
+    storeId: uuid("store_id").references(() => stores.id, {
+      onDelete: "cascade",
+    }),
+    senderType: text("sender_type").notNull(),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    category: text("category").notNull().default("GENERAL"),
+    priority: text("priority").notNull().default("NORMAL"),
+    channel: text("channel").notNull(),
+    status: text("status").notNull().default("DRAFT"),
+    audienceType: text("audience_type").notNull(),
+    audienceFilter: jsonb("audience_filter")
+      .$type<NotificationAudienceFilter>()
+      .notNull()
+      .default({}),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    recipientCount: integer("recipient_count").notNull().default(0),
+    deliveredCount: integer("delivered_count").notNull().default(0),
+    failedCount: integer("failed_count").notNull().default(0),
+    readCount: integer("read_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("notifications_store_created_idx").on(
+      table.storeId,
+      table.createdAt
+    ),
+    index("notifications_scope_created_idx").on(
+      table.scope,
+      table.createdAt
+    ),
+    index("notifications_status_idx").on(table.status),
+    index("notifications_scheduled_at_idx").on(table.scheduledAt),
+  ]
+);
+
+export const notificationRecipients = pgTable(
+  "notification_recipients",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    notificationId: uuid("notification_id")
+      .notNull()
+      .references(() => notifications.id, { onDelete: "cascade" }),
+    // Stable key: 'customer:<uuid>' or 'user:<uuid>'.
+    recipientKey: text("recipient_key").notNull(),
+    recipientType: text("recipient_type").notNull(),
+    customerId: uuid("customer_id").references(() => customers.id, {
+      onDelete: "set null",
+    }),
+    userId: uuid("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    storeId: uuid("store_id").references(() => stores.id, {
+      onDelete: "cascade",
+    }),
+    recipientName: text("recipient_name").notNull().default(""),
+    recipientPhone: text("recipient_phone").notNull().default(""),
+    recipientEmail: text("recipient_email").notNull().default(""),
+    channel: text("channel").notNull().default("IN_APP"),
+    status: text("status").notNull().default("PENDING"),
+    errorCode: text("error_code"),
+    errorMessage: text("error_message"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("notification_recipients_notification_key_unique").on(
+      table.notificationId,
+      table.recipientKey
+    ),
+    index("notification_recipients_notification_status_idx").on(
+      table.notificationId,
+      table.status
+    ),
+    index("notification_recipients_user_read_idx").on(
+      table.userId,
+      table.readAt
+    ),
+    index("notification_recipients_store_created_idx").on(
+      table.storeId,
+      table.createdAt
+    ),
+    index("notification_recipients_customer_idx").on(table.customerId),
+  ]
+);
+
+export const notificationEvents = pgTable(
+  "notification_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    notificationId: uuid("notification_id")
+      .notNull()
+      .references(() => notifications.id, { onDelete: "cascade" }),
+    actorType: text("actor_type").notNull(),
+    actorUserId: uuid("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    event: text("event").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    ipAddress: text("ip_address"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("notification_events_notification_created_idx").on(
+      table.notificationId,
+      table.createdAt
+    ),
+  ]
+);

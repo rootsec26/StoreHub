@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import SidebarNav, { NAV_ITEMS } from "@/components/dashboard/Sidebar";
+import NotificationBell from "@/components/dashboard/NotificationBell";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
@@ -315,7 +316,7 @@ export default function DashboardLayout({
 
       {/* Main content */}
       <main className="flex-1">
-        <header className="flex items-center gap-3 border-b bg-white px-4 py-3 sm:px-6">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-slate-200/80 bg-white/85 px-4 py-3 backdrop-blur sm:px-6">
           <button
             onClick={() => setSidebarOpen(true)}
             className="text-slate-600 hover:text-slate-900 lg:hidden"
@@ -323,9 +324,11 @@ export default function DashboardLayout({
           >
             <Menu className="h-5 w-5" />
           </button>
-          <h2 className="flex-1 text-lg font-semibold text-slate-900">
+          <h2 className="flex-1 truncate text-lg font-semibold text-slate-900">
             {t(activeLabelKey)}
           </h2>
+
+          <NotificationBell />
 
           <button
             onClick={toggleDesktopNotifications}
@@ -348,7 +351,7 @@ export default function DashboardLayout({
 
           <LanguageSwitcher />
         </header>
-        <div className="p-4 sm:p-6">{children}</div>
+        <div className="mx-auto w-full max-w-7xl p-4 sm:p-6">{children}</div>
       </main>
 
       {/* New order toast */}

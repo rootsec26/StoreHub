@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -26,66 +26,94 @@ import {
   Barcode,
 } from "lucide-react";
 
-import { useI18n } from "@/lib/i18n";
+import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { useOrdersRealtime } from "@/lib/realtime";
 
 /**
- * Single "home" entry — rendered once at the top of the sidebar and kept out
+ * Single "home" entry â€” rendered once at the top of the sidebar and kept out
  * of NAV_ITEMS so it can never appear twice.
  */
 export const HOME_NAV_ITEM = { href: "/", labelKey: "nav.home", icon: Home } as const;
 
 export const NAV_ITEMS = [
-  { href: "/dashboard/products", labelKey: "nav.products", icon: Package },
-  { href: "/dashboard/barcodes", labelKey: "nav.barcodes", icon: Barcode },
-  { href: "/dashboard/categories", labelKey: "nav.categories", icon: FolderOpen },
-  { href: "/dashboard/orders", labelKey: "nav.orders", icon: ShoppingCart },
+  { href: "/dashboard/products", labelKey: "nav.products", icon: Package, group: "commerce" },
+  { href: "/dashboard/barcodes", labelKey: "nav.barcodes", icon: Barcode, group: "commerce" },
+  { href: "/dashboard/categories", labelKey: "nav.categories", icon: FolderOpen, group: "commerce" },
+  { href: "/dashboard/orders", labelKey: "nav.orders", icon: ShoppingCart, group: "commerce" },
   {
     href: "/dashboard/pos",
     labelKey: "nav.pos",
     icon: Calculator,
     statusDot: true,
+    group: "commerce",
   },
-  { href: "/dashboard/shipping", labelKey: "nav.shipping", icon: Truck },
+  { href: "/dashboard/shipping", labelKey: "nav.shipping", icon: Truck, group: "fulfillment" },
   {
     href: "/dashboard/shipping-labels",
     labelKey: "nav.shippingLabels",
     icon: PackageCheck,
+    group: "fulfillment",
   },
   {
     href: "/dashboard/warehouses",
     labelKey: "nav.warehouses",
     icon: Warehouse,
+    group: "fulfillment",
+  },
+  { href: "/dashboard/customers", labelKey: "nav.customers", icon: Users, group: "growth" },
+  {
+    href: "/dashboard/notifications",
+    labelKey: "nav.messages",
+    icon: MessageSquareCode,
+    group: "growth",
   },
   {
     href: "/dashboard/abandoned-carts",
     labelKey: "nav.abandonedCarts",
     icon: MessageSquareCode,
+    group: "growth",
   },
-  { href: "/dashboard/customers", labelKey: "nav.customers", icon: Users },
-  { href: "/dashboard/analytics", labelKey: "nav.analytics", icon: BarChart3 },
-  { href: "/dashboard/marketing", labelKey: "nav.marketing", icon: Megaphone },
+  { href: "/dashboard/marketing", labelKey: "nav.marketing", icon: Megaphone, group: "growth" },
   {
     href: "/dashboard/promotions",
     labelKey: "nav.promotions",
     icon: Zap,
     badge: "hot",
+    group: "growth",
   },
-  { href: "/dashboard/ai-radar", labelKey: "nav.aiRadar", icon: ShieldAlert },
-  { href: "/dashboard/ai-radar/social-bot", labelKey: "nav.socialBot", icon: Bot },
-  { href: "/dashboard/billing", labelKey: "nav.billing", icon: CreditCard },
-  { href: "/dashboard/settings", labelKey: "nav.settings", icon: Settings },
   {
     href: "/dashboard/loyalty",
     labelKey: "nav.loyalty",
     icon: Award,
+    group: "growth",
     badge: (pathname: string) => {
       // We'll handle the badge count separately - showing "members" as an example
       // The actual count will be fetched from the API summary endpoint
       return null; // Badge will be set via the summary API
     },
   },
+  { href: "/dashboard/analytics", labelKey: "nav.analytics", icon: BarChart3, group: "intelligence" },
+  { href: "/dashboard/ai-radar", labelKey: "nav.aiRadar", icon: ShieldAlert, group: "intelligence" },
+  { href: "/dashboard/ai-radar/social-bot", labelKey: "nav.socialBot", icon: Bot, group: "intelligence" },
+  { href: "/dashboard/billing", labelKey: "nav.billing", icon: CreditCard, group: "account" },
+  { href: "/dashboard/settings", labelKey: "nav.settings", icon: Settings, group: "account" },
 ] as const;
+
+const NAV_GROUPS = [
+  "commerce",
+  "fulfillment",
+  "growth",
+  "intelligence",
+  "account",
+] as const;
+
+const NAV_GROUP_LABELS: Record<(typeof NAV_GROUPS)[number], TranslationKey> = {
+  commerce: "nav.group.commerce",
+  fulfillment: "nav.group.fulfillment",
+  growth: "nav.group.growth",
+  intelligence: "nav.group.intelligence",
+  account: "nav.group.account",
+};
 
 interface SidebarNavProps {
   pendingOrders: number;
@@ -213,7 +241,7 @@ export default function SidebarNav({
   }, [pathname]);
 
   // The deepest matching entry wins so nested pages (e.g.
-  // /dashboard/ai-radar/social-bot) light up themselves — not their parent
+  // /dashboard/ai-radar/social-bot) light up themselves â€” not their parent
   // and not a sibling with a shared prefix (shipping vs shipping-labels).
   const activeHref = NAV_ITEMS.reduce<string | null>((best, item) => {
     const matches =
@@ -224,140 +252,157 @@ export default function SidebarNav({
   }, null);
 
   return (
-    <ul className="space-y-1">
-      <li>
-        <Link
-          href={HOME_NAV_ITEM.href}
-          onClick={onNavigate}
-          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-            pathname === HOME_NAV_ITEM.href
-              ? "bg-indigo-600 text-white"
-              : "text-slate-300 hover:bg-slate-800 hover:text-white"
-          }`}
-        >
-          <HOME_NAV_ITEM.icon className="h-5 w-5" />
-          <span>{t(HOME_NAV_ITEM.labelKey)}</span>
-        </Link>
-      </li>
-      {NAV_ITEMS.map((item) => {
-        const isActive = item.href === activeHref;
-        const showOrdersBadge =
-          item.href === "/dashboard/orders" && pendingOrders > 0;
-        const showShippingBadge =
-          (item.href === "/dashboard/shipping" ||
-            item.href === "/dashboard/shipping-labels") &&
-          unfulfilledOrders !== null &&
-          unfulfilledOrders > 0;
-        const showAbandonedBadge =
-          item.href === "/dashboard/abandoned-carts" &&
-          pendingAbandonedCarts !== null &&
-          pendingAbandonedCarts > 0;
-        const showPromotionsBadge = "badge" in item && item.badge === "hot";
-        const liveCampaigns =
-          activePromotions !== null && activePromotions > 0
-            ? activePromotions
-            : null;
+    <nav className="space-y-4">
+      <ul className="space-y-1">
+        <li>
+          <Link
+            href={HOME_NAV_ITEM.href}
+            onClick={onNavigate}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              pathname === HOME_NAV_ITEM.href
+                ? "bg-indigo-600 text-white"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <HOME_NAV_ITEM.icon className="h-5 w-5" />
+            <span>{t(HOME_NAV_ITEM.labelKey)}</span>
+          </Link>
+        </li>
+      </ul>
 
-        const showLoyaltyBadge =
-          item.href === "/dashboard/loyalty" && activeLoyaltyMembers !== null;
-
-        const showWarehouseBadge =
-          item.href === "/dashboard/warehouses" &&
-          activeWarehouses !== null &&
-          activeWarehouses > 0;
+      {NAV_GROUPS.map((group) => {
+        const items = NAV_ITEMS.filter((item) => item.group === group);
+        if (items.length === 0) return null;
 
         return (
-          <li key={item.href}>
-            <Link
-              href={item.href}
-              onClick={onNavigate}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-indigo-600 text-white"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
-              }`}
-            >
-              <item.icon className="h-5 w-5" />
-              <span>{t(item.labelKey)}</span>
-              {"statusDot" in item && item.statusDot && (
-                <span
-                  className="ms-auto h-2 w-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]"
-                  title={t("pos.status.ready")}
-                  role="img"
-                  aria-label={t("pos.status.ready")}
-                />
-              )}
-              {showOrdersBadge && (
-                <span
-                  className="ms-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
-                  aria-label={`${pendingOrders} ${t("nav.orders")}`}
-                >
-                  {pendingOrders > 99 ? "99+" : pendingOrders}
-                </span>
-              )}
-              {showShippingBadge && (
-                <span
-                  className="ms-auto inline-flex min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-slate-950"
-                  aria-label={t("shipping.badge.pending", {
-                    count: unfulfilledOrders ?? 0,
-                  })}
-                >
-                  {(unfulfilledOrders ?? 0) > 99 ? "99+" : unfulfilledOrders}
-                </span>
-              )}
-              {showAbandonedBadge && (
-                <span
-                  className="ms-auto inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
-                  aria-label={`${pendingAbandonedCarts} ${t("nav.abandonedCarts")}`}
-                >
-                  {(pendingAbandonedCarts ?? 0) > 99
-                    ? "99+"
-                    : pendingAbandonedCarts}
-                </span>
-              )}
-              {showPromotionsBadge && (
-                <span
-                  className={`ms-auto inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold leading-none ${
-                    liveCampaigns !== null
-                      ? "bg-amber-500 text-slate-950"
-                      : "animate-pulse bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/40"
-                  }`}
-                  aria-label={
-                    liveCampaigns !== null
-                      ? `${liveCampaigns} ${t("nav.promotions")}`
-                      : t("promos.badge.hot")
-                  }
-                >
-                  {liveCampaigns !== null ? liveCampaigns : "HOT"}
-                </span>
-              )}
-              {showLoyaltyBadge && (
-                <span
-                  className="ms-auto inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
-                  aria-label={t("loyalty.sidebarMembers", {
-                    count: activeLoyaltyMembers,
-                  })}
-                >
-                  {activeLoyaltyMembers > 99 ? "99+" : activeLoyaltyMembers}
-                </span>
-              )}
-              {showWarehouseBadge && (
-                <span
-                  className="ms-auto inline-flex min-w-5 items-center justify-center rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[11px] font-bold leading-none text-sky-300 ring-1 ring-inset ring-sky-400/40"
-                  aria-label={t("warehouse.sidebarActive", {
-                    count: activeWarehouses ?? 0,
-                  })}
-                  title={t("warehouse.sidebarActive", {
-                    count: activeWarehouses ?? 0,
-                  })}
-                >
-                  {(activeWarehouses ?? 0) > 99 ? "99+" : activeWarehouses}
-                </span>
-              )}
-            </Link>
-          </li>
+          <div key={group}>
+            <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              {t(NAV_GROUP_LABELS[group])}
+            </p>
+            <ul className="space-y-1">
+              {items.map((item) => {
+                const isActive = item.href === activeHref;
+                const showOrdersBadge =
+                  item.href === "/dashboard/orders" && pendingOrders > 0;
+                const showShippingBadge =
+                  (item.href === "/dashboard/shipping" ||
+                    item.href === "/dashboard/shipping-labels") &&
+                  unfulfilledOrders !== null &&
+                  unfulfilledOrders > 0;
+                const showAbandonedBadge =
+                  item.href === "/dashboard/abandoned-carts" &&
+                  pendingAbandonedCarts !== null &&
+                  pendingAbandonedCarts > 0;
+                const showPromotionsBadge = "badge" in item && item.badge === "hot";
+                const liveCampaigns =
+                  activePromotions !== null && activePromotions > 0
+                    ? activePromotions
+                    : null;
+
+                const showLoyaltyBadge =
+                  item.href === "/dashboard/loyalty" && activeLoyaltyMembers !== null;
+
+                const showWarehouseBadge =
+                  item.href === "/dashboard/warehouses" &&
+                  activeWarehouses !== null &&
+                  activeWarehouses > 0;
+
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={onNavigate}
+                      className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                        isActive
+                          ? "bg-indigo-600 text-white"
+                          : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                      }`}
+                    >
+                      <item.icon className="h-5 w-5" />
+                      <span>{t(item.labelKey)}</span>
+                      {"statusDot" in item && item.statusDot && (
+                        <span
+                          className="ms-auto h-2 w-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]"
+                          title={t("pos.status.ready")}
+                          role="img"
+                          aria-label={t("pos.status.ready")}
+                        />
+                      )}
+                      {showOrdersBadge && (
+                        <span
+                          className="ms-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
+                          aria-label={`${pendingOrders} ${t("nav.orders")}`}
+                        >
+                          {pendingOrders > 99 ? "99+" : pendingOrders}
+                        </span>
+                      )}
+                      {showShippingBadge && (
+                        <span
+                          className="ms-auto inline-flex min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-slate-950"
+                          aria-label={t("shipping.badge.pending", {
+                            count: unfulfilledOrders ?? 0,
+                          })}
+                        >
+                          {(unfulfilledOrders ?? 0) > 99 ? "99+" : unfulfilledOrders}
+                        </span>
+                      )}
+                      {showAbandonedBadge && (
+                        <span
+                          className="ms-auto inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
+                          aria-label={`${pendingAbandonedCarts} ${t("nav.abandonedCarts")}`}
+                        >
+                          {(pendingAbandonedCarts ?? 0) > 99
+                            ? "99+"
+                            : pendingAbandonedCarts}
+                        </span>
+                      )}
+                      {showPromotionsBadge && (
+                        <span
+                          className={`ms-auto inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold leading-none ${
+                            liveCampaigns !== null
+                              ? "bg-amber-500 text-slate-950"
+                              : "animate-pulse bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/40"
+                          }`}
+                          aria-label={
+                            liveCampaigns !== null
+                              ? `${liveCampaigns} ${t("nav.promotions")}`
+                              : t("promos.badge.hot")
+                          }
+                        >
+                          {liveCampaigns !== null ? liveCampaigns : "HOT"}
+                        </span>
+                      )}
+                      {showLoyaltyBadge && (
+                        <span
+                          className="ms-auto inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
+                          aria-label={t("loyalty.sidebarMembers", {
+                            count: activeLoyaltyMembers,
+                          })}
+                        >
+                          {activeLoyaltyMembers > 99 ? "99+" : activeLoyaltyMembers}
+                        </span>
+                      )}
+                      {showWarehouseBadge && (
+                        <span
+                          className="ms-auto inline-flex min-w-5 items-center justify-center rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[11px] font-bold leading-none text-sky-300 ring-1 ring-inset ring-sky-400/40"
+                          aria-label={t("warehouse.sidebarActive", {
+                            count: activeWarehouses ?? 0,
+                          })}
+                          title={t("warehouse.sidebarActive", {
+                            count: activeWarehouses ?? 0,
+                          })}
+                        >
+                          {(activeWarehouses ?? 0) > 99 ? "99+" : activeWarehouses}
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         );
       })}
-    </ul>
+    </nav>
   );
 }
