@@ -147,6 +147,26 @@ export function createErrorResponse(
     );
   }
 
+  if (code === "42703" || code === "42701") {
+    return NextResponse.json(
+      {
+        error: "Database column is missing or duplicated. Run migrations and retry.",
+        code: "MISSING_COLUMN",
+      },
+      { status: 500 }
+    );
+  }
+
+  if (code === "23514" || code === "23502") {
+    return NextResponse.json(
+      {
+        error: "Data violates a database constraint. Check migrations and retry.",
+        code: "CONSTRAINT_VIOLATION",
+      },
+      { status: 500 }
+    );
+  }
+
   if (isDatabaseUnreachable(error)) {
     return NextResponse.json(
       {

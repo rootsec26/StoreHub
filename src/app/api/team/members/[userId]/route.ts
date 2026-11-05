@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { storeMembers } from "@/db/schema";
 import { getSession, resolveStoreAccess } from "@/lib/auth";
-import { createErrorResponse } from "@/lib/errors";
+import { createErrorResponse, formatErrorForLog } from "@/lib/errors";
 
 interface RouteContext {
   params: Promise<{ userId: string }>;
@@ -74,7 +74,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Remove member error:", error);
+    console.error("Remove member error:", formatErrorForLog(error));
     return createErrorResponse(error, "Failed to remove member");
   }
 }

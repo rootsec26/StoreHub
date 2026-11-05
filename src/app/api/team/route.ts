@@ -4,7 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { storeInvitations, storeMembers, users } from "@/db/schema";
 import { getSession, resolveStoreAccess } from "@/lib/auth";
-import { createErrorResponse } from "@/lib/errors";
+import { createErrorResponse, formatErrorForLog } from "@/lib/errors";
 
 // Team overview: current members + pending invitations for the
 // store the session user belongs to (owner or admin).
@@ -92,7 +92,7 @@ export async function GET() {
       })),
     });
   } catch (error) {
-    console.error("Get team error:", error);
+    console.error("Get team error:", formatErrorForLog(error));
     return createErrorResponse(error, "Failed to fetch team");
   }
 }

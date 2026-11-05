@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { storeInvitations, stores } from "@/db/schema";
-import { createErrorResponse } from "@/lib/errors";
+import { createErrorResponse, formatErrorForLog } from "@/lib/errors";
 
 interface RouteContext {
   params: Promise<{ token: string }>;
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       },
     });
   } catch (error) {
-    console.error("Invite lookup error:", error);
+    console.error("Invite lookup error:", formatErrorForLog(error));
     return createErrorResponse(error, "Failed to load invitation");
   }
 }

@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { storeInvitations, storeMembers, users } from "@/db/schema";
 import { getSession, resolveStoreAccess } from "@/lib/auth";
-import { createErrorResponse } from "@/lib/errors";
+import { createErrorResponse, formatErrorForLog } from "@/lib/errors";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Create invitation error:", error);
+    console.error("Create invitation error:", formatErrorForLog(error));
     return createErrorResponse(error, "Failed to create invitation");
   }
 }
@@ -176,7 +176,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Revoke invitation error:", error);
+    console.error("Revoke invitation error:", formatErrorForLog(error));
     return createErrorResponse(error, "Failed to revoke invitation");
   }
 }

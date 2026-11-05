@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { storeInvitations, storeMembers } from "@/db/schema";
 import { createSession, getSession, resolveStoreAccess } from "@/lib/auth";
-import { createErrorResponse } from "@/lib/errors";
+import { createErrorResponse, formatErrorForLog } from "@/lib/errors";
 
 // Accept a team invitation. Requires a logged-in session whose email
 // matches the invited address; on success the user becomes an ADMIN
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error("Accept invite error:", error);
+    console.error("Accept invite error:", formatErrorForLog(error));
     return createErrorResponse(error, "Failed to accept invitation");
   }
 }
