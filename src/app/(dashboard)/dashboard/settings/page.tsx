@@ -14,12 +14,10 @@ import {
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import ImageUploadField from "@/components/ImageUploadField";
-import Tabs from "@/components/ui/Tabs";
 import DomainSettings from "./domain-settings";
 import CurrencySettings from "./currency-settings";
 import PaymentSettings from "./payment-settings";
 import ThemeSettings from "./theme-settings";
-import TeamSettings from "./team-settings";
 import { normalizeAccent } from "@/lib/theme";
 
 interface StoreData {
@@ -84,7 +82,6 @@ export default function SettingsPage() {
   const [logoUrl, setLogoUrl] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
   const [accentColor, setAccentColor] = useState("");
-  const [tab, setTab] = useState<"store" | "team">("store");
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -132,18 +129,6 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8">
-      <Tabs
-        items={[
-          { id: "store", label: t("settings.tabStore") },
-          { id: "team", label: t("settings.tabTeam") },
-        ]}
-        value={tab}
-        onChange={(id) => setTab(id as "store" | "team")}
-      />
-
-      {tab === "team" ? (
-        <TeamSettings />
-      ) : (
       <div className="rounded-xl bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <div className="rounded-lg bg-indigo-50 p-2">
@@ -337,7 +322,6 @@ export default function SettingsPage() {
         {store && <CurrencySettings storeId={store.id} />}
         {store && <PaymentSettings storeId={store.id} />}
       </div>
-      )}
     </div>
   );
 }

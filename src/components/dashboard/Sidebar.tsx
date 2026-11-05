@@ -97,6 +97,7 @@ export const NAV_ITEMS = [
   { href: "/dashboard/ai-radar", labelKey: "nav.aiRadar", icon: ShieldAlert, group: "intelligence" },
   { href: "/dashboard/ai-radar/social-bot", labelKey: "nav.socialBot", icon: Bot, group: "intelligence" },
   { href: "/dashboard/billing", labelKey: "nav.billing", icon: CreditCard, group: "account" },
+  { href: "/dashboard/team", labelKey: "nav.team", icon: Users, group: "account" },
   { href: "/dashboard/settings", labelKey: "nav.settings", icon: Settings, group: "account" },
 ] as const;
 

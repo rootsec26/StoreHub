@@ -42,7 +42,7 @@ interface TeamData {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function TeamSettings() {
+export default function TeamPage() {
   const { t } = useI18n();
 
   const [data, setData] = useState<TeamData | null>(null);
