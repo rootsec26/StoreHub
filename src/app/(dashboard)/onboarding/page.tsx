@@ -13,6 +13,7 @@ export default function OnboardingPage() {
   const [storeSlug, setStoreSlug] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [error, setError] = useState("");
@@ -87,6 +88,15 @@ export default function OnboardingPage() {
       return;
     }
 
+    const effectiveCategory =
+      category === "other" ? customCategory.trim() : category.trim();
+
+    if (category === "other" && !effectiveCategory) {
+      setError(t("onboarding.customCategoryRequired"));
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/onboarding", {
         method: "POST",
@@ -95,7 +105,7 @@ export default function OnboardingPage() {
           name: storeName.trim(),
           slug: storeSlug.trim(),
           description: description.trim(),
-          category: category.trim(),
+          category: effectiveCategory,
           phone: phone.trim(),
           address: address.trim(),
         }),
@@ -241,6 +251,16 @@ export default function OnboardingPage() {
                 </option>
               ))}
             </select>
+            {category === "other" && (
+              <input
+                type="text"
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                placeholder={t("onboarding.customCategoryPlaceholder")}
+                maxLength={50}
+                className="w-full rounded-lg border border-slate-300 py-2.5 px-4 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            )}
           </div>
 
           <div className="space-y-2">

@@ -6,19 +6,9 @@ import { eq } from "drizzle-orm";
 import { createSession } from "@/lib/auth";
 import { extractDbErrorInfo, createErrorResponse } from "@/lib/errors";
 
-const VALID_CATEGORIES = [
-  "retail",
-  "electronics",
-  "fashion",
-  "food",
-  "health",
-  "home",
-  "sports",
-  "beauty",
-  "automotive",
-  "books",
-  "other",
-];
+// Preset slugs plus free-text custom categories (from the "Other" option)
+// are both accepted; only the length is enforced server-side.
+const MAX_CATEGORY_LENGTH = 50;
 
 export async function POST(request: NextRequest) {
   const session = await getSession();
@@ -87,9 +77,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (category && !VALID_CATEGORIES.includes(category)) {
+  if (category.length > MAX_CATEGORY_LENGTH) {
     return NextResponse.json(
-      { error: "Invalid category", code: "INVALID_CATEGORY" },
+      { error: "Category must be 50 characters or fewer", code: "INVALID_CATEGORY" },
       { status: 400 }
     );
   }
