@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Search, Plus, Package, X } from "lucide-react";
 import jsbarcode from "jsbarcode";
 import { useI18n } from "@/lib/i18n";
+import { isFreeMode } from "@/lib/free-mode";
 import { QRCodeSVG } from "qrcode.react";
 
 interface Product {
@@ -285,8 +286,8 @@ export default function BarcodesPage() {
         </button>
       </div>
 
-      {/* Free plan product limit banner */}
-      {products.length > 0 && (
+      {/* Free plan product limit banner (hidden in free-growth mode) */}
+      {!isFreeMode() && products.length > 0 && (
         <div className="mb-4 flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between">
           <span className="inline-flex items-center gap-2">
             <Package className="h-4 w-4 shrink-0" />

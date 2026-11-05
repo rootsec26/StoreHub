@@ -17,6 +17,7 @@ import {
   upsertAddOn,
   type AddOnFeature,
 } from "@/lib/paywall";
+import { isFreeMode } from "@/lib/free-mode";
 
 export const runtime = "nodejs";
 
@@ -39,6 +40,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Unauthorized", code: "UNAUTHORIZED" },
         { status: 401 }
+      );
+    }
+
+    // Free-growth mode: add-ons are included — nothing to toggle or pay for.
+    if (isFreeMode()) {
+      return NextResponse.json(
+        { error: "All add-ons are currently free.", code: "FREE_MODE" },
+        { status: 403 }
       );
     }
 

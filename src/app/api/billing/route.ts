@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 
 import { getSession } from "@/lib/auth";
 import { isPlan } from "@/lib/plans";
+import { isFreeMode } from "@/lib/free-mode";
 import { buildBillingInfo } from "@/lib/billing";
 import { createErrorResponse } from "@/lib/errors";
 
@@ -38,6 +39,15 @@ export async function PATCH(request: NextRequest) {
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+    }
+
+    // Free-growth mode: plan changes are meaningless — report current state.
+    if (isFreeMode()) {
+      const info = await buildBillingInfo(session.id);
+      if (!info) {
+        return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });
+      }
+      return NextResponse.json(info);
     }
 
     const body = await request.json();

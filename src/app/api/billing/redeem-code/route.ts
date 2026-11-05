@@ -13,6 +13,7 @@ import {
   isActivationCodeType,
 } from "@/lib/billing-packages";
 import { PaywallError, grantCredits } from "@/lib/paywall";
+import { isFreeMode } from "@/lib/free-mode";
 import { validateRequest, redeemCodeSchema, formatZodError } from "@/lib/validators";
 
 export const runtime = "nodejs";
@@ -46,6 +47,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Unauthorized", code: "UNAUTHORIZED" },
         { status: 401 }
+      );
+    }
+
+    // Free-growth mode: codes are not redeemable while everything is free.
+    if (isFreeMode()) {
+      return redeemError(
+        "All features are currently free — no activation code is needed.",
+        "FREE_MODE",
+        403
       );
     }
 

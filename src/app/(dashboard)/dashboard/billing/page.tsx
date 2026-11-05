@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
+import { isFreeMode } from "@/lib/free-mode";
 import type { BillingInfo, Plan } from "@/lib/types";
 import {
   ACTIVATION_CODE_SPECS,
@@ -378,6 +379,30 @@ export default function BillingPage() {
       ],
     },
   ];
+
+  // Free-growth mode: the whole paid surface is replaced by an info banner.
+  // All hooks above have already run, so this early return is safe.
+  if (isFreeMode()) {
+    return (
+      <div className="mx-auto flex max-w-2xl flex-col items-center px-4 py-16 text-center">
+        <div className="rounded-full bg-emerald-50 p-4">
+          <Sparkles className="h-10 w-10 text-emerald-500" />
+        </div>
+        <h1 className="mt-6 text-2xl font-bold text-slate-900">
+          {t("billing.freeMode.title")}
+        </h1>
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600">
+          {t("billing.freeMode.desc")}
+        </p>
+        <Link
+          href="/dashboard"
+          className="mt-8 inline-flex items-center justify-center rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+        >
+          {t("billing.freeMode.cta")}
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-4xl">

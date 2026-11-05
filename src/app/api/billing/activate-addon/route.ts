@@ -12,6 +12,7 @@ import {
   type ActivationCodeType,
 } from "@/lib/billing-packages";
 import { PaywallError, upsertAddOn } from "@/lib/paywall";
+import { isFreeMode } from "@/lib/free-mode";
 import { validateRequest, activateAddonSchema, formatZodError } from "@/lib/validators";
 
 export const runtime = "nodejs";
@@ -44,6 +45,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Unauthorized", code: "UNAUTHORIZED" },
         { status: 401 }
+      );
+    }
+
+    // Free-growth mode: add-ons are included — codes are not redeemable.
+    if (isFreeMode()) {
+      return activateAddonError(
+        "All add-ons are currently free — no activation code is needed.",
+        "FREE_MODE",
+        403
       );
     }
 

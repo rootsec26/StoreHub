@@ -1,3 +1,5 @@
+import { isFreeMode } from "@/lib/free-mode";
+
 export type Plan = "free" | "pro";
 
 export const PLANS: Record<Plan, { productLimit: number | null; price: string }> = {
@@ -15,6 +17,8 @@ export function normalizePlan(value: unknown): Plan {
 
 /** Returns the max number of products allowed, or `null` for unlimited. */
 export function productLimitFor(plan: Plan): number | null {
+  // Free-growth mode: every store is unlimited regardless of plan.
+  if (isFreeMode()) return null;
   return PLANS[plan].productLimit;
 }
 

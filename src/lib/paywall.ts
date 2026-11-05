@@ -7,8 +7,10 @@ import {
   FREE_AI_CREDITS,
   INCLUDED_STAFF_SEATS,
   CREDIT_VALIDITY_DAYS,
+  MAX_EXTRA_STAFF_SEATS,
   type CreditType,
 } from "@/lib/billing-packages";
+import { isFreeMode } from "@/lib/free-mode";
 import { isPlanActive as isPlanActiveRow, normalizePlan, type Plan } from "@/lib/plans";
 
 /**
@@ -245,13 +247,16 @@ export async function getStoreEntitlements(
     storeId: row.id,
     plan,
     planExpiresAt: row.planExpiresAt,
-    planActive,
+    // Free-growth mode: every entitlement is granted, expiry never applies.
+    planActive: isFreeMode() || degraded || isPlanActiveRow(plan, row.planExpiresAt),
     aiCredits: row.aiCredits ?? FREE_AI_CREDITS,
     aiCreditsExpiresAt: row.aiCreditsExpiresAt,
     whatsappCredits: row.whatsappCredits ?? 0,
     waCreditsExpiresAt: row.waCreditsExpiresAt,
-    hasWhiteLabel: row.hasWhiteLabel ?? false,
-    maxStaffSeats: row.maxStaffSeats ?? INCLUDED_STAFF_SEATS,
+    hasWhiteLabel: isFreeMode() || (row.hasWhiteLabel ?? false),
+    maxStaffSeats: isFreeMode()
+      ? INCLUDED_STAFF_SEATS + MAX_EXTRA_STAFF_SEATS
+      : (row.maxStaffSeats ?? INCLUDED_STAFF_SEATS),
     addOns,
   };
 }
@@ -271,6 +276,8 @@ async function deductCredits(
   exhausted: PaywallErrorCode,
   runner: DbExecutor = db
 ): Promise<number | null> {
+  // Free-growth mode: usage is unmetered — no deduction, no balance checks.
+  if (isFreeMode()) return null;
   if (!isValidUuid(storeId)) {
     throw new PaywallError("STORE_NOT_FOUND", "Store not found", 404);
   }
@@ -622,6 +629,7 @@ export async function hasCredits(
   type: CreditType,
   cost = 1
 ): Promise<boolean> {
+  if (isFreeMode()) return true;
   const entitlements = await getStoreEntitlements(storeId);
   if (!entitlements) return false;
   const balance =
@@ -672,6 +680,7 @@ export async function hasFeatureAccess(
   storeId: string,
   featureName: AddOnFeature | string
 ): Promise<boolean> {
+  if (isFreeMode()) return true;
   if (!isValidUuid(storeId) || !featureName) return false;
 
   let planActive = true;
@@ -980,6 +989,8 @@ export async function resolveApiFeatureGate(
   pathname: string,
   storeId: string | undefined | null
 ): Promise<FeatureGateBlock | null> {
+  // Free-growth mode: no API route is paywalled.
+  if (isFreeMode()) return null;
   const gates = gatesForPath(pathname);
   if (gates.length === 0) return null;
   if (!storeId) return null; // no store session -> the route answers 401/404

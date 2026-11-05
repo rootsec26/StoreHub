@@ -28,6 +28,7 @@ import {
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { useOrdersRealtime } from "@/lib/realtime";
+import { isFreeMode } from "@/lib/free-mode";
 
 /**
  * Single "home" entry â€” rendered once at the top of the sidebar and kept out
@@ -271,7 +272,12 @@ export default function SidebarNav({
       </ul>
 
       {NAV_GROUPS.map((group) => {
-        const items = NAV_ITEMS.filter((item) => item.group === group);
+        const items = NAV_ITEMS.filter(
+          (item) =>
+            item.group === group &&
+            // Free-growth mode: billing is hidden — every feature is free.
+            !(isFreeMode() && item.href === "/dashboard/billing")
+        );
         if (items.length === 0) return null;
 
         return (

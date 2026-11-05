@@ -295,6 +295,9 @@ const en = {
   "billing.paymentModal.successDesc": "Your payment was confirmed and the balance was added to your store.",
   "billing.paymentModal.close": "Close",
   "billing.paymentModal.redeemedToast": "Activation code redeemed successfully",
+  "billing.freeMode.title": "Everything is free right now",
+  "billing.freeMode.desc": "All plans, AI credits, WhatsApp messages and add-ons are unlocked for every store. No payment or activation code is needed during this period.",
+  "billing.freeMode.cta": "Back to dashboard",
 
   // Billing tabs (Plan / Credits / Add-ons)
   "billing.tabs.plan": "Subscription Plan",
@@ -1157,6 +1160,9 @@ const en = {
   "landing.pricing.subtitle":
     "Start free and upgrade when your sales grow",
   "landing.pricing.popular": "Most Popular",
+  "landing.pricing.free.badge": "Free period",
+  "landing.pricing.free.title": "Everything is free — for everyone",
+  "landing.pricing.free.desc": "Plans, AI credits, WhatsApp messaging and add-ons are unlocked for all stores. Start selling today — no card required.",
   "landing.plan.free.name": "Free",
   "landing.plan.free.price": "EGP 0 / month",
   "landing.plan.free.desc": "Everything you need to start selling online",
@@ -2062,6 +2068,9 @@ const ar: Record<TranslationKey, string> = {
   "billing.paymentModal.successDesc": "تم تأكيد الدفع وأُضيف الرصيد إلى متجرك.",
   "billing.paymentModal.close": "إغلاق",
   "billing.paymentModal.redeemedToast": "تم تفعيل كود التفعيل بنجاح",
+  "billing.freeMode.title": "جميع الميزات مجانية حالياً",
+  "billing.freeMode.desc": "كل الخطط وأرصدة الذكاء الاصطناعي ورسائل الواتساب والإضافات مفتوحة لجميع المتاجر. لا حاجة لأي دفع أو كود تفعيل خلال هذه الفترة.",
+  "billing.freeMode.cta": "العودة للوحة التحكم",
 
   // Billing tabs (Plan / Credits / Add-ons)
   "billing.tabs.plan": "خطة الاشتراك",
@@ -3036,6 +3045,9 @@ const ar: Record<TranslationKey, string> = {
   "landing.pricing.title": "باقات تناسب كل تاجر",
   "landing.pricing.subtitle": "ابدأ مجاناً وطوّر متجرك عندما تنمو مبيعاتك",
   "landing.pricing.popular": "الأكثر اختياراً",
+  "landing.pricing.free.badge": "فترة مجانية",
+  "landing.pricing.free.title": "كل شيء مجاني — للجميع",
+  "landing.pricing.free.desc": "الخطط وأرصدة الذكاء الاصطناعي ومراسلة الواتساب والإضافات مفتوحة لجميع المتاجر. ابدأ البيع اليوم — بدون بطاقة.",
   "landing.plan.free.name": "المجانية",
   "landing.plan.free.price": "0 جنيه / شهر",
   "landing.plan.free.desc": "كل ما تحتاجه لبدء البيع أونلاين",

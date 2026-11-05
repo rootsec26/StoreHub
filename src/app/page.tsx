@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
+import { isFreeMode } from "@/lib/free-mode";
 import LanguageToggle from "@/components/LanguageToggle";
 
 const FEATURES: {
@@ -390,6 +391,26 @@ export default function LandingPage() {
             </p>
           </div>
 
+          {isFreeMode() ? (
+            <div className="mx-auto max-w-2xl rounded-2xl border border-emerald-200 bg-emerald-50 p-10 text-center shadow-sm">
+              <span className="mb-4 inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-1.5 text-sm font-semibold text-emerald-700">
+                <Sparkles className="h-4 w-4" />
+                {t("landing.pricing.free.badge")}
+              </span>
+              <h3 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                {t("landing.pricing.free.title")}
+              </h3>
+              <p className="mt-3 text-lg text-slate-600">
+                {t("landing.pricing.free.desc")}
+              </p>
+              <Link
+                href="/sign-in"
+                className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-8 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+              >
+                {t("landing.plan.cta")}
+              </Link>
+            </div>
+          ) : (
           <div className="grid gap-6 md:grid-cols-2">
             {PLANS.map((plan) => (
               <div
@@ -440,6 +461,7 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+          )}
         </div>
       </section>
 

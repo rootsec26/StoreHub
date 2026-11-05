@@ -3,11 +3,13 @@ import { count, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { products, stores } from "@/db/schema";
 import { isPlanActive, normalizePlan, productLimitFor } from "@/lib/plans";
+import { isFreeMode } from "@/lib/free-mode";
 import type { BillingInfo } from "@/lib/types";
 import {
   CREDIT_VALIDITY_DAYS,
   FREE_AI_CREDITS,
   INCLUDED_STAFF_SEATS,
+  MAX_EXTRA_STAFF_SEATS,
 } from "@/lib/billing-packages";
 
 interface StoreBillingRow {
@@ -103,13 +105,17 @@ export async function buildBillingInfo(
   if (!store) return null;
 
   const plan = normalizePlan(store.plan);
-  const planActive = degraded
+  // Free-growth mode: report an always-active, unlimited entitlement so the
+  // dashboard never shows expired plans or usage caps.
+  const planActive = isFreeMode()
     ? true
-    : plan === "pro"
-      ? isPlanActive(plan, store.planExpiresAt)
-      : true;
+    : degraded
+      ? true
+      : plan === "pro"
+        ? isPlanActive(plan, store.planExpiresAt)
+        : true;
   const effective = planActive ? plan : "free";
-  const limit = productLimitFor(effective);
+  const limit = isFreeMode() ? null : productLimitFor(effective);
 
   const productCount = await db
     .select({ value: count() })
@@ -132,7 +138,9 @@ export async function buildBillingInfo(
     whatsappCredits: store.whatsappCredits ?? 0,
     aiCreditsExpiresAt: toIso(store.aiCreditsExpiresAt),
     waCreditsExpiresAt: toIso(store.waCreditsExpiresAt),
-    hasWhiteLabel: store.hasWhiteLabel ?? false,
-    maxStaffSeats: store.maxStaffSeats ?? INCLUDED_STAFF_SEATS,
+    hasWhiteLabel: isFreeMode() || (store.hasWhiteLabel ?? false),
+    maxStaffSeats: isFreeMode()
+      ? INCLUDED_STAFF_SEATS + MAX_EXTRA_STAFF_SEATS
+      : (store.maxStaffSeats ?? INCLUDED_STAFF_SEATS),
   };
 }
