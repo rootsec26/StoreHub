@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -158,51 +160,51 @@ const FAQ: { questionKey: TranslationKey; answerKey: TranslationKey }[] = [
 
 export default function LandingPage() {
   const { t, formatNumber } = useI18n();
+  const [logoTapped, setLogoTapped] = useState(false);
 
   return (
     <div className="min-h-screen bg-white" dir="rtl">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2">
-            <Store className="h-7 w-7 text-indigo-600" />
-            <span className="text-xl font-bold text-slate-900">
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/85 shadow-[0_8px_30px_rgba(15,23,42,0.06)] backdrop-blur-xl">
+        <div className="mx-auto flex min-h-[4.5rem] max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <Link href="/" className="group flex items-center gap-3">
+            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl ring-1 ring-slate-200 transition-transform duration-300 group-hover:scale-105">
+              <Image
+                src="/logo-transparent.png"
+                alt="StoreHub"
+                fill
+                sizes="40px"
+                className="object-contain p-1"
+              />
+            </div>
+            <span className="text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
               Store<span className="text-indigo-600">Hub</span>
             </span>
           </Link>
 
-          <nav className="hidden items-center gap-1 md:flex">
-            <a
-              href="#features"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-            >
-              {t("nav.features")}
-            </a>
-            <a
-              href="#pricing"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-            >
-              {t("nav.pricing")}
-            </a>
-            <a
-              href="#faq"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-            >
-              {t("nav.faq")}
-            </a>
+          <nav className="hidden items-center gap-1 rounded-full border border-slate-200 bg-slate-50/80 p-1.5 lg:flex">
+            {["#features", "#pricing", "#faq"].map((href, index) => (
+              <a
+                key={href}
+                href={href}
+                className="inline-flex h-10 items-center rounded-full px-4 text-sm font-semibold text-slate-600 transition-colors hover:bg-white hover:text-slate-950 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              >
+                {t(index === 0 ? "nav.features" : index === 1 ? "nav.pricing" : "nav.faq")}
+              </a>
+            ))}
           </nav>
 
           <div className="flex items-center gap-2">
             <LanguageToggle compact />
             <Link
               href="/login"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 sm:px-4"
+              className="inline-flex h-11 items-center rounded-xl px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 sm:px-4"
             >
               {t("landing.signIn")}
             </Link>
             <Link
               href="/signup"
-              className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 sm:px-4"
+              className="inline-flex h-11 items-center rounded-xl bg-indigo-600 px-3 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition-all hover:-translate-y-0.5 hover:bg-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 sm:px-5"
             >
               {t("landing.getStarted")}
             </Link>
@@ -211,17 +213,49 @@ export default function LandingPage() {
       </header>
 
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-bl from-indigo-50 via-white to-purple-50">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-100/40 via-transparent to-transparent" />
-        <div className="relative mx-auto max-w-5xl px-4 py-20 text-center sm:px-6 sm:py-28">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-1.5 text-sm font-medium text-indigo-700">
-            <Sparkles className="h-4 w-4" />
+      <section className="relative overflow-hidden bg-[radial-gradient(ellipse_at_top_left,_rgba(59,130,246,0.18),transparent_42%),radial-gradient(ellipse_at_top_right,_rgba(124,58,237,0.16),transparent_38%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)]">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-400/60 to-transparent" />
+        <div className="relative mx-auto max-w-5xl px-4 pb-20 pt-16 text-center sm:px-6 sm:pb-24 sm:pt-20 lg:pb-28 lg:pt-24">
+          <div className="group relative mx-auto mb-10 flex h-56 w-full max-w-sm flex-col items-center justify-center sm:mb-12 sm:h-64">
+            <div className="absolute inset-x-2 inset-y-0 animate-logo-glow rounded-full bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.28),rgba(59,130,246,0.16)_45%,transparent_72%)] blur-3xl" />
+            <button
+              type="button"
+              onClick={() => setLogoTapped((tapped) => !tapped)}
+              aria-label="StoreHub logo"
+              aria-pressed={logoTapped}
+              className="relative flex w-full flex-1 cursor-pointer items-center justify-center rounded-3xl outline-none transition-transform duration-500 focus-visible:ring-4 focus-visible:ring-indigo-200"
+            >
+              <div className="animate-logo-float flex h-full w-full items-center justify-center">
+                <Image
+                  src="/hero-logo.png"
+                  alt=""
+                  width={559}
+                  height={416}
+                  priority
+                  sizes="(max-width: 640px) 224px, 288px"
+                  className="h-auto w-full max-w-[280px] object-contain drop-shadow-[0_24px_35px_rgba(99,102,241,0.22)] transition-transform duration-500 group-hover:scale-[1.03] sm:max-w-[320px]"
+                />
+              </div>
+            </button>
+            <div
+              aria-hidden="true"
+              className={`pointer-events-none absolute bottom-0 left-1/2 z-10 -translate-x-1/2 translate-y-2 whitespace-nowrap rounded-full border border-indigo-100 bg-white/95 px-5 py-2 text-2xl font-extrabold tracking-tight text-slate-950 shadow-lg shadow-indigo-100/60 backdrop-blur transition-all duration-500 ease-out sm:text-3xl ${
+                logoTapped
+                  ? "translate-y-0 opacity-100"
+                  : "translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100"
+              }`}
+            >
+              Store<span className="text-indigo-600">Hub</span>
+            </div>
+          </div>
+          <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-blue-200/80 bg-white/80 px-4 py-1.5 text-sm font-bold text-blue-700 shadow-sm shadow-blue-100/60 backdrop-blur">
+            <Sparkles className="h-4 w-4 text-blue-500" />
             {t("landing.heroBadge")}
           </div>
-          <h1 className="text-4xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-5xl md:text-6xl">
+          <h1 className="mx-auto max-w-4xl text-4xl font-extrabold leading-[1.15] tracking-tight text-slate-950 sm:text-5xl md:text-6xl">
             {t("landing.heroTitle")}
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-600 sm:text-xl">
+          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-600 sm:text-xl">
             {t("landing.heroSubtitle")}
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -520,7 +554,15 @@ export default function LandingPage() {
       <footer className="border-t border-slate-800 bg-slate-900/50 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-6 sm:flex-row sm:px-6">
           <div className="flex items-center gap-2">
-            <Store className="h-5 w-5 text-indigo-600" />
+            <div className="relative h-7 w-7 overflow-hidden rounded-lg">
+              <Image
+                src="/logo-transparent.png"
+                alt="StoreHub"
+                fill
+                sizes="28px"
+                className="object-contain"
+              />
+            </div>
             <span className="text-lg font-bold text-slate-900">
               Store<span className="text-indigo-600">Hub</span>
             </span>
