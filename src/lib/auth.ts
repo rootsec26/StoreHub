@@ -10,6 +10,8 @@ if (!jwtSecret) {
   throw new Error("JWT_SECRET environment variable is required but not set");
 }
 const SECRET = new TextEncoder().encode(jwtSecret);
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface SessionUser {
   id: string;
@@ -47,7 +49,11 @@ export async function createToken(payload: SessionUser): Promise<string> {
 export async function verifyToken(token: string): Promise<SessionUser | null> {
   try {
     const { payload } = await jwtVerify(token, SECRET);
-    return payload as unknown as SessionUser;
+    const session = payload as unknown as SessionUser;
+    if (typeof session.id !== "string" || !UUID_PATTERN.test(session.id)) {
+      return null;
+    }
+    return session;
   } catch {
     return null;
   }
@@ -82,6 +88,8 @@ export interface StoreAccess {
 export async function resolveStoreAccess(
   userId: string
 ): Promise<StoreAccess | null> {
+  if (!UUID_PATTERN.test(userId)) return null;
+
   const owned = await db
     .select()
     .from(stores)
