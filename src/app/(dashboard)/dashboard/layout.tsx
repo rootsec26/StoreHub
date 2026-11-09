@@ -22,7 +22,6 @@ import NotificationBell from "@/components/dashboard/NotificationBell";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
-import { absoluteUrl } from "@/lib/site";
 import { useOrdersRealtime, type RealtimeStatus } from "@/lib/realtime";
 import {
   getDesktopNotificationPermission,
@@ -219,7 +218,12 @@ export default function DashboardLayout({
     setNotificationMuted(!muted);
   }
 
-  const storeUrl = store ? absoluteUrl(`/store/${store.slug}`) : "";
+  const origin = useSyncExternalStore(
+    () => () => {},
+    () => window.location.origin,
+    () => ""
+  );
+  const storeUrl = store ? `${origin}/store/${store.slug}` : "";
 
   async function copyStoreLink() {
     if (!storeUrl) return;
