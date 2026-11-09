@@ -1323,6 +1323,10 @@ const en = {
   "landing.app.windows.button": "Download Windows App (Coming Soon)",
   "landing.app.windows.note": "StoreHub for Windows — coming soon",
   "landing.app.inApp": "You're using the official StoreHub app",
+  "landing.app.inAppTitle": "You're using the official StoreHub app",
+  "landing.app.inAppSubtitle":
+    "Manage your store, track orders and grow your business — all from one place.",
+  "landing.app.openDashboard": "Open Dashboard",
   "aiRadar.abandonedCartsValue": "Total Abandoned Carts Value",
   "aiRadar.recoveredRevenue": "Recovered Revenue",
   "aiRadar.totalPendingCOD": "Total Pending COD Orders",
@@ -3352,6 +3356,10 @@ const ar: Record<TranslationKey, string> = {
   "landing.app.windows.button": "تحميل برنامج الويندوز (قريباً)",
   "landing.app.windows.note": "StoreHub لأجهزة الويندوز — قريباً",
   "landing.app.inApp": "أنت تستخدم تطبيق StoreHub الرسمي الآن",
+  "landing.app.inAppTitle": "أنت تستخدم تطبيق StoreHub الرسمي",
+  "landing.app.inAppSubtitle":
+    "أدر متجرك وتابع طلباتك ونمِّ أعمالك — كل ذلك من مكان واحد.",
+  "landing.app.openDashboard": "افتح لوحة التحكم",
 
   // Abandoned Cart Recovery & WhatsApp Commerce Engine
   "nav.abandonedCarts": "السلات المتروكة",
