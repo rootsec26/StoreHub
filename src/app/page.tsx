@@ -21,10 +21,12 @@ import {
   Sparkles,
   Rocket,
   Clock,
+  Download,
 } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { isFreeMode } from "@/lib/free-mode";
+import { ANDROID_APK_URL } from "@/lib/app-download";
 import LanguageToggle from "@/components/LanguageToggle";
 
 const FEATURES: {
@@ -309,6 +311,39 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Android App Download */}
+      <section className="relative overflow-hidden bg-gradient-to-l from-indigo-600 via-indigo-700 to-purple-800 py-16">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.14),transparent_45%)]" />
+        <div className="relative mx-auto flex max-w-5xl flex-col items-center gap-6 px-4 text-center sm:px-6">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
+            <Smartphone className="h-8 w-8 text-white" />
+          </div>
+          <div>
+            <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-sm font-bold text-indigo-100">
+              <Download className="h-4 w-4" />
+              {t("landing.app.badge")}
+            </span>
+            <h2 className="text-3xl font-extrabold text-white sm:text-4xl">
+              {t("landing.app.title")}
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-lg text-indigo-100">
+              {t("landing.app.subtitle")}
+            </p>
+          </div>
+          <a
+            href={ANDROID_APK_URL}
+            download
+            className="inline-flex items-center gap-2 rounded-xl bg-white px-8 py-4 text-base font-bold text-indigo-700 shadow-xl shadow-indigo-950/30 transition-all hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-2xl"
+          >
+            <Download className="h-5 w-5" />
+            {t("landing.app.button")}
+          </a>
+          <p className="text-sm font-medium text-indigo-200/90">
+            {t("landing.app.note")}
+          </p>
         </div>
       </section>
 

@@ -1314,6 +1314,12 @@ const en = {
   "landing.ctaSection.title": "Ready to Grow Your Business?",
   "landing.ctaSection.subtitle": "Join thousands of merchants already selling smarter with StoreHub",
   "landing.ctaSection.button": "Start Your Free Store",
+  "landing.app.badge": "Official Android App",
+  "landing.app.title": "Get the StoreHub App",
+  "landing.app.subtitle":
+    "Download the official StoreHub app for Android and manage your store from anywhere.",
+  "landing.app.button": "Download StoreHub for Android",
+  "landing.app.note": "Free • Android APK • Works on all Android devices",
   "aiRadar.abandonedCartsValue": "Total Abandoned Carts Value",
   "aiRadar.recoveredRevenue": "Recovered Revenue",
   "aiRadar.totalPendingCOD": "Total Pending COD Orders",
@@ -3334,6 +3340,12 @@ const ar: Record<TranslationKey, string> = {
   "landing.ctaSection.title": "جاهز لتنمية عملك؟",
   "landing.ctaSection.subtitle": "انضم لآلاف التجار الذين يبيعون بذكاء مع StoreHub",
   "landing.ctaSection.button": "ابدأ متجرك مجاناً",
+  "landing.app.badge": "تطبيق أندرويد الرسمي",
+  "landing.app.title": "حمّل تطبيق StoreHub",
+  "landing.app.subtitle":
+    "حمّل تطبيق StoreHub الرسمي لأجهزة أندرويد وأدر متجرك من أي مكان.",
+  "landing.app.button": "حمل تطبيق StoreHub الآن للروبوت",
+  "landing.app.note": "مجاني • ملف APK لأندرويد • يعمل على جميع أجهزة أندرويد",
 
   // Abandoned Cart Recovery & WhatsApp Commerce Engine
   "nav.abandonedCarts": "السلات المتروكة",
