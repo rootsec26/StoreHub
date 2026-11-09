@@ -30,7 +30,9 @@ export async function GET() {
       .from(storeReviews)
       .innerJoin(stores, eq(stores.id, storeReviews.storeId))
       .groupBy(stores.id)
-      .having(sql`avg(${storeReviews.rating}) = 5`)
+      // Strict gate: min(rating) = 5 means EVERY review is 5/5 — a single
+      // 1-4 star rating disqualifies the store entirely.
+      .having(sql`min(${storeReviews.rating}) = 5`)
       .orderBy(desc(sql`count(*)`))
       .limit(MAX_STORES);
 
