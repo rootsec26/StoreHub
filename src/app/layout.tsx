@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import type { ReactNode } from "react";
 import { Cairo } from "next/font/google";
@@ -54,6 +54,11 @@ export const metadata: Metadata = {
     shortcut: "/favicon.ico",
     apple: "/apple-icon.png",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 // Applies lang/dir before first paint so the correct layout direction renders
