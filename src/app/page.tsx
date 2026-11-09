@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   ArrowRight,
   Check,
@@ -163,6 +163,18 @@ const FAQ: { questionKey: TranslationKey; answerKey: TranslationKey }[] = [
 export default function LandingPage() {
   const { t, formatNumber } = useI18n();
   const [logoTapped, setLogoTapped] = useState(false);
+  const isNativeApp = useSyncExternalStore(
+    () => () => {},
+    () =>
+      Boolean(
+        (
+          window as unknown as {
+            Capacitor?: { isNativePlatform?: () => boolean };
+          }
+        ).Capacitor?.isNativePlatform?.()
+      ),
+    () => false
+  );
 
   return (
     <div className="min-h-screen bg-white" dir="rtl">
@@ -343,14 +355,21 @@ export default function LandingPage() {
                   {t("landing.app.note")}
                 </p>
               </div>
-              <a
-                href="/download/storehub.apk"
-                download="storehub.apk"
-                className="mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-base font-bold text-indigo-700 shadow-xl shadow-indigo-950/30 transition-all hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-2xl"
-              >
-                <Download className="h-5 w-5" />
-                {t("landing.app.button")}
-              </a>
+              {isNativeApp ? (
+                <span className="mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-6 py-3.5 text-base font-bold text-emerald-700">
+                  <Check className="h-5 w-5" />
+                  {t("landing.app.inApp")}
+                </span>
+              ) : (
+                <a
+                  href="/download/storehub.apk"
+                  download="storehub.apk"
+                  className="mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-base font-bold text-indigo-700 shadow-xl shadow-indigo-950/30 transition-all hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-2xl"
+                >
+                  <Download className="h-5 w-5" />
+                  {t("landing.app.button")}
+                </a>
+              )}
             </div>
 
             {/* Windows (coming soon) */}
