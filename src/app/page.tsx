@@ -27,7 +27,6 @@ import {
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { isFreeMode } from "@/lib/free-mode";
-import { ANDROID_APK_URL } from "@/lib/app-download";
 import LanguageToggle from "@/components/LanguageToggle";
 
 const FEATURES: {
@@ -345,7 +344,7 @@ export default function LandingPage() {
                 </p>
               </div>
               <a
-                href={ANDROID_APK_URL}
+                href="/download/storehub.apk"
                 download="storehub.apk"
                 className="mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-base font-bold text-indigo-700 shadow-xl shadow-indigo-950/30 transition-all hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-2xl"
               >

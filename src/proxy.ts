@@ -269,10 +269,12 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // API routes, static paths and crawler files handle their own auth
+  // API routes, static paths, public downloads and crawler files handle
+  // their own auth
   if (
     pathname.startsWith("/api/") ||
     pathname.startsWith("/_next") ||
+    pathname.startsWith("/download/") ||
     isCrawlerFile(pathname)
   ) {
     return NextResponse.next();
