@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { GOVERNORATES, detectGovernorate } from "@/lib/shipping";
 import { deductWarehouseStockForOrder } from "@/lib/warehouses-server";
+import { revalidatePath } from "next/cache";
 
 /**
  * AI Social Selling & Conversational Checkout Engine.
@@ -703,6 +704,18 @@ export async function createDraftOrder(params: {
     });
   } catch (error) {
     console.warn("Warehouse deduction skipped for chat order:", error);
+  }
+
+  // Chat orders decrement catalog stock too — refresh the cached storefront.
+  try {
+    const storeRow = await db
+      .select({ slug: stores.slug })
+      .from(stores)
+      .where(eq(stores.id, params.storeId))
+      .limit(1);
+    if (storeRow[0]) revalidatePath(`/store/${storeRow[0].slug}`, "layout");
+  } catch (error) {
+    console.warn("Storefront revalidation skipped for chat order:", error);
   }
 
   return { orderId: order.id, total, items: resolved, skipped };

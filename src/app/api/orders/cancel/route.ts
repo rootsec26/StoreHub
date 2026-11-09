@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     // Find the store by slug
     const storeResult = await db
-      .select({ id: stores.id })
+      .select({ id: stores.id, slug: stores.slug })
       .from(stores)
       .where(eq(stores.slug, storeSlug))
       .limit(1);
@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     const storeId = storeResult[0].id;
+    const storeSlugValue = storeResult[0].slug;
 
     // Cancellation is a destructive action. Accept either a signed
     // cancel-purpose token (customer link) or an authenticated store session.
@@ -132,6 +133,7 @@ export async function POST(request: NextRequest) {
     // Revalidate cache
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/orders");
+    revalidatePath(`/store/${storeSlugValue}`, "layout");
 
     return NextResponse.json({
       order: { id: result.id, status: result.status },

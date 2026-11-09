@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { orders } from "@/db/schema";
+import { orders, stores } from "@/db/schema";
 import {
   applyCodVerificationDecision,
   CodVerificationError,
@@ -115,6 +115,7 @@ export async function POST(request: NextRequest) {
   ).trim();
 
   let applied = 0;
+  const restockedStoreIds = new Set<string>();
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const value = change.value;
@@ -204,7 +205,12 @@ export async function POST(request: NextRequest) {
             decision: parsed.decision,
             ipAddress: "whatsapp-webhook",
           });
-          if (result.changed) applied += 1;
+          if (result.changed) {
+            applied += 1;
+            if (parsed.decision === "CANCELLED") {
+              restockedStoreIds.add(result.storeId);
+            }
+          }
         } catch (error) {
           if (error instanceof CodVerificationError) {
             console.warn(`WhatsApp COD reply ignored (${error.code})`);
@@ -218,6 +224,25 @@ export async function POST(request: NextRequest) {
 
   if (applied > 0) {
     revalidatePath("/dashboard/orders");
+  }
+
+  // A WhatsApp "Cancel" restocks inventory — refresh those storefronts so
+  // the product badge flips back to purchasable without waiting for ISR.
+  if (restockedStoreIds.size > 0) {
+    try {
+      const slugRows = await db
+        .select({ slug: stores.slug })
+        .from(stores)
+        .where(inArray(stores.id, [...restockedStoreIds]));
+      for (const row of slugRows) {
+        revalidatePath(`/store/${row.slug}`, "layout");
+      }
+    } catch (error) {
+      console.warn(
+        "Storefront revalidation after WhatsApp COD decision failed:",
+        error
+      );
+    }
   }
 
   // Always 200 so Meta does not retry the delivery.

@@ -290,6 +290,16 @@ export async function POST(request: NextRequest) {
       items: pricedItems,
     });
 
+    // Refresh the cached storefront so stock badges reflect the sale.
+    const storeRow = await db
+      .select({ slug: stores.slug })
+      .from(stores)
+      .where(eq(stores.id, storeId))
+      .limit(1);
+    if (storeRow[0]) {
+      revalidatePath(`/store/${storeRow[0].slug}`, "layout");
+    }
+
     if (isCodOrder) {
       // Metered: deduct-before-send (atomic + ledger), refund on failure.
       try {
@@ -368,6 +378,7 @@ const { id, orderId, status } = validation.data;
     }
 
     // Use transaction for atomicity: lock order row, validate transition, update, audit log
+    let restocked = false;
     const result = await db.transaction(async (tx) => {
       // Lock the order row for update
       const orderRows = await tx
@@ -411,6 +422,7 @@ const { id, orderId, status } = validation.data;
 
       if (cancelling) {
         await restockOrder(tx, { orderId: orderIdToUse, storeId: safeStore.id });
+        restocked = true;
       }
 
       // Audit log
@@ -447,6 +459,9 @@ const { id, orderId, status } = validation.data;
     // Revalidate cache
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/orders");
+    if (restocked) {
+      revalidatePath(`/store/${safeStore.slug}`, "layout");
+    }
 
     return NextResponse.json({ order: result });
   } catch (error) {

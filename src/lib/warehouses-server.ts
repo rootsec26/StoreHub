@@ -73,9 +73,9 @@ export async function deductWarehouseStockForOrder(params: {
       locations,
       params.customerAddress ?? ""
     );
-    if (!primary) return EMPTY_RESULT;
-
-    const candidates = candidateOrder(primary, locations);
+    // Stores without any branch still sell: the catalog aggregate is always
+    // decremented, the per-location rows only when a warehouse was picked.
+    const candidates = primary ? candidateOrder(primary, locations) : [];
 
     const applied = await db.transaction(async (tx) => {
       let appliedAny = false;
@@ -107,27 +107,23 @@ export async function deductWarehouseStockForOrder(params: {
         if (deducted) appliedAny = true;
 
         // Keep the storefront's catalog counter in sync with the sale even
-        // when a line has no per-location allocation yet (guarded so it can
-        // never go negative).
+        // when a line has no per-location allocation yet. Unconditional (and
+        // symmetric with restockOrder) so an oversold line cannot drift the
+        // counter upward again on cancellation.
         await tx
           .update(products)
           .set({ stock: sql`${products.stock} - ${line.quantity}` })
           .where(
-            and(
-              eq(products.id, line.productId),
-              eq(products.storeId, params.storeId),
-              gte(products.stock, line.quantity)
-            )
-          )
-          .returning({ id: products.id });
+            and(eq(products.id, line.productId), eq(products.storeId, params.storeId))
+          );
       }
 
       return appliedAny;
     });
 
     return {
-      warehouseId: applied ? primary.id : null,
-      warehouseName: applied ? primary.name : null,
+      warehouseId: applied ? primary?.id ?? null : null,
+      warehouseName: applied ? primary?.name ?? null : null,
       applied,
     };
   } catch (error) {

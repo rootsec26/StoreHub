@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { orders, orderItems, products, stores } from "@/db/schema";
 import { getAccessibleStores, getSession } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
+import { revalidatePath } from "next/cache";
 
 const PAYMENT_METHODS = ["cash", "card"] as const;
 type PaymentMethod = (typeof PAYMENT_METHODS)[number];
@@ -208,6 +209,10 @@ export async function POST(request: NextRequest) {
 
       return order;
     });
+
+    // Sold units are gone from the storefront catalog stock — refresh the
+    // cached store pages so the "out of stock" state shows immediately.
+    revalidatePath(`/store/${store.slug}`, "layout");
 
     return NextResponse.json({
       order,

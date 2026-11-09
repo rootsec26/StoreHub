@@ -130,6 +130,10 @@ export async function POST(request: NextRequest) {
 
     // Make the merchant dashboard badge flip instantly.
     revalidatePath("/dashboard/orders");
+    if (status === "CANCELLED" && result.changed) {
+      // Restocked units must reappear on the storefront immediately.
+      revalidatePath(`/store/${store_slug}`, "layout");
+    }
 
     return NextResponse.json({
       ok: true,

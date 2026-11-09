@@ -34,6 +34,7 @@ import { recordAnalyticsEvent } from "@/lib/analytics";
 import { effectiveProductPrice } from "@/lib/product-details";
 import { createOrderToken } from "@/lib/order-tokens";
 import { notifyCustomerOrderPlaced } from "@/lib/order-notifications";
+import { revalidatePath } from "next/cache";
 
 export interface CheckoutRequest {
   storeId: string;
@@ -294,12 +295,17 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
 
     // Multi-Warehouse engine: pick the closest branch from the customer city
     // (falling back to the main warehouse) and deduct the ordered units.
-    const fulfilFromWarehouse = () =>
-      deductWarehouseStockForOrder({
+    const fulfilFromWarehouse = async () => {
+      const result = await deductWarehouseStockForOrder({
         storeId,
         customerAddress: customerAddress || "",
         items: cartItems,
       });
+      // The storefront pages are statically rendered — invalidate them so a
+      // product that just hit zero stock shows the "out of stock" badge.
+      revalidatePath(`/store/${storeData.slug}`, "layout");
+      return result;
+    };
 
     // Anti-Return Fraud Shield: score the buyer before the order is persisted.
     const assessRisk = async () => {

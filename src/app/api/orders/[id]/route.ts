@@ -75,6 +75,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     // Use transaction for atomicity
+    let restocked = false;
     const result = await db.transaction(async (tx) => {
       // Lock the order row for update
       const orderRows = await tx
@@ -111,6 +112,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
       if (targetStatus === "CANCELLED" && previousStatus !== "CANCELLED") {
         await restockOrder(tx, { orderId: id, storeId: safeStore.id });
+        restocked = true;
       }
 
       // Audit log
@@ -132,6 +134,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     // Revalidate cache
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/orders");
+    if (restocked) {
+      revalidatePath(`/store/${safeStore.slug}`, "layout");
+    }
 
     return NextResponse.json({ order: result });
   } catch (error) {
