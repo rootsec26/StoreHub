@@ -276,6 +276,22 @@ export default function LandingPage() {
             </a>
           </div>
 
+          {/* Android App CTA */}
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <a
+              href={ANDROID_APK_URL}
+              download
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-slate-900/20 transition-all hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-xl"
+            >
+              <Smartphone className="h-5 w-5 text-emerald-400" />
+              {t("landing.app.button")}
+              <Download className="h-4 w-4" />
+            </a>
+            <span className="text-sm font-semibold text-slate-500">
+              {t("landing.app.note")}
+            </span>
+          </div>
+
           {/* Value Highlights */}
           <div className="mx-auto mt-14 grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3">
             {[
