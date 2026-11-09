@@ -11,8 +11,9 @@ const MAX_STORES = 12;
 
 /**
  * GET /api/storefront/top-stores
- * Public: the highest-rated storefronts on the platform, ranked by average
- * review score (then review volume). Powers the landing-page showcase.
+ * Public: the highest-rated storefronts on the platform. Only perfect
+ * stores qualify — every review must be 5/5 (avg = 5.0) — and they are
+ * ranked by the number of 5-star reviews, descending.
  */
 export async function GET() {
   try {
@@ -29,10 +30,8 @@ export async function GET() {
       .from(storeReviews)
       .innerJoin(stores, eq(stores.id, storeReviews.storeId))
       .groupBy(stores.id)
-      .orderBy(
-        desc(sql`avg(${storeReviews.rating})`),
-        desc(sql`count(*)`)
-      )
+      .having(sql`avg(${storeReviews.rating}) = 5`)
+      .orderBy(desc(sql`count(*)`))
       .limit(MAX_STORES);
 
     return NextResponse.json({
