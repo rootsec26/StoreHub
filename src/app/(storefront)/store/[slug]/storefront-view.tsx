@@ -320,7 +320,7 @@ export default function StorefrontView({
   );
 
   return (
-    <div style={accentThemeStyle(accent)}>
+    <div className="w-full overflow-x-clip" style={accentThemeStyle(accent)}>
       {/* Flash sale countdown banner (sticky) */}
       <FlashSaleBanner slug={slug} initialPromotions={initialPromotions} />
 
@@ -438,8 +438,8 @@ export default function StorefrontView({
         className="sticky z-30 border-b bg-white/80 backdrop-blur-sm"
         style={{ top: "var(--flash-banner-h, 0px)" }}
       >
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:px-6">
-          <div className="relative flex-1">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 py-3 sm:flex-nowrap sm:gap-3 sm:px-6">
+          <div className="relative w-full min-w-0 sm:w-auto sm:flex-1">
             <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
