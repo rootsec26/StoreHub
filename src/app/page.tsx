@@ -22,6 +22,7 @@ import {
   Rocket,
   Clock,
   Download,
+  Laptop,
 } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
@@ -276,22 +277,6 @@ export default function LandingPage() {
             </a>
           </div>
 
-          {/* Android App CTA */}
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <a
-              href={ANDROID_APK_URL}
-              download
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-slate-900/20 transition-all hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-xl"
-            >
-              <Smartphone className="h-5 w-5 text-emerald-400" />
-              {t("landing.app.button")}
-              <Download className="h-4 w-4" />
-            </a>
-            <span className="text-sm font-semibold text-slate-500">
-              {t("landing.app.note")}
-            </span>
-          </div>
-
           {/* Value Highlights */}
           <div className="mx-auto mt-14 grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3">
             {[
@@ -330,14 +315,11 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Android App Download */}
+      {/* App Download Hub */}
       <section className="relative overflow-hidden bg-gradient-to-l from-indigo-600 via-indigo-700 to-purple-800 py-16">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.14),transparent_45%)]" />
-        <div className="relative mx-auto flex max-w-5xl flex-col items-center gap-6 px-4 text-center sm:px-6">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
-            <Smartphone className="h-8 w-8 text-white" />
-          </div>
-          <div>
+        <div className="relative mx-auto max-w-5xl px-4 sm:px-6">
+          <div className="mb-10 text-center">
             <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-sm font-bold text-indigo-100">
               <Download className="h-4 w-4" />
               {t("landing.app.badge")}
@@ -349,17 +331,46 @@ export default function LandingPage() {
               {t("landing.app.subtitle")}
             </p>
           </div>
-          <a
-            href={ANDROID_APK_URL}
-            download
-            className="inline-flex items-center gap-2 rounded-xl bg-white px-8 py-4 text-base font-bold text-indigo-700 shadow-xl shadow-indigo-950/30 transition-all hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-2xl"
-          >
-            <Download className="h-5 w-5" />
-            {t("landing.app.button")}
-          </a>
-          <p className="text-sm font-medium text-indigo-200/90">
-            {t("landing.app.note")}
-          </p>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            {/* Android */}
+            <div className="flex flex-col items-center gap-4 rounded-2xl border border-white/20 bg-white/10 p-7 text-center backdrop-blur">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15">
+                <Smartphone className="h-7 w-7 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Android</h3>
+                <p className="mt-1 text-sm text-indigo-100">
+                  {t("landing.app.note")}
+                </p>
+              </div>
+              <a
+                href={ANDROID_APK_URL}
+                download
+                className="mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-base font-bold text-indigo-700 shadow-xl shadow-indigo-950/30 transition-all hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-2xl"
+              >
+                <Download className="h-5 w-5" />
+                {t("landing.app.button")}
+              </a>
+            </div>
+
+            {/* Windows (coming soon) */}
+            <div className="flex flex-col items-center gap-4 rounded-2xl border border-white/15 bg-white/5 p-7 text-center opacity-70">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
+                <Laptop className="h-7 w-7 text-indigo-200" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Windows</h3>
+                <p className="mt-1 text-sm text-indigo-200/80">
+                  {t("landing.app.windows.note")}
+                </p>
+              </div>
+              <span className="mt-auto inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-6 py-3.5 text-base font-bold text-indigo-200">
+                <Download className="h-5 w-5" />
+                {t("landing.app.windows.button")}
+              </span>
+            </div>
+          </div>
         </div>
       </section>
 

@@ -1320,6 +1320,8 @@ const en = {
     "Download the official StoreHub app for Android and manage your store from anywhere.",
   "landing.app.button": "Download StoreHub for Android",
   "landing.app.note": "Free • Android APK • Works on all Android devices",
+  "landing.app.windows.button": "Download Windows App (Coming Soon)",
+  "landing.app.windows.note": "StoreHub for Windows — coming soon",
   "aiRadar.abandonedCartsValue": "Total Abandoned Carts Value",
   "aiRadar.recoveredRevenue": "Recovered Revenue",
   "aiRadar.totalPendingCOD": "Total Pending COD Orders",
@@ -3346,6 +3348,8 @@ const ar: Record<TranslationKey, string> = {
     "حمّل تطبيق StoreHub الرسمي لأجهزة أندرويد وأدر متجرك من أي مكان.",
   "landing.app.button": "حمل تطبيق StoreHub الآن لأجهزة أندرويد",
   "landing.app.note": "مجاني • ملف APK لأندرويد • يعمل على جميع أجهزة أندرويد",
+  "landing.app.windows.button": "تحميل برنامج الويندوز (قريباً)",
+  "landing.app.windows.note": "StoreHub لأجهزة الويندوز — قريباً",
 
   // Abandoned Cart Recovery & WhatsApp Commerce Engine
   "nav.abandonedCarts": "السلات المتروكة",
