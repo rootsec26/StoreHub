@@ -30,6 +30,10 @@ import {
   type CodVerificationSendResult,
 } from "@/lib/orders/cod-verification";
 import { PaywallError, sendMeteredWhatsApp } from "@/lib/paywall";
+import { recordAnalyticsEvent } from "@/lib/analytics";
+import { effectiveProductPrice } from "@/lib/product-details";
+import { createOrderToken } from "@/lib/order-tokens";
+import { notifyCustomerOrderPlaced } from "@/lib/order-notifications";
 
 export interface CheckoutRequest {
   storeId: string;
@@ -68,6 +72,8 @@ export interface CheckoutResponse {
   loyalty?: CheckoutLoyaltyOutcome;
   /** Anti-Return Fraud Shield verdict persisted with the order. */
   risk?: { score: "LOW" | "MEDIUM" | "HIGH"; reasons: string[] };
+  /** Signed token authorizing the buyer to upload a payment proof. */
+  orderToken?: string;
   /** WhatsApp COD verification hand-off (pay-later orders only). */
   codVerification?: {
     status: string;
@@ -105,6 +111,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
       redeemPoints,
       couponCode,
       locale,
+      visitorId,
     } = validation.data;
 
     const store = await db
@@ -139,14 +146,26 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
     // lines and rebuild the cart with DB prices only.
     const requestedIds = [...new Set(items.map((item) => item.productId))];
     const dbProducts = await db
-      .select({ id: products.id, price: products.price, isVisible: products.isVisible })
+      .select({
+        id: products.id,
+        price: products.price,
+        salePrice: products.salePrice,
+        stock: products.stock,
+        availability: products.availability,
+        isVisible: products.isVisible,
+      })
       .from(products)
       .where(and(eq(products.storeId, storeId), inArray(products.id, requestedIds)));
     const productById = new Map(dbProducts.map((row) => [row.id, row]));
 
     const unavailableIds = requestedIds.filter((id) => {
       const product = productById.get(id);
-      return !product || product.isVisible === false;
+      return (
+        !product ||
+        product.isVisible === false ||
+        product.availability !== "IN_STOCK" ||
+        product.stock <= 0
+      );
     });
     if (unavailableIds.length > 0) {
       return NextResponse.json(
@@ -166,11 +185,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
         (mergedQuantity.get(item.productId) ?? 0) + item.quantity
       );
     }
-    const cartItems = [...mergedQuantity.entries()].map(([productId, quantity]) => ({
-      productId,
-      quantity,
-      unitPrice: roundMoney(Number(productById.get(productId)!.price)),
-    }));
+    const cartItems = [...mergedQuantity.entries()].map(([productId, quantity]) => {
+      const product = productById.get(productId)!;
+      return {
+        productId,
+        quantity,
+        unitPrice: roundMoney(
+          effectiveProductPrice({ price: product.price, salePrice: product.salePrice })
+        ),
+      };
+    });
 
     let totalAmount = 0;
     for (const item of cartItems) {
@@ -272,8 +296,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
     // `coupons.times_used` can never drift from the orders that redeemed it
     // (the `times_used < max_uses` predicate re-checks the limit under the
     // row lock, so two concurrent checkouts cannot both take the last use).
-    const createOrder = (values: typeof orders.$inferInsert) =>
-      db.transaction(async (tx) => {
+    const createOrder = async (values: typeof orders.$inferInsert) => {
+      const order = await db.transaction(async (tx) => {
         const [order] = await tx.insert(orders).values(values).returning();
 
         await tx.insert(orderItems).values(
@@ -307,6 +331,34 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
         }
 
         return order;
+      });
+
+      // Auto-send the tracking code to the shopper's notification inbox.
+      await notifyCustomerOrderPlaced({
+        storeId,
+        storeSlug: storeData.slug,
+        storeName: storeData.name,
+        orderId: order.id,
+        customerName: values.customerName ?? "",
+        customerPhone: values.customerPhone ?? "",
+        totalAmount: values.totalAmount ?? "0",
+        currency,
+      });
+
+      return order;
+    };
+
+    const recordOrderConversion = (
+      order: { id: string },
+      paymentMethod: CheckoutRequest["paymentMethod"]
+    ) =>
+      recordAnalyticsEvent({
+        eventType: "ORDER_CREATED",
+        visitorId,
+        storeId,
+        orderId: order.id,
+        path: "/checkout",
+        metadata: { paymentMethod, source: "checkout" },
       });
 
     // Best-effort compensation: gives the claim back when the payment session
@@ -351,6 +403,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
           status: "PENDING",
           paymentMethod: "stripe",
         });
+
+        await recordOrderConversion(order, "stripe");
 
         let result;
         try {
@@ -449,6 +503,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
           paymentMethod: "paddle",
         });
 
+        await recordOrderConversion(order, "paddle");
+
         const loyaltyOutcome = await finalizeLoyalty(order.id);
         await fulfilFromWarehouse();
 
@@ -481,6 +537,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
           riskScore: risk.riskScore,
           riskReasons: risk.riskReasons,
         });
+
+        await recordOrderConversion(order, paymentMethod);
 
         const loyaltyOutcome = await finalizeLoyalty(order.id);
         await fulfilFromWarehouse();
@@ -517,6 +575,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
         return NextResponse.json({
           redirectUrl: `${defaultSuccessUrl}?order_id=${order.id}&manual=true`,
           orderId: order.id,
+          // Lets the buyer attach a transfer screenshot without an account.
+          orderToken:
+            paymentMethod === "manual"
+              ? createOrderToken({ orderId: order.id, purpose: "payment_proof" })
+              : undefined,
           message: manualInstructions,
           isSandbox: false,
           risk: { score: risk.riskScore, reasons: risk.riskReasons },

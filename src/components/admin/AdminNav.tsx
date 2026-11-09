@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
   LayoutDashboard,
+  ShoppingBag,
   Store,
   Users,
   Megaphone,
@@ -17,8 +19,10 @@ const ADMIN_NAV = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/merchants", label: "Merchants", icon: Store },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/customers", label: "Customers", icon: ShoppingBag },
   { href: "/admin/broadcasts", label: "Broadcasts", icon: Megaphone },
   { href: "/admin/messages", label: "Messages", icon: MessageSquareCode },
+  { href: "/admin/activity", label: "Activity", icon: Activity },
   { href: "/admin/codes", label: "Activation codes", icon: Ticket },
 ] as const;
 

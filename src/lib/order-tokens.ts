@@ -18,7 +18,12 @@ import crypto from "crypto";
  * never be replayed against another tenant.
  */
 
-export type OrderTokenPurpose = "track" | "cancel" | "cod_confirm" | "cod_cancel";
+export type OrderTokenPurpose =
+  | "track"
+  | "cancel"
+  | "cod_confirm"
+  | "cod_cancel"
+  | "payment_proof";
 
 export interface OrderTokenPayload {
   orderId: string;
@@ -35,6 +40,7 @@ const DEFAULT_TTL_SECONDS: Record<OrderTokenPurpose, number> = {
   cancel: 7 * DAY_SECONDS,
   cod_confirm: 7 * DAY_SECONDS,
   cod_cancel: 7 * DAY_SECONDS,
+  payment_proof: 7 * DAY_SECONDS,
 };
 
 let warnedAboutFallbackSecret = false;
@@ -76,7 +82,8 @@ function isPurpose(value: unknown): value is OrderTokenPurpose {
     value === "track" ||
     value === "cancel" ||
     value === "cod_confirm" ||
-    value === "cod_cancel"
+    value === "cod_cancel" ||
+    value === "payment_proof"
   );
 }
 

@@ -49,6 +49,7 @@ import {
   STALE_SENDING_MINUTES,
 } from "./constants";
 import { deliverWhatsAppMessage } from "./channels";
+import { maskPhone } from "./mask";
 import type {
   AdminCampaignDTO,
   AdminOverviewStats,
@@ -1299,5 +1300,133 @@ export async function listAdminUsers(options: {
     total: Number(totalRow?.[0]?.value ?? 0),
     tab: options.tab,
     days: options.days,
+  };
+}
+
+export interface AdminMessageRecipientRow {
+  id: string;
+  notificationId: string;
+  campaignTitle: string;
+  scope: NotificationScope;
+  status: RecipientStatus;
+  recipientType: "CUSTOMER" | "MERCHANT";
+  recipientName: string;
+  recipientPhone: string;
+  recipientEmail: string;
+  channel: NotificationChannel;
+  storeId: string | null;
+  storeName: string | null;
+  storeSlug: string | null;
+  senderName: string | null;
+  sentAt: string | null;
+  deliveredAt: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminMessageRecipientsResponse {
+  recipients: AdminMessageRecipientRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+function maskEmail(email: string | null | undefined): string {
+  const value = (email ?? "").trim();
+  if (!value || !value.includes("@")) return "";
+  const [local, domain] = value.split("@");
+  const visible = local.slice(0, Math.min(2, local.length));
+  return `${visible}${"•".repeat(Math.max(1, local.length - visible.length))}@${domain}`;
+}
+
+/** Individual delivery rows across merchant campaigns and admin broadcasts. */
+export async function listAdminMessageRecipients(options: {
+  page: number;
+  limit: number;
+  storeId?: string;
+  search?: string;
+  status?: string;
+}): Promise<AdminMessageRecipientsResponse> {
+  const conditions = [];
+  if (options.storeId) {
+    conditions.push(
+      or(
+        eq(notificationRecipients.storeId, options.storeId),
+        eq(notifications.storeId, options.storeId)
+      )!
+    );
+  }
+  if (options.status) {
+    conditions.push(eq(notificationRecipients.status, options.status));
+  }
+  if (options.search) {
+    const pattern = `%${options.search}%`;
+    conditions.push(
+      or(
+        ilike(notificationRecipients.recipientName, pattern),
+        ilike(notificationRecipients.recipientPhone, pattern),
+        ilike(notificationRecipients.recipientEmail, pattern),
+        ilike(notifications.title, pattern)
+      )!
+    );
+  }
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const offset = (options.page - 1) * options.limit;
+
+  const [rows, totalRow] = await Promise.all([
+    db
+      .select({
+        recipient: notificationRecipients,
+        notificationTitle: notifications.title,
+        notificationScope: notifications.scope,
+        storeName: stores.name,
+        storeSlug: stores.slug,
+        senderName: users.name,
+      })
+      .from(notificationRecipients)
+      .innerJoin(
+        notifications,
+        eq(notifications.id, notificationRecipients.notificationId)
+      )
+      .leftJoin(stores, eq(stores.id, notificationRecipients.storeId))
+      .leftJoin(users, eq(users.id, notifications.createdByUserId))
+      .where(where)
+      .orderBy(desc(notificationRecipients.createdAt))
+      .limit(options.limit)
+      .offset(offset),
+    db
+      .select({ value: sql<number>`(count(*))::int` })
+      .from(notificationRecipients)
+      .innerJoin(
+        notifications,
+        eq(notifications.id, notificationRecipients.notificationId)
+      )
+      .where(where),
+  ]);
+
+  return {
+    recipients: rows.map((row) => ({
+      id: row.recipient.id,
+      notificationId: row.recipient.notificationId,
+      campaignTitle: row.notificationTitle,
+      scope: row.notificationScope as NotificationScope,
+      status: row.recipient.status as RecipientStatus,
+      recipientType: row.recipient.recipientType as "CUSTOMER" | "MERCHANT",
+      recipientName: row.recipient.recipientName ?? "",
+      recipientPhone: maskPhone(row.recipient.recipientPhone),
+      recipientEmail: maskEmail(row.recipient.recipientEmail),
+      channel: row.recipient.channel as NotificationChannel,
+      storeId: row.recipient.storeId,
+      storeName: row.storeName ?? null,
+      storeSlug: row.storeSlug ?? null,
+      senderName: row.senderName ?? null,
+      sentAt: iso(row.recipient.sentAt),
+      deliveredAt: iso(row.recipient.deliveredAt),
+      readAt: iso(row.recipient.readAt),
+      createdAt: row.recipient.createdAt.toISOString(),
+    })),
+    total: Number(totalRow?.[0]?.value ?? 0),
+    page: options.page,
+    pageSize: options.limit,
   };
 }

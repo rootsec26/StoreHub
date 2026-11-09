@@ -6,6 +6,13 @@ import { getAccessibleStores, getSession } from "@/lib/auth";
 import { effectivePlan, normalizePlan, productLimitFor } from "@/lib/plans";
 import { hasFeatureAccess } from "@/lib/paywall";
 import { createErrorResponse } from "@/lib/errors";
+import {
+  toAvailability,
+  toNullableNumeric,
+  toOptionalInt,
+  toSpecifications,
+  toStringArray,
+} from "@/lib/product-details";
 
 // Get products for store
 export async function GET(request: NextRequest) {
@@ -98,7 +105,23 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, price, stock, categoryId, imageUrl, isVisible } = body;
+    const {
+      name,
+      description,
+      price,
+      stock,
+      categoryId,
+      imageUrl,
+      isVisible,
+      sku,
+      compareAtPrice,
+      salePrice,
+      discountPercent,
+      availability,
+      imageGallery,
+      specifications,
+      tags,
+    } = body;
 
     if (!name || price === undefined) {
       return NextResponse.json(
@@ -152,6 +175,14 @@ export async function POST(request: NextRequest) {
         stock: stock || 0,
         categoryId: categoryId || null,
         imageUrl: imageUrl || "",
+        sku: String(sku ?? "").trim().slice(0, 120),
+        compareAtPrice: toNullableNumeric(compareAtPrice),
+        salePrice: toNullableNumeric(salePrice),
+        discountPercent: toOptionalInt(discountPercent),
+        availability: toAvailability(availability),
+        imageGallery: toStringArray(imageGallery, 12, 500),
+        specifications: toSpecifications(specifications),
+        tags: toStringArray(tags, 24, 80),
         isVisible: isVisible !== undefined ? isVisible : true,
       })
       .returning();
@@ -178,7 +209,24 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, description, price, stock, categoryId, imageUrl, isVisible } = body;
+    const {
+      id,
+      name,
+      description,
+      price,
+      stock,
+      categoryId,
+      imageUrl,
+      isVisible,
+      sku,
+      compareAtPrice,
+      salePrice,
+      discountPercent,
+      availability,
+      imageGallery,
+      specifications,
+      tags,
+    } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Product ID is required", code: "MISSING_ID" }, { status: 400 });
@@ -193,6 +241,20 @@ export async function PATCH(request: NextRequest) {
         ...(stock !== undefined && { stock }),
         ...(categoryId !== undefined && { categoryId }),
         ...(imageUrl !== undefined && { imageUrl }),
+        ...(sku !== undefined && { sku: String(sku ?? "").trim().slice(0, 120) }),
+        ...(compareAtPrice !== undefined && {
+          compareAtPrice: compareAtPrice === null ? null : toNullableNumeric(compareAtPrice),
+        }),
+        ...(salePrice !== undefined && {
+          salePrice: salePrice === null ? null : toNullableNumeric(salePrice),
+        }),
+        ...(discountPercent !== undefined && {
+          discountPercent: discountPercent === null ? null : toOptionalInt(discountPercent),
+        }),
+        ...(availability !== undefined && { availability: toAvailability(availability) }),
+        ...(imageGallery !== undefined && { imageGallery: toStringArray(imageGallery, 12, 500) }),
+        ...(specifications !== undefined && { specifications: toSpecifications(specifications) }),
+        ...(tags !== undefined && { tags: toStringArray(tags, 24, 80) }),
         ...(isVisible !== undefined && { isVisible }),
       })
       .where(and(eq(products.id, id), eq(products.storeId, userStore[0].id)))

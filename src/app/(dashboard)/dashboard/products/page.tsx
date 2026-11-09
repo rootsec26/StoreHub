@@ -21,6 +21,11 @@ import { useI18n } from "@/lib/i18n";
 import ImageUploadField from "@/components/ImageUploadField";
 import { canOptimizeImage, isValidImageUrl } from "@/lib/images";
 import type { BillingInfo } from "@/lib/types";
+import type {
+  ProductAvailability,
+  ProductSpecification,
+} from "@/lib/product-details";
+import ProductGalleryField from "@/components/ProductGalleryField";
 
 interface Product {
   id: string;
@@ -29,6 +34,14 @@ interface Product {
   price: string;
   stock: number;
   imageUrl: string;
+  sku: string;
+  compareAtPrice: string | null;
+  salePrice: string | null;
+  discountPercent: number | null;
+  availability: ProductAvailability;
+  imageGallery: string[];
+  specifications: ProductSpecification[];
+  tags: string[];
   isVisible: boolean;
   categoryId: string | null;
   createdAt: string;
@@ -93,6 +106,14 @@ export default function ProductsPage() {
   const [formImageUrl, setFormImageUrl] = useState("");
   const [formCategoryId, setFormCategoryId] = useState("");
   const [formIsVisible, setFormIsVisible] = useState(true);
+  const [formSku, setFormSku] = useState("");
+  const [formCompareAtPrice, setFormCompareAtPrice] = useState("");
+  const [formSalePrice, setFormSalePrice] = useState("");
+  const [formDiscountPercent, setFormDiscountPercent] = useState("");
+  const [formAvailability, setFormAvailability] = useState<ProductAvailability>("IN_STOCK");
+  const [formImageGallery, setFormImageGallery] = useState<string[]>([]);
+  const [formSpecifications, setFormSpecifications] = useState<ProductSpecification[]>([]);
+  const [formTags, setFormTags] = useState("");
 
   // AI description generator
   const [aiOpen, setAiOpen] = useState(false);
@@ -143,6 +164,14 @@ export default function ProductsPage() {
     setFormImageUrl("");
     setFormCategoryId("");
     setFormIsVisible(true);
+    setFormSku("");
+    setFormCompareAtPrice("");
+    setFormSalePrice("");
+    setFormDiscountPercent("");
+    setFormAvailability("IN_STOCK");
+    setFormImageGallery([]);
+    setFormSpecifications([]);
+    setFormTags("");
     setAiOpen(false);
     setAiKeywords("");
     setAiLoading(false);
@@ -158,6 +187,14 @@ export default function ProductsPage() {
     setFormImageUrl(product.imageUrl || "");
     setFormCategoryId(product.categoryId || "");
     setFormIsVisible(product.isVisible);
+    setFormSku(product.sku || "");
+    setFormCompareAtPrice(product.compareAtPrice ?? "");
+    setFormSalePrice(product.salePrice ?? "");
+    setFormDiscountPercent(product.discountPercent?.toString() ?? "");
+    setFormAvailability(product.availability || "IN_STOCK");
+    setFormImageGallery(product.imageGallery || []);
+    setFormSpecifications(product.specifications || []);
+    setFormTags((product.tags || []).join(", "));
     setAiOpen(false);
     setAiKeywords("");
     setAiLoading(false);
@@ -192,6 +229,32 @@ export default function ProductsPage() {
     }
   }
 
+  function productPayload() {
+    return {
+      name: formName,
+      description: formDescription,
+      price: formPrice,
+      stock: parseInt(formStock) || 0,
+      imageUrl: formImageUrl,
+      categoryId: formCategoryId || null,
+      isVisible: formIsVisible,
+      sku: formSku.trim(),
+      compareAtPrice: formCompareAtPrice === "" ? null : Number(formCompareAtPrice),
+      salePrice: formSalePrice === "" ? null : Number(formSalePrice),
+      discountPercent: formDiscountPercent === "" ? null : Number(formDiscountPercent),
+      availability: formAvailability,
+      imageGallery: formImageGallery,
+      specifications: formSpecifications.filter(
+        (spec) => spec.label.trim() || spec.value.trim()
+      ),
+      tags: formTags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+        .slice(0, 24),
+    };
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormLoading(true);
@@ -201,16 +264,7 @@ export default function ProductsPage() {
         const res = await fetch("/api/products", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: editingProduct.id,
-            name: formName,
-            description: formDescription,
-            price: formPrice,
-            stock: parseInt(formStock),
-            imageUrl: formImageUrl,
-            categoryId: formCategoryId || null,
-            isVisible: formIsVisible,
-          }),
+          body: JSON.stringify({ id: editingProduct.id, ...productPayload() }),
         });
 
         if (!res.ok) throw new Error("Failed to update product");
@@ -219,15 +273,7 @@ export default function ProductsPage() {
         const res = await fetch("/api/products", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: formName,
-            description: formDescription,
-            price: formPrice,
-            stock: parseInt(formStock),
-            imageUrl: formImageUrl,
-            categoryId: formCategoryId || null,
-            isVisible: formIsVisible,
-          }),
+          body: JSON.stringify(productPayload()),
         });
 
         if (!res.ok) {
@@ -341,7 +387,7 @@ export default function ProductsPage() {
       {/* Product Form Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-slate-900">
                 {editingProduct ? t("products.editTitle") : t("products.addTitle")}
@@ -431,18 +477,16 @@ export default function ProductsPage() {
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
-                    {t("products.field.price")}
+                    {t("products.field.sku")}
                   </label>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formPrice}
-                    onChange={(e) => setFormPrice(e.target.value)}
-                    required
+                    type="text"
+                    value={formSku}
+                    onChange={(e) => setFormSku(e.target.value)}
+                    placeholder="SKU-001"
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
@@ -460,6 +504,79 @@ export default function ProductsPage() {
                 </div>
               </div>
 
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    {t("products.field.price")}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formPrice}
+                    onChange={(e) => setFormPrice(e.target.value)}
+                    required
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    {t("products.field.salePrice")}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formSalePrice}
+                    onChange={(e) => setFormSalePrice(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    {t("products.field.compareAtPrice")}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formCompareAtPrice}
+                    onChange={(e) => setFormCompareAtPrice(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    {t("products.field.discountPercent")}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={formDiscountPercent}
+                    onChange={(e) => setFormDiscountPercent(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    {t("products.field.availability")}
+                  </label>
+                  <select
+                    value={formAvailability}
+                    onChange={(e) => setFormAvailability(e.target.value as ProductAvailability)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="IN_STOCK">{t("products.availability.inStock")}</option>
+                    <option value="OUT_OF_STOCK">{t("products.availability.outOfStock")}</option>
+                    <option value="COMING_SOON">{t("products.availability.comingSoon")}</option>
+                  </select>
+                </div>
+              </div>
+
               {storeId && (
                 <ImageUploadField
                   storeId={storeId}
@@ -467,6 +584,15 @@ export default function ProductsPage() {
                   label={t("products.field.image")}
                   value={formImageUrl}
                   onChange={setFormImageUrl}
+                />
+              )}
+
+              {storeId && (
+                <ProductGalleryField
+                  storeId={storeId}
+                  label={t("products.field.gallery")}
+                  value={formImageGallery}
+                  onChange={setFormImageGallery}
                 />
               )}
 
@@ -486,6 +612,93 @@ export default function ProductsPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  {t("products.field.tags")}
+                </label>
+                <input
+                  type="text"
+                  value={formTags}
+                  onChange={(e) => setFormTags(e.target.value)}
+                  placeholder={t("products.field.tagsPlaceholder")}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <label className="block text-sm font-medium text-slate-700">
+                    {t("products.field.specifications")}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormSpecifications((current) => [
+                        ...current,
+                        { label: "", value: "" },
+                      ])
+                    }
+                    className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-100"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {t("products.field.addSpecification")}
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {formSpecifications.length === 0 && (
+                    <p className="rounded-lg border border-dashed border-slate-300 px-3 py-3 text-xs text-slate-500">
+                      {t("products.field.specificationsEmpty")}
+                    </p>
+                  )}
+                  {formSpecifications.map((spec, index) => (
+                    <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                      <input
+                        type="text"
+                        value={spec.label}
+                        onChange={(e) =>
+                          setFormSpecifications((current) =>
+                            current.map((item, itemIndex) =>
+                              itemIndex === index
+                                ? { ...item, label: e.target.value }
+                                : item
+                            )
+                          )
+                        }
+                        placeholder={t("products.field.specLabel")}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <input
+                        type="text"
+                        value={spec.value}
+                        onChange={(e) =>
+                          setFormSpecifications((current) =>
+                            current.map((item, itemIndex) =>
+                              itemIndex === index
+                                ? { ...item, value: e.target.value }
+                                : item
+                            )
+                          )
+                        }
+                        placeholder={t("products.field.specValue")}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormSpecifications((current) =>
+                            current.filter((_, itemIndex) => itemIndex !== index)
+                          )
+                        }
+                        className="inline-flex items-center justify-center rounded-lg border border-red-200 px-3 text-red-600 hover:bg-red-50"
+                        aria-label={t("common.delete")}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <input

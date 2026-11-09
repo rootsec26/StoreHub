@@ -24,6 +24,7 @@ import {
   Warehouse,
   Bot,
   Barcode,
+  Receipt,
 } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
@@ -41,6 +42,7 @@ export const NAV_ITEMS = [
   { href: "/dashboard/barcodes", labelKey: "nav.barcodes", icon: Barcode, group: "commerce" },
   { href: "/dashboard/categories", labelKey: "nav.categories", icon: FolderOpen, group: "commerce" },
   { href: "/dashboard/orders", labelKey: "nav.orders", icon: ShoppingCart, group: "commerce" },
+  { href: "/dashboard/payment-proofs", labelKey: "nav.paymentProofs", icon: Receipt, group: "commerce" },
   {
     href: "/dashboard/pos",
     labelKey: "nav.pos",

@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Store, CheckCircle } from "lucide-react";
+import Image from "next/image";
+import { Loader2, Store, CheckCircle, ImagePlus, X } from "lucide-react";
 import { useI18n, type TranslationKey } from "@/lib/i18n";
+import { compressImageForUpload } from "@/lib/imageCompress";
+import { canOptimizeImage, isValidImageUrl } from "@/lib/images";
+import { uploadStoreAsset, validateImageFile } from "@/lib/storage";
+import { serializeManualPaymentConfig } from "@/lib/manual-payments";
 
 export default function OnboardingPage() {
   const { t } = useI18n();
@@ -21,6 +26,51 @@ export default function OnboardingPage() {
   const [success, setSuccess] = useState(false);
   const [slugValid, setSlugValid] = useState(true);
   const [slugChecking, setSlugChecking] = useState(false);
+  const [logoUrl, setLogoUrl] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [vodafoneCashNumber, setVodafoneCashNumber] = useState("");
+  const [instaPayNumber, setInstaPayNumber] = useState("");
+  const [otherPaymentMethods, setOtherPaymentMethods] = useState("");
+  const [paymentInstructions, setPaymentInstructions] = useState("");
+
+  function revokeLogoPreview(url: string | null) {
+    if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+  }
+
+  function handleLogoFile(file: File) {
+    setLogoError(null);
+    const invalid = validateImageFile(file);
+    if (invalid) {
+      setLogoError(
+        invalid === "too-large" ? t("upload.tooLarge") : t("upload.invalidType")
+      );
+      return;
+    }
+    revokeLogoPreview(logoPreview);
+    setLogoPreview(URL.createObjectURL(file));
+    setLogoFile(file);
+    setLogoUrl("");
+  }
+
+  function handleLogoUrlChange(value: string) {
+    setLogoUrl(value);
+    setLogoFile(null);
+    revokeLogoPreview(logoPreview);
+    setLogoPreview(null);
+    setLogoError(null);
+  }
+
+  function handleLogoRemove() {
+    setLogoUrl("");
+    setLogoFile(null);
+    revokeLogoPreview(logoPreview);
+    setLogoPreview(null);
+    setLogoError(null);
+    if (logoInputRef.current) logoInputRef.current.value = "";
+  }
 
   const generateSlug = (name: string) => {
     return name
@@ -108,6 +158,21 @@ export default function OnboardingPage() {
           category: effectiveCategory,
           phone: phone.trim(),
           address: address.trim(),
+          ...(logoUrl.trim() ? { logoUrl: logoUrl.trim() } : {}),
+          ...(vodafoneCashNumber.trim() ||
+          instaPayNumber.trim() ||
+          otherPaymentMethods.trim() ||
+          paymentInstructions.trim()
+            ? {
+                manualPaymentInstructions: serializeManualPaymentConfig({
+                  vodafoneCashNumber,
+                  instaPayNumber,
+                  otherMethods: otherPaymentMethods,
+                  instructions: paymentInstructions,
+                  cashOnDeliveryEnabled: true,
+                }),
+              }
+            : {}),
         }),
       });
 
@@ -116,6 +181,23 @@ export default function OnboardingPage() {
       if (!res.ok) {
         setError(data.error || t("onboarding.failed"));
         return;
+      }
+
+      // A picked file can't be uploaded before the store exists (assets are
+      // tenant-scoped), so upload it now and attach the public URL.
+      const storeId = data.store?.id;
+      if (logoFile && typeof storeId === "string" && storeId) {
+        try {
+          const prepared = await compressImageForUpload(logoFile);
+          const asset = await uploadStoreAsset(storeId, "logo", prepared);
+          await fetch(`/api/stores/${storeId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ logoUrl: asset.publicUrl }),
+          });
+        } catch (uploadError) {
+          console.error("[onboarding] logo upload failed:", uploadError);
+        }
       }
 
       setSuccess(true);
@@ -237,6 +319,85 @@ export default function OnboardingPage() {
 
           <div className="space-y-2">
             <label className="block text-sm font-medium text-slate-700">
+              {t("onboarding.storeLogo")}
+            </label>
+            <p className="text-xs text-slate-500">{t("onboarding.storeLogoHint")}</p>
+
+            <div className="flex items-start gap-3">
+              <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                {logoPreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={logoPreview}
+                    alt={t("onboarding.storeLogo")}
+                    className="h-full w-full object-cover"
+                  />
+                ) : isValidImageUrl(logoUrl) ? (
+                  <Image
+                    src={logoUrl}
+                    alt={t("onboarding.storeLogo")}
+                    width={80}
+                    height={80}
+                    unoptimized={!canOptimizeImage(logoUrl)}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center">
+                    <ImagePlus className="h-6 w-6 text-slate-400" />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-1 flex-col gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => logoInputRef.current?.click()}
+                    disabled={loading}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <ImagePlus className="h-3.5 w-3.5" />
+                    {t("upload.choose")}
+                  </button>
+                  {(logoFile || logoUrl) && (
+                    <button
+                      type="button"
+                      onClick={handleLogoRemove}
+                      disabled={loading}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      {t("upload.remove")}
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  value={logoUrl}
+                  onChange={(e) => handleLogoUrlChange(e.target.value)}
+                  placeholder={t("upload.pasteUrl")}
+                  disabled={loading}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-50"
+                />
+              </div>
+            </div>
+
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleLogoFile(file);
+              }}
+            />
+
+            {logoError && <p className="text-xs text-red-600">{logoError}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">
               {t("onboarding.category")}
             </label>
             <select
@@ -299,6 +460,68 @@ export default function OnboardingPage() {
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder={t("onboarding.addressPlaceholder")}
                 className="w-full rounded-lg border border-slate-300 py-2.5 px-4 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">
+              {t("onboarding.paymentMethods")}
+            </label>
+            <p className="text-xs text-slate-500">{t("onboarding.paymentMethodsHint")}</p>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">
+                  {t("payment.manual.vodafoneCash")}
+                </label>
+                <input
+                  type="tel"
+                  dir="ltr"
+                  value={vodafoneCashNumber}
+                  onChange={(e) => setVodafoneCashNumber(e.target.value)}
+                  placeholder="010xxxxxxxx"
+                  className="w-full rounded-lg border border-slate-300 py-2.5 px-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">
+                  {t("payment.manual.instaPay")}
+                </label>
+                <input
+                  type="tel"
+                  dir="ltr"
+                  value={instaPayNumber}
+                  onChange={(e) => setInstaPayNumber(e.target.value)}
+                  placeholder="010xxxxxxxx"
+                  className="w-full rounded-lg border border-slate-300 py-2.5 px-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-slate-600">
+                {t("onboarding.otherPaymentMethods")}
+              </label>
+              <input
+                type="text"
+                value={otherPaymentMethods}
+                onChange={(e) => setOtherPaymentMethods(e.target.value)}
+                placeholder={t("payment.manual.otherMethodsPlaceholder")}
+                className="w-full rounded-lg border border-slate-300 py-2.5 px-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-slate-600">
+                {t("payment.manual.instructions")}
+              </label>
+              <textarea
+                value={paymentInstructions}
+                onChange={(e) => setPaymentInstructions(e.target.value)}
+                placeholder={t("payment.manual.instructionsPlaceholder")}
+                rows={2}
+                className="w-full rounded-lg border border-slate-300 py-2.5 px-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
             </div>
           </div>

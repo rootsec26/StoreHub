@@ -119,6 +119,48 @@ export default function SettingsPage() {
     }
   }, [toast]);
 
+  async function handleSave() {
+    if (!store) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/stores/${store.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim(),
+          category,
+          phone: phone.trim(),
+          address: address.trim(),
+          logoUrl: logoUrl.trim(),
+          coverUrl: coverUrl.trim(),
+          accentColor,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || t("settings.toast.failed"));
+      }
+      if (data.store) {
+        setStore({ id: data.store.id, ...data.store } as StoreData);
+        setName(data.store.name || "");
+        setDescription(data.store.description || "");
+        setCategory(data.store.category || "");
+        setPhone(data.store.phone || "");
+        setAddress(data.store.address || "");
+        setLogoUrl(data.store.logoUrl || "");
+        setCoverUrl(data.store.coverUrl || "");
+        setAccentColor(data.store.accentColor || "");
+      }
+      setToast(t("settings.toast.saved"));
+    } catch (error) {
+      console.error("[settings] save failed:", error);
+      setToast(t("settings.toast.failed"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -129,6 +171,11 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8">
+      {toast && (
+        <div className="fixed end-4 top-4 z-50 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white shadow-lg">
+          {toast}
+        </div>
+      )}
       <div className="rounded-xl bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <div className="rounded-lg bg-indigo-50 p-2">
@@ -306,7 +353,8 @@ export default function SettingsPage() {
 
           <button
             type="button"
-            disabled={saving}
+            onClick={handleSave}
+            disabled={saving || !store}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {saving ? (

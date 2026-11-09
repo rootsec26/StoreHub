@@ -115,6 +115,101 @@
   }
 }
 
+/* Storefront motion system — lightweight CSS so product grids stay fast. */
+@keyframes storefront-fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes storefront-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  70% {
+    transform: scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@utility animate-storefront-fade-up {
+  animation: storefront-fade-up 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility animate-storefront-pop {
+  animation: storefront-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.storefront-card-hover {
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s ease,
+    border-color 0.35s ease;
+  will-change: transform;
+}
+
+.storefront-card-hover:hover {
+  transform: translate3d(0, -8px, 0);
+  border-color: color-mix(in srgb, var(--store-accent, #4f46e5) 32%, white);
+  box-shadow:
+    0 24px 60px -28px color-mix(in srgb, var(--store-accent, #4f46e5) 38%, transparent),
+    0 12px 28px -18px rgb(15 23 42 / 0.22);
+}
+
+.storefront-card-image {
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.storefront-card-hover:hover .storefront-card-image {
+  transform: scale(1.07);
+}
+
+.storefront-quick-add {
+  opacity: 0;
+  transform: translate3d(0, 10px, 0);
+  transition:
+    opacity 0.25s ease,
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.storefront-card-hover:hover .storefront-quick-add,
+.storefront-card-hover:focus-within .storefront-quick-add {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+@media (hover: none) {
+  .storefront-quick-add {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-storefront-fade-up,
+  .animate-storefront-pop {
+    animation: none;
+  }
+
+  .storefront-card-hover,
+  .storefront-card-hover:hover,
+  .storefront-card-image,
+  .storefront-card-hover:hover .storefront-card-image,
+  .storefront-quick-add {
+    transition: none;
+    transform: none;
+  }
+}
+
 @media print {
   @page {
     size: A4;

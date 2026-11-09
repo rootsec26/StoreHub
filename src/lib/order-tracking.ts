@@ -31,6 +31,10 @@ export interface TrackedOrder {
   status: string;
   createdAt: string;
   items: TrackOrderItem[];
+  paymentMethod?: string | null;
+  paymentStatus?: string | null;
+  paymentProofStatus?: string | null;
+  paymentProofSubmittedAt?: string | null;
 }
 
 export interface StorefrontStore {
@@ -83,6 +87,33 @@ export const PHONE_PATTERN = /^\+?[\d\s()-]{6,20}$/;
 
 export function isValidOrderId(value: string): boolean {
   return ORDER_ID_PATTERN.test(value.trim());
+}
+
+/**
+ * Customer-facing tracking code derived from the order UUID, e.g.
+ * `ORD-8F92A1B3`. Short, memorable and safe to read over the phone.
+ */
+export function orderTrackingCode(orderId: string): string {
+  const hex = orderId.replace(/-/g, "").slice(0, 8).toUpperCase();
+  return `ORD-${hex}`;
+}
+
+/** Accepts `ORD-XXXXXXXX`, `ord-xxxxxxxx`, or a bare hex prefix. */
+export function isValidTrackingCode(value: string): boolean {
+  const trimmed = value.trim();
+  return /^(?:ord-)?[0-9a-f]{4,32}$/i.test(trimmed);
+}
+
+/**
+ * Normalizes a customer-entered lookup value into a hex prefix that can be
+ * matched against `replace(orders.id::text, '-', '')`. Returns "" when the
+ * value is not a plausible order id / tracking code.
+ */
+export function trackingCodePrefix(value: string): string {
+  const trimmed = value.trim().replace(/^ord-/i, "");
+  if (!/^[0-9a-f-]{4,36}$/i.test(trimmed)) return "";
+  const hex = trimmed.replace(/-/g, "");
+  return /^[0-9a-f]+$/i.test(hex) ? hex.toLowerCase() : "";
 }
 
 export function isValidPhoneNumber(value: string): boolean {

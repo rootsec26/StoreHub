@@ -14,11 +14,13 @@ import EmptyState from "@/components/ui/EmptyState";
 import { Input, Select } from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
 import Skeleton from "@/components/ui/Skeleton";
+import Tabs from "@/components/ui/Tabs";
 import type {
   AdminCampaignDTO,
   AdminUsersResponse,
   RecipientDTO,
 } from "@/lib/messaging/types";
+import RecipientsManager from "./RecipientsManager";
 
 interface MessageListResponse {
   campaigns: AdminCampaignDTO[];
@@ -62,7 +64,7 @@ function formatDate(value: string | null): string {
   });
 }
 
-export default function MessagesManager() {
+function CampaignsManager() {
   const [campaigns, setCampaigns] = useState<AdminCampaignDTO[]>([]);
   const [total, setTotal] = useState(0);
   const [pageSize, setPageSize] = useState(25);
@@ -477,6 +479,24 @@ function MessageDetail({
         <p className="text-sm text-slate-500">Campaign not found.</p>
       )}
     </Modal>
+  );
+}
+
+export default function MessagesManager() {
+  const [view, setView] = useState<"campaigns" | "recipients">("campaigns");
+
+  return (
+    <div className="space-y-6">
+      <Tabs
+        items={[
+          { id: "campaigns", label: "Campaigns" },
+          { id: "recipients", label: "Message log" },
+        ]}
+        value={view}
+        onChange={(value) => setView(value as "campaigns" | "recipients")}
+      />
+      {view === "campaigns" ? <CampaignsManager /> : <RecipientsManager />}
+    </div>
   );
 }
 

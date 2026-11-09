@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { desc } from "drizzle-orm";
 import {
+  Activity,
   ArrowRight,
   BellRing,
   Megaphone,
   MessageSquareCode,
+  ShoppingBag,
   Store,
   Ticket,
   UserPlus,
@@ -15,6 +17,7 @@ import { db } from "@/db";
 import { activationCodes } from "@/db/schema";
 import { isAdminAuthorized } from "@/lib/admin";
 import { getAdminOverview } from "@/lib/messaging/service";
+import AdminAnalyticsDashboard from "./AnalyticsDashboard";
 
 export const runtime = "nodejs";
 
@@ -105,6 +108,12 @@ export default async function AdminOverviewPage() {
       icon: Users,
     },
     {
+      href: "/admin/customers",
+      title: "Store customers",
+      description: "Buyers, contact details and purchase history.",
+      icon: ShoppingBag,
+    },
+    {
       href: "/admin/broadcasts",
       title: "Broadcasts",
       description: "Send in-app announcements to store owners.",
@@ -113,8 +122,14 @@ export default async function AdminOverviewPage() {
     {
       href: "/admin/messages",
       title: "Merchant messages",
-      description: "Read-only WhatsApp campaign logs with masked phones.",
+      description: "Campaigns and delivery logs with masked contacts.",
       icon: MessageSquareCode,
+    },
+    {
+      href: "/admin/activity",
+      title: "Activity log",
+      description: "Audit feed for stores, users, products, orders and messages.",
+      icon: Activity,
     },
     {
       href: "/admin/codes",
@@ -189,6 +204,8 @@ export default async function AdminOverviewPage() {
           </p>
         </div>
       </section>
+
+      <AdminAnalyticsDashboard />
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {sections.map((section) => (

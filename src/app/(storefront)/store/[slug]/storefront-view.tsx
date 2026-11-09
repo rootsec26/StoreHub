@@ -14,6 +14,10 @@ import {
   Search,
   X,
   Languages,
+  Phone,
+  MapPin,
+  Zap,
+  PackageSearch,
 } from "lucide-react";
 
 import { useCartStore, type CartItem } from "@/lib/cart";
@@ -33,6 +37,13 @@ import {
   type PromotionRecord,
 } from "@/lib/promotions";
 import { type ThemeConfig } from "@/lib/theme-config";
+import {
+  comparePriceFor,
+  effectiveProductPrice,
+  productDiscountPercent,
+  type ProductAvailability,
+  type ProductSpecification,
+} from "@/lib/product-details";
 import { Heart, HeartOff, History, Eye, Loader2, Bell } from "lucide-react";
 
 export interface StoreData {
@@ -62,6 +73,14 @@ export interface ProductData {
   imageUrl: string;
   categoryId: string | null;
   isVisible: boolean;
+  sku?: string;
+  compareAtPrice?: string | null;
+  salePrice?: string | null;
+  discountPercent?: number | null;
+  availability?: ProductAvailability;
+  imageGallery?: string[];
+  specifications?: ProductSpecification[];
+  tags?: string[];
 }
 
 export interface CategoryData {
@@ -244,13 +263,25 @@ export default function StorefrontView({
     return matchesCategory && matchesSearch;
   });
 
-  /** Current flash-sale pricing for a product (`now === null` before mount). */
+  /** Current pricing for a product: merchant sale price first, then flash promotions. */
   function salePriceOf(product: ProductData) {
     const promotion =
       now === null ? null : bestPromotionFor(product, promotions, now);
-    const base = parseFloat(product.price);
+    const base = effectiveProductPrice(product);
     const price = discountedPrice(base, promotion);
-    return { promotion, base, price, onSale: promotion !== null && price < base };
+    const compare = comparePriceFor(product);
+    const productDiscount = productDiscountPercent(product);
+    const onSale =
+      (promotion !== null && price < base) ||
+      (compare !== null && base < compare);
+    return {
+      promotion,
+      base,
+      price,
+      compare,
+      productDiscount,
+      onSale,
+    };
   }
 
   function addToCart(product: ProductData) {
@@ -278,6 +309,16 @@ export default function StorefrontView({
     wishlist.items.includes(p.id)
   );
 
+  const categoryCounts = categories.reduce<Record<string, number>>(
+    (counts, category) => {
+      counts[category.id] = products.filter(
+        (product) => product.categoryId === category.id
+      ).length;
+      return counts;
+    },
+    {}
+  );
+
   return (
     <div style={accentThemeStyle(accent)}>
       {/* Flash sale countdown banner (sticky) */}
@@ -285,7 +326,7 @@ export default function StorefrontView({
 
       {/* Store Header */}
       <header
-        className="relative overflow-hidden"
+        className="relative overflow-hidden border-b border-white/10"
         style={{ backgroundImage: accentGradient(accent) }}
       >
         {isValidImageUrl(store.coverUrl) && (
@@ -295,48 +336,100 @@ export default function StorefrontView({
             fill
             sizes="100vw"
             unoptimized={!canOptimizeImage(store.coverUrl)}
-            className="absolute inset-0 h-full w-full object-cover opacity-30"
+            className="absolute inset-0 h-full w-full object-cover opacity-25"
           />
         )}
-        <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6">
-          <div className="flex items-start gap-4">
-            {isValidImageUrl(store.logoUrl) ? (
-              <Image
-                src={store.logoUrl!}
-                alt={store.name}
-                width={64}
-                height={64}
-                unoptimized={!canOptimizeImage(store.logoUrl)}
-                className="h-16 w-16 rounded-xl border-2 border-white/30 object-cover"
-              />
-            ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-white/20">
-                <Store className="h-8 w-8 text-white" />
+        <div className="pointer-events-none absolute -top-24 -start-24 h-72 w-72 rounded-full bg-white/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-28 end-0 h-80 w-80 rounded-full bg-black/10 blur-3xl" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.22),transparent_38%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.14),transparent_32%)]" />
+
+        <div className="relative mx-auto max-w-7xl px-4 pb-8 pt-10 sm:px-6 sm:pb-10 sm:pt-14">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+            <div
+              className="animate-storefront-pop shrink-0 self-center sm:self-auto"
+              style={{ animationDelay: "60ms" }}
+            >
+              {isValidImageUrl(store.logoUrl) ? (
+                <Image
+                  src={store.logoUrl!}
+                  alt={store.name}
+                  width={96}
+                  height={96}
+                  unoptimized={!canOptimizeImage(store.logoUrl)}
+                  className="h-20 w-20 rounded-3xl border-4 border-white/30 object-cover shadow-2xl ring-1 ring-white/20 sm:h-24 sm:w-24"
+                />
+              ) : (
+                <div className="flex h-20 w-20 items-center justify-center rounded-3xl border-4 border-white/30 bg-white/15 shadow-2xl ring-1 ring-white/20 backdrop-blur sm:h-24 sm:w-24">
+                  <Store className="h-10 w-10 text-white" />
+                </div>
+              )}
+            </div>
+
+            <div className="min-w-0 flex-1 text-center sm:text-start">
+              <div className="mb-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                {store.category && (
+                  <span className="inline-flex animate-storefront-fade-up items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/25 backdrop-blur">
+                    <Tag className="h-3.5 w-3.5" />
+                    {categoryLabel}
+                  </span>
+                )}
+                {store.address && (
+                  <span className="inline-flex animate-storefront-fade-up items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/25 backdrop-blur" style={{ animationDelay: "90ms" }}>
+                    <MapPin className="h-3.5 w-3.5" />
+                    {store.address}
+                  </span>
+                )}
+                {store.phone && (
+                  <a
+                    href={`tel:${store.phone}`}
+                    className="inline-flex animate-storefront-fade-up items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/25 backdrop-blur transition hover:bg-white/25"
+                    style={{ animationDelay: "120ms" }}
+                    dir="ltr"
+                  >
+                    <Phone className="h-3.5 w-3.5" />
+                    {store.phone}
+                  </a>
+                )}
               </div>
-            )}
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold text-white sm:text-3xl">
+
+              <h1
+                className="animate-storefront-fade-up text-3xl font-extrabold tracking-tight text-white drop-shadow-sm sm:text-4xl"
+                style={{ animationDelay: "150ms" }}
+              >
                 {store.name}
               </h1>
               {store.description && (
-                <p className="mt-1 text-sm text-white/80 sm:text-base">
+                <p
+                  className="animate-storefront-fade-up mx-auto mt-2 max-w-2xl text-sm leading-6 text-white/85 sm:mx-0 sm:text-base"
+                  style={{ animationDelay: "210ms" }}
+                >
                   {store.description}
                 </p>
               )}
-              {store.category && (
-                <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white">
-                  <Tag className="h-3 w-3" />
-                  {categoryLabel}
+
+              <div
+                className="animate-storefront-fade-up mt-5 flex flex-wrap items-center justify-center gap-2 sm:justify-start"
+                style={{ animationDelay: "270ms" }}
+              >
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-black/15 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
+                  <Package className="h-3.5 w-3.5" />
+                  {products.length} products
                 </span>
-              )}
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-black/15 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
+                  <Tag className="h-3.5 w-3.5" />
+                  {categories.length} categories
+                </span>
+                <Link
+                  href={`/store/${slug}/track-order`}
+                  className="inline-flex animate-storefront-fade-up items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-xs font-semibold text-white ring-1 ring-white/30 backdrop-blur transition hover:bg-white/30"
+                  style={{ animationDelay: "300ms" }}
+                >
+                  <PackageSearch className="h-3.5 w-3.5" />
+                  {t("store.trackOrder")}
+                </Link>
+              </div>
             </div>
           </div>
-          {store.phone && (
-            <p className="mt-3 text-sm text-white/80" dir="ltr">
-              📞 {store.phone}
-              {store.address && ` · 📍 ${store.address}`}
-            </p>
-          )}
         </div>
       </header>
 
@@ -353,8 +446,18 @@ export default function StorefrontView({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("store.searchPlaceholder")}
-              className="w-full rounded-lg border border-slate-300 py-2 ps-10 pe-4 text-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
+              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 ps-10 pe-10 text-sm shadow-sm transition focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute end-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                aria-label={t("common.close")}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
 
           <CurrencySelector
@@ -430,25 +533,32 @@ export default function StorefrontView({
           <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 pb-3 sm:px-6">
             <button
               onClick={() => setSelectedCategory("all")}
-              className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold shadow-sm transition-all duration-300 ${
                 selectedCategory === "all"
-                  ? "bg-[var(--color-primary)] text-white"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  ? "scale-105 bg-[var(--color-primary)] text-white shadow-md"
+                  : "bg-white text-slate-600 ring-1 ring-slate-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:text-slate-900"
               }`}
             >
               {t("store.all")}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${selectedCategory === "all" ? "bg-white/20" : "bg-slate-100"}`}>
+                {products.length}
+              </span>
             </button>
             {categories.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold shadow-sm transition-all duration-300 ${
                   selectedCategory === cat.id
-                    ? "bg-[var(--color-primary)] text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    ? "scale-105 bg-[var(--color-primary)] text-white shadow-md"
+                    : "bg-white text-slate-600 ring-1 ring-slate-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
+                <Tag className="h-3.5 w-3.5 opacity-70" />
                 {cat.name}
+                <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${selectedCategory === cat.id ? "bg-white/20" : "bg-slate-100"}`}>
+                  {categoryCounts[cat.id] ?? 0}
+                </span>
               </button>
             ))}
           </div>
@@ -456,31 +566,53 @@ export default function StorefrontView({
       </div>
 
       {/* Products Grid */}
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
         {filteredProducts.length === 0 ? (
-          <div className="py-20 text-center">
+          <div className="animate-storefront-fade-up py-20 text-center">
             <Package className="mx-auto mb-4 h-16 w-16 text-slate-300" />
             <p className="text-lg font-medium text-slate-600">
               {t("store.noProducts")}
             </p>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filteredProducts.map((product) => {
+          <>
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-slate-500">
+                {filteredProducts.length} products
+              </p>
+              {(search || selectedCategory !== "all") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setSelectedCategory("all");
+                  }}
+                  className="text-sm font-semibold text-[var(--color-primary)] transition hover:opacity-80"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+            {filteredProducts.map((product, productIndex) => {
               const inCart = isHydrated
                 ? cart.items.find((i) => i.productId === product.id)
                 : undefined;
               const isInWishlist = wishlist.isInWishlist(product.id);
               const href = productPath(slug, product.id);
-              const { promotion, base, price, onSale } = salePriceOf(product);
+              const { promotion, base, price, compare, productDiscount, onSale } =
+                salePriceOf(product);
+              const availability = product.availability ?? "IN_STOCK";
+              const purchasable = availability === "IN_STOCK" && product.stock > 0;
               return (
-                <div
+                <article
                   key={product.id}
-                  className="overflow-hidden rounded-xl bg-white shadow-sm transition-shadow hover:shadow-md"
+                  className="storefront-card-hover animate-storefront-fade-up group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm"
+                  style={{ animationDelay: `${Math.min(productIndex * 45, 360)}ms` }}
                 >
                   <Link
                     href={href}
-                    className="relative block h-48 bg-slate-100"
+                    className="relative block h-44 overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 sm:h-48"
                     aria-label={product.name}
                     onClick={() => handleProductClick(product)}
                   >
@@ -489,63 +621,75 @@ export default function StorefrontView({
                         src={product.imageUrl!}
                         alt={product.name}
                         fill
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1536px) 25vw, 20vw"
                         unoptimized={!canOptimizeImage(product.imageUrl)}
-                        className="h-full w-full object-cover"
+                        className="storefront-card-image h-full w-full object-cover"
                       />
                     ) : (
                       <span className="flex h-full w-full items-center justify-center">
-                        <Package className="h-12 w-12 text-slate-300" />
+                        <Package className="h-10 w-10 text-slate-300 transition-transform duration-500 group-hover:scale-110" />
                       </span>
                     )}
-                    {onSale && promotion && (
-                      <span className="absolute start-2 top-2 z-10 rounded-full bg-rose-600 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
-                        {t("store.flash.off", {
-                          percent: promotion.discountPercentage,
-                        })}
-                      </span>
-                    )}
-                    {product.stock <= 0 && (
-                      <span className="absolute inset-0 flex items-center justify-center bg-black/50">
-                        <span className="rounded-lg bg-white px-3 py-1 text-sm font-medium text-red-600">
-                          {t("store.outOfStock")}
+
+                    <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2.5">
+                      <div className="flex flex-col items-start gap-1.5">
+                        {onSale && (promotion?.discountPercentage ?? productDiscount) !== null && (
+                          <span className="inline-flex animate-storefront-pop items-center gap-1 rounded-full bg-rose-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg shadow-rose-600/30">
+                            <Zap className="h-3 w-3" />
+                            {t("store.flash.off", {
+                              percent: promotion?.discountPercentage ?? productDiscount ?? 0,
+                            })}
+                          </span>
+                        )}
+                        {product.stock > 0 && product.stock <= 5 && (
+                          <span className="rounded-full bg-amber-500/95 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm backdrop-blur">
+                            {t("store.left", { count: product.stock })}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          wishlist.toggle(product.id);
+                        }}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow-md backdrop-blur transition-all duration-300 hover:scale-110 hover:bg-white"
+                        aria-label={isInWishlist ? t("store.removeFromWishlist") : t("store.addToWishlist")}
+                        aria-pressed={isInWishlist}
+                      >
+                        {isInWishlist ? (
+                          <Heart className="h-4 w-4 text-rose-500 fill-current" />
+                        ) : (
+                          <HeartOff className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+
+                    {!purchasable && (
+                      <span className="absolute inset-0 flex items-center justify-center bg-slate-950/55 backdrop-blur-[2px]">
+                        <span className="animate-storefront-pop rounded-xl bg-white px-4 py-2 text-sm font-bold text-rose-600 shadow-xl">
+                          {availability === "COMING_SOON"
+                            ? t("product.comingSoon")
+                            : t("store.outOfStock")}
                         </span>
                       </span>
                     )}
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        wishlist.toggle(product.id);
-                      }}
-                      className="absolute top-2 end-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 backdrop-blur-sm transition-colors hover:bg-white hover:scale-105"
-                      aria-label={isInWishlist ? t("store.removeFromWishlist") : t("store.addToWishlist")}
-                      aria-pressed={isInWishlist}
-                    >
-                      {isInWishlist ? (
-                        <Heart className="h-4 w-4 text-red-500 fill-current" />
-                      ) : (
-                        <HeartOff className="h-4 w-4 text-slate-600" />
-                      )}
-                    </button>
+
                   </Link>
-                  <div className="p-4">
-                    <h3 className="font-medium text-slate-900">
-                      <Link
-                        href={href}
-                        className="hover:text-[var(--color-primary)]"
-                      >
-                        {product.name}
-                      </Link>
+
+                  <div className="flex flex-1 flex-col p-3 sm:p-4">
+                    <h3 className="line-clamp-1 font-bold text-slate-900 transition-colors group-hover:text-[var(--color-primary)]">
+                      <Link href={href}>{product.name}</Link>
                     </h3>
                     {product.description && (
-                      <p className="mt-1 text-sm text-slate-500 line-clamp-2">
+                      <p className="mt-1 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
                         {product.description}
                       </p>
                     )}
-                    <div className="mt-3 flex items-center justify-between gap-2">
-                      <span className="flex flex-wrap items-baseline gap-1.5">
-                        <span className="text-lg font-bold text-[var(--color-primary)]">
+
+                    <div className="mt-3 flex items-end justify-between gap-3">
+                      <div className="flex flex-wrap items-baseline gap-1.5">
+                        <span className="text-lg font-extrabold text-[var(--color-primary)]">
                           {convertAndFormatPrice(
                             onSale ? price : base,
                             store.currency,
@@ -553,28 +697,30 @@ export default function StorefrontView({
                             priceLocale
                           )}
                         </span>
-                        {onSale && (
-                          <span className="text-xs font-medium text-slate-400 line-through">
+                        {onSale && compare !== null && (
+                          <span className="text-xs font-semibold text-slate-400 line-through">
                             {convertAndFormatPrice(
-                              base,
+                              compare,
                               store.currency,
                               selectedCurrency,
                               priceLocale
                             )}
                           </span>
                         )}
-                      </span>
-                      {product.stock > 0 && (
-                        <span className="shrink-0 text-xs text-slate-500">
+                      </div>
+                      {product.stock > 5 && (
+                        <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-600">
                           {t("store.left", { count: product.stock })}
                         </span>
                       )}
                     </div>
-                    {product.stock > 0 && (
-                      <div className="mt-3">
+
+                    {purchasable && (
+                      <div className="mt-3 space-y-2">
                         {inCart ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center justify-between rounded-xl bg-slate-100 p-1.5">
                             <button
+                              type="button"
                               onClick={() => {
                                 if (inCart.quantity <= 1) {
                                   cart.removeItem(product.id);
@@ -585,43 +731,78 @@ export default function StorefrontView({
                                   );
                                 }
                               }}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
+                              className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm transition hover:bg-slate-50"
                               aria-label="−"
                             >
-                              <Minus className="h-3 w-3" />
+                              <Minus className="h-4 w-4" />
                             </button>
-                            <span className="w-8 text-center text-sm font-medium">
+                            <span className="min-w-8 text-center text-sm font-bold text-slate-900">
                               {inCart.quantity}
                             </span>
                             <button
+                              type="button"
                               onClick={() =>
                                 cart.updateQuantity(
                                   product.id,
                                   inCart.quantity + 1
                                 )
                               }
-                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
+                              className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm transition hover:bg-slate-50"
                               aria-label="+"
                             >
-                              <Plus className="h-3 w-3" />
+                              <Plus className="h-4 w-4" />
                             </button>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => addToCart(product)}
-                            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] py-2 text-sm font-medium text-white hover:opacity-90"
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => addToCart(product)}
+                              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white shadow-lg transition-all duration-300 hover:scale-[1.02] hover:brightness-110 active:scale-95"
+                              style={{ backgroundImage: accentGradient(accent) }}
+                            >
+                              <ShoppingCart className="h-3.5 w-3.5" />
+                              {t("store.addToCart")}
+                            </button>
+                            <Link
+                              href={href}
+                              onClick={() => handleProductClick(product)}
+                              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              {t("product.viewDetails")}
+                            </Link>
+                          </div>
+                        )}
+                        {inCart && (
+                          <Link
+                            href={href}
+                            onClick={() => handleProductClick(product)}
+                            className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
                           >
-                            <Plus className="h-4 w-4" />
-                            {t("store.addToCart")}
-                          </button>
+                            <Eye className="h-3.5 w-3.5" />
+                            {t("product.viewDetails")}
+                          </Link>
                         )}
                       </div>
                     )}
+
+                    {!purchasable && (
+                      <Link
+                        href={href}
+                        onClick={() => handleProductClick(product)}
+                        className="mt-3 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        {t("product.viewDetails")}
+                      </Link>
+                    )}
                   </div>
-                </div>
+                </article>
               );
             })}
-          </div>
+            </div>
+          </>
         )}
       </main>
 

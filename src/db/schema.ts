@@ -143,6 +143,19 @@ export const categories = pgTable(
 // ============================================
 // PRODUCTS
 // ============================================
+export interface ProductSpecification {
+  label: string;
+  value: string;
+}
+
+export const PRODUCT_AVAILABILITIES = [
+  "IN_STOCK",
+  "OUT_OF_STOCK",
+  "COMING_SOON",
+] as const;
+
+export type ProductAvailability = (typeof PRODUCT_AVAILABILITIES)[number];
+
 export const products = pgTable(
   "products",
   {
@@ -158,10 +171,30 @@ export const products = pgTable(
     price: numeric("price", { precision: 10, scale: 2 }).notNull().default("0"),
     stock: integer("stock").notNull().default(0),
     imageUrl: text("image_url").default(""),
+    sku: text("sku").notNull().default(""),
+    compareAtPrice: numeric("compare_at_price", { precision: 10, scale: 2 }),
+    salePrice: numeric("sale_price", { precision: 10, scale: 2 }),
+    discountPercent: integer("discount_percent"),
+    availability: text("availability")
+      .notNull()
+      .default("IN_STOCK")
+      .$type<ProductAvailability>(),
+    imageGallery: jsonb("image_gallery")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    specifications: jsonb("specifications")
+      .$type<ProductSpecification[]>()
+      .notNull()
+      .default([]),
+    tags: jsonb("tags").$type<string[]>().notNull().default([]),
     isVisible: boolean("is_visible").default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("products_store_id_idx").on(table.storeId)]
+  (table) => [
+    index("products_store_id_idx").on(table.storeId),
+    index("products_store_sku_idx").on(table.storeId, table.sku),
+  ]
 );
 
 // ============================================
@@ -253,6 +286,16 @@ export const orders = pgTable(
     channel: text("channel").notNull().default("online"),
     paymentStatus: text("payment_status").notNull().default("unpaid"),
     paymentMethod: text("payment_method"),
+    // Manual e-transfer proof (Vodafone Cash / InstaPay screenshot review).
+    // `paymentProofUrl` stores either a compressed data URL or a public asset
+    // URL; `paymentProofStatus` is NONE | PENDING | APPROVED | REJECTED.
+    paymentProofUrl: text("payment_proof_url").default(""),
+    paymentProofStatus: text("payment_proof_status").notNull().default("NONE"),
+    paymentProofSubmittedAt: timestamp("payment_proof_submitted_at", {
+      withTimezone: true,
+    }),
+    // Which wallet/channel the buyer says they paid through (free text).
+    paymentMethodDetail: text("payment_method_detail").default(""),
     // Smart COD Verification & Anti-Return Fraud Shield Engine.
     // Non-COD orders stay at the column default `NOT_REQUIRED`; COD orders are
     // inserted explicitly as `PENDING_VERIFICATION` (see 0015_cod_verification.sql).
@@ -1200,5 +1243,49 @@ export const storeInvitations = pgTable(
   (table) => [
     index("store_invitations_store_idx").on(table.storeId, table.status),
     index("store_invitations_email_idx").on(table.email),
+  ]
+);
+
+// ============================================
+// ANALYTICS EVENTS (platform traffic & conversions)
+// ============================================
+// Lightweight first-party analytics. `visitor_id` is a random browser-generated
+// UUID stored in localStorage — never an IP address or other PII. PAGE_VIEW rows
+// come from /api/analytics/track; SIGNUP / ORDER_CREATED are written by the
+// auth and checkout APIs so conversion rate can be measured per visitor.
+export const ANALYTICS_EVENT_TYPES = [
+  "PAGE_VIEW",
+  "SIGNUP",
+  "ORDER_CREATED",
+] as const;
+export type AnalyticsEventType = (typeof ANALYTICS_EVENT_TYPES)[number];
+
+export const analyticsEvents = pgTable(
+  "analytics_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventType: text("event_type").notNull(),
+    visitorId: text("visitor_id").notNull(),
+    userId: uuid("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    storeId: uuid("store_id").references(() => stores.id, {
+      onDelete: "set null",
+    }),
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "cascade",
+    }),
+    path: text("path").notNull().default(""),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("analytics_events_type_created_idx").on(table.eventType, table.createdAt),
+    index("analytics_events_created_at_idx").on(table.createdAt),
+    index("analytics_events_visitor_created_idx").on(table.visitorId, table.createdAt),
+    index("analytics_events_store_created_idx").on(table.storeId, table.createdAt),
+    index("analytics_events_order_id_idx").on(table.orderId),
   ]
 );

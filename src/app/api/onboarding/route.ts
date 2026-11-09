@@ -5,6 +5,7 @@ import { stores } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createSession } from "@/lib/auth";
 import { extractDbErrorInfo, createErrorResponse } from "@/lib/errors";
+import { isValidImageUrl } from "@/lib/images";
 
 // Preset slugs plus free-text custom categories (from the "Other" option)
 // are both accepted; only the length is enforced server-side.
@@ -48,6 +49,14 @@ export async function POST(request: NextRequest) {
   const phone = typeof payload.phone === "string" ? payload.phone.trim() : "";
   const address =
     typeof payload.address === "string" ? payload.address.trim() : "";
+  const logoUrlProvided = typeof payload.logoUrl === "string";
+  const logoUrl =
+    typeof payload.logoUrl === "string" ? payload.logoUrl.trim() : "";
+  const manualPaymentProvided =
+    typeof payload.manualPaymentInstructions === "string";
+  const manualPaymentInstructions = manualPaymentProvided
+    ? (payload.manualPaymentInstructions as string).trim().slice(0, 4000)
+    : "";
 
   if (!name || !slug) {
     return NextResponse.json(
@@ -84,15 +93,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (logoUrl.length > 2000) {
+    return NextResponse.json(
+      { error: "Logo URL is too long", code: "INVALID_LOGO_URL" },
+      { status: 400 }
+    );
+  }
+
+  if (logoUrl && !isValidImageUrl(logoUrl)) {
+    return NextResponse.json(
+      { error: "Logo must be a valid http(s) image URL", code: "INVALID_LOGO_URL" },
+      { status: 400 }
+    );
+  }
+
   try {
     // Check if slug is already taken
     const existingSlug = await db
-      .select({ id: stores.id })
+      .select({ id: stores.id, ownerId: stores.ownerId })
       .from(stores)
       .where(eq(stores.slug, slug))
       .limit(1);
 
-    if (existingSlug.length > 0) {
+    if (existingSlug.length > 0 && existingSlug[0].ownerId !== session.id) {
       return NextResponse.json(
         { error: "This store slug is already taken", code: "DUPLICATE_SLUG" },
         { status: 409 }
@@ -119,6 +142,8 @@ export async function POST(request: NextRequest) {
           category,
           phone,
           address,
+          ...(logoUrlProvided ? { logoUrl } : {}),
+          ...(manualPaymentProvided ? { manualPaymentInstructions } : {}),
         })
         .where(eq(stores.id, existingStore[0].id))
         .returning();
@@ -135,6 +160,8 @@ export async function POST(request: NextRequest) {
           category,
           phone,
           address,
+          logoUrl,
+          manualPaymentInstructions,
         })
         .returning();
       store = result[0];
@@ -151,7 +178,11 @@ export async function POST(request: NextRequest) {
     });
 
     const response = NextResponse.json(
-      { success: true, redirectUrl: "/dashboard" },
+      {
+        success: true,
+        store: { id: store.id, slug: store.slug },
+        redirectUrl: "/dashboard",
+      },
       { status: 200 }
     );
 

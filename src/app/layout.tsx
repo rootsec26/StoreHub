@@ -3,6 +3,7 @@ import Script from "next/script";
 import type { ReactNode } from "react";
 import { Cairo } from "next/font/google";
 import { I18nProvider } from "@/lib/i18n";
+import AnalyticsTracker from "@/components/AnalyticsTracker";
 import { getInitialLocale } from "@/components/locale-initializer";
 import { SITE_DESCRIPTION, SITE_NAME, absoluteUrl, getSiteUrl } from "@/lib/site";
 import { safeUrl } from "@/lib/url";
@@ -70,6 +71,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: directionScript }}
         />
+        <AnalyticsTracker />
         <I18nProvider initialLocale={initialLocale}>{children}</I18nProvider>
       </body>
     </html>

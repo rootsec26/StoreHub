@@ -16,6 +16,11 @@ import {
   type SupabaseClient,
 } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  toAvailability,
+  toSpecifications,
+  toStringArray,
+} from "@/lib/product-details";
 import type { ProductData } from "@/app/(storefront)/store/[slug]/storefront-view";
 
 interface ProductRowRaw {
@@ -28,6 +33,14 @@ interface ProductRowRaw {
   image_url?: string | null;
   category_id?: string | null;
   is_visible?: boolean | null;
+  sku?: string | null;
+  compare_at_price?: string | number | null;
+  sale_price?: string | number | null;
+  discount_percent?: number | null;
+  availability?: string | null;
+  image_gallery?: string[] | null;
+  specifications?: { label?: string; value?: string }[] | null;
+  tags?: string[] | null;
   created_at?: string | null;
 }
 
@@ -55,6 +68,14 @@ function toProductData(row: ProductRowRaw): ProductData | null {
     imageUrl: row.image_url ?? "",
     categoryId: row.category_id ?? null,
     isVisible: row.is_visible ?? true,
+    sku: row.sku ?? "",
+    compareAtPrice: row.compare_at_price == null ? null : String(row.compare_at_price),
+    salePrice: row.sale_price == null ? null : String(row.sale_price),
+    discountPercent: row.discount_percent ?? null,
+    availability: toAvailability(row.availability),
+    imageGallery: toStringArray(row.image_gallery, 12, 500),
+    specifications: toSpecifications(row.specifications),
+    tags: toStringArray(row.tags, 24, 80),
   };
 }
 

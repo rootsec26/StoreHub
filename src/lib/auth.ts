@@ -23,9 +23,11 @@ export interface SessionUser {
   role?: "OWNER" | "ADMIN" | "STAFF_MANAGE_ORDERS" | "STAFF_VIEW_ORDERS";
 }
 
+const BCRYPT_ROUNDS = 12;
+
 // Hash password
 export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, 10);
+  return bcrypt.hash(password, BCRYPT_ROUNDS);
 }
 
 // Verify password

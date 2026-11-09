@@ -3,6 +3,7 @@ import { signup } from "@/lib/auth";
 import { createSession } from "@/lib/auth";
 import { extractDbErrorInfo, isDatabaseUnreachable, createErrorResponse } from "@/lib/errors";
 import { withRateLimit, authRateLimiter } from "@/lib/rate-limit";
+import { recordAnalyticsEvent } from "@/lib/analytics";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -102,6 +103,8 @@ export async function POST(request: NextRequest) {
   const password =
     typeof payload.password === "string" ? payload.password : "";
   const name = typeof payload.name === "string" ? payload.name.trim() : "";
+  const visitorId =
+    typeof payload.visitorId === "string" ? payload.visitorId : null;
 
   if (!email || !password || !name) {
     return NextResponse.json(
@@ -124,6 +127,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (password.length > 128) {
+    return NextResponse.json(
+      { error: "Password must be 128 characters or fewer" },
+      { status: 400 }
+    );
+  }
+
   if (name.length > 100) {
     return NextResponse.json(
       { error: "Name must be 100 characters or fewer" },
@@ -133,6 +143,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await signup(email, password, name);
+
+    await recordAnalyticsEvent({
+      eventType: "SIGNUP",
+      visitorId,
+      userId: result.user.id,
+      path: "/signup",
+      metadata: { source: "auth" },
+    });
 
     // Create session without store info (store will be created during onboarding)
     const token = await createSession({

@@ -26,6 +26,12 @@ export function redactTrackingOrder<T extends TrackedOrderRow>(
     status: order.status,
     createdAt: order.createdAt,
     items,
+    // Payment state is not sensitive — buyers need it to follow their own
+    // transfer review without exposing customer PII.
+    paymentMethod: order.paymentMethod,
+    paymentStatus: order.paymentStatus,
+    paymentProofStatus: order.paymentProofStatus,
+    paymentProofSubmittedAt: order.paymentProofSubmittedAt,
     redacted: true as const,
   };
 }

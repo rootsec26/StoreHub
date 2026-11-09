@@ -70,6 +70,14 @@ async function fetchProducts(storeId: string) {
       imageUrl: products.imageUrl,
       categoryId: products.categoryId,
       isVisible: products.isVisible,
+      sku: products.sku,
+      compareAtPrice: products.compareAtPrice,
+      salePrice: products.salePrice,
+      discountPercent: products.discountPercent,
+      availability: products.availability,
+      imageGallery: products.imageGallery,
+      specifications: products.specifications,
+      tags: products.tags,
     })
     .from(products)
     .where(eq(products.storeId, storeId));
@@ -179,6 +187,14 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     imageUrl: row.imageUrl ?? "",
     categoryId: row.categoryId,
     isVisible: row.isVisible ?? true,
+    sku: row.sku ?? "",
+    compareAtPrice: row.compareAtPrice ?? null,
+    salePrice: row.salePrice ?? null,
+    discountPercent: row.discountPercent ?? null,
+    availability: row.availability ?? "IN_STOCK",
+    imageGallery: row.imageGallery ?? [],
+    specifications: row.specifications ?? [],
+    tags: row.tags ?? [],
   }));
 
   const categoryData: CategoryData[] = categoryRows.map((category) => ({

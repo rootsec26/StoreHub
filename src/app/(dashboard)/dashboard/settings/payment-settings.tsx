@@ -16,6 +16,10 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import {
+  parseManualPaymentConfig,
+  serializeManualPaymentConfig,
+} from "@/lib/manual-payments";
 
 interface PaymentSettingsProps {
   storeId: string;
@@ -41,6 +45,7 @@ export default function PaymentSettings({ storeId }: PaymentSettingsProps) {
   const [manualEnabled, setManualEnabled] = useState(true);
   const [vodafoneCashNumber, setVodafoneCashNumber] = useState("");
   const [instaPayNumber, setInstaPayNumber] = useState("");
+  const [otherMethods, setOtherMethods] = useState("");
   const [cashOnDeliveryEnabled, setCashOnDeliveryEnabled] = useState(true);
   const [manualInstructions, setManualInstructions] = useState("");
 
@@ -63,20 +68,14 @@ export default function PaymentSettings({ storeId }: PaymentSettingsProps) {
     setStripeAccountId(data.store.stripeAccountId || "");
     setPaddleEnabled(data.store.paddleEnabled || false);
     setPaddleVendorId(data.store.paddleVendorId || "");
-    setManualEnabled(data.store.manualPaymentInstructions ? true : true);
-    
-    if (data.store.manualPaymentInstructions) {
-      const instructions = data.store.manualPaymentInstructions;
-      try {
-        const parsed = JSON.parse(instructions);
-        setVodafoneCashNumber(parsed.vodafoneCashNumber || "");
-        setInstaPayNumber(parsed.instaPayNumber || "");
-        setCashOnDeliveryEnabled(parsed.cashOnDeliveryEnabled !== false);
-        setManualInstructions(parsed.instructions || "");
-      } catch {
-        setManualInstructions(instructions);
-      }
-    }
+    setManualEnabled(true);
+
+    const parsed = parseManualPaymentConfig(data.store.manualPaymentInstructions);
+    setVodafoneCashNumber(parsed.vodafoneCashNumber);
+    setInstaPayNumber(parsed.instaPayNumber);
+    setOtherMethods(parsed.otherMethods);
+    setCashOnDeliveryEnabled(parsed.cashOnDeliveryEnabled);
+    setManualInstructions(parsed.instructions);
   }, [storeId]);
 
   useEffect(() => {
@@ -120,12 +119,13 @@ export default function PaymentSettings({ storeId }: PaymentSettingsProps) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const manualPaymentConfig = {
+      const manualPaymentConfig = serializeManualPaymentConfig({
         vodafoneCashNumber,
         instaPayNumber,
-        cashOnDeliveryEnabled,
+        otherMethods,
         instructions: manualInstructions,
-      };
+        cashOnDeliveryEnabled,
+      });
 
       const res = await fetch("/api/stores", {
         method: "PATCH",
@@ -135,7 +135,7 @@ export default function PaymentSettings({ storeId }: PaymentSettingsProps) {
           stripeAccountId,
           paddleEnabled,
           paddleVendorId,
-          manualPaymentInstructions: JSON.stringify(manualPaymentConfig),
+          manualPaymentInstructions: manualPaymentConfig,
         }),
       });
 
@@ -198,6 +198,9 @@ export default function PaymentSettings({ storeId }: PaymentSettingsProps) {
               {t("payment.stripe.title")}
             </h3>
             <p className="text-sm text-slate-500">{t("payment.stripe.subtitle")}</p>
+            <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+              {t("payment.optional")}
+            </span>
           </div>
         </div>
 
@@ -373,6 +376,9 @@ export default function PaymentSettings({ storeId }: PaymentSettingsProps) {
               {t("payment.paddle.title")}
             </h3>
             <p className="text-sm text-slate-500">{t("payment.paddle.subtitle")}</p>
+            <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+              {t("payment.optional")}
+            </span>
           </div>
         </div>
 
@@ -464,6 +470,9 @@ export default function PaymentSettings({ storeId }: PaymentSettingsProps) {
               {t("payment.manual.title")}
             </h3>
             <p className="text-sm text-slate-500">{t("payment.manual.subtitle")}</p>
+            <span className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+              {t("payment.recommended")}
+            </span>
           </div>
         </div>
 
@@ -526,6 +535,21 @@ export default function PaymentSettings({ storeId }: PaymentSettingsProps) {
                       className="w-full rounded-lg border border-slate-300 py-2.5 ps-10 pe-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     />
                   </div>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    {t("payment.manual.otherMethods")}
+                  </label>
+                  <input
+                    type="text"
+                    value={otherMethods}
+                    onChange={(e) => setOtherMethods(e.target.value)}
+                    placeholder={t("payment.manual.otherMethodsPlaceholder")}
+                    className="w-full rounded-lg border border-slate-300 py-2.5 px-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    {t("payment.manual.otherMethodsHint")}
+                  </p>
                 </div>
               </div>
 

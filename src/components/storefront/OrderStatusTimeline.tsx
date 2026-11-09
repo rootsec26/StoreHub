@@ -1,6 +1,13 @@
 "use client";
 
-import { CheckCircle2, ClipboardCheck, Package, Truck, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  ClipboardCheck,
+  Package,
+  Truck,
+  Wallet,
+  XCircle,
+} from "lucide-react";
 
 import { useI18n } from "@/lib/i18n";
 import { normalizeOrderStatus } from "@/lib/order-state-machine";
@@ -10,8 +17,11 @@ import {
   type TrackingStepKey,
 } from "@/lib/order-tracking";
 
-const STEP_ICONS: Record<TrackingStepKey, React.ReactNode> = {
+type DisplayStepKey = TrackingStepKey | "payment";
+
+const STEP_ICONS: Record<DisplayStepKey, React.ReactNode> = {
   received: <ClipboardCheck className="h-5 w-5" />,
+  payment: <Wallet className="h-5 w-5" />,
   processing: <Package className="h-5 w-5" />,
   shipped: <Truck className="h-5 w-5" />,
   delivered: <CheckCircle2 className="h-5 w-5" />,
@@ -21,15 +31,50 @@ type StepState = "done" | "current" | "upcoming";
 
 interface OrderStatusTimelineProps {
   status: string;
+  /** When "manual", a "payment confirmed" step is inserted after "received". */
+  paymentMethod?: string | null;
+  paymentProofStatus?: string | null;
 }
 
-export default function OrderStatusTimeline({ status }: OrderStatusTimelineProps) {
+const MANUAL_STEPS: readonly DisplayStepKey[] = [
+  "received",
+  "payment",
+  "processing",
+  "shipped",
+  "delivered",
+];
+
+export default function OrderStatusTimeline({
+  status,
+  paymentMethod,
+  paymentProofStatus,
+}: OrderStatusTimelineProps) {
   const { t } = useI18n();
 
   const cancelled = normalizeOrderStatus(status) === "CANCELLED";
-  const currentIndex = cancelled ? -1 : getTrackingStepIndex(status);
-  const currentStepKey: TrackingStepKey =
-    TRACKING_STEP_KEYS[Math.min(Math.max(currentIndex, 0), 3)];
+  const hasPaymentStep = paymentMethod === "manual";
+  const steps: readonly DisplayStepKey[] = hasPaymentStep
+    ? MANUAL_STEPS
+    : TRACKING_STEP_KEYS;
+
+  const paymentDone = paymentProofStatus === "APPROVED";
+  const baseIndex = cancelled ? -1 : getTrackingStepIndex(status);
+
+  // In the 5-step layout the order-status indexes shift by one once payment
+  // is cleared; while the proof is still under review the payment step stays
+  // "current" even if the merchant already moved the order forward.
+  const currentIndex = !hasPaymentStep
+    ? baseIndex
+    : cancelled
+      ? -1
+      : paymentDone
+        ? Math.max(baseIndex + 1, 2)
+        : baseIndex === 0
+          ? 1
+          : baseIndex + 1;
+
+  const currentStepKey: DisplayStepKey =
+    steps[Math.min(Math.max(currentIndex, 0), steps.length - 1)];
 
   return (
     <div className="rounded-xl bg-white p-4 shadow-sm sm:p-6">
@@ -61,16 +106,21 @@ export default function OrderStatusTimeline({ status }: OrderStatusTimelineProps
       )}
 
       <ol className="flex flex-col sm:flex-row">
-        {TRACKING_STEP_KEYS.map((key, index) => {
+        {steps.map((key, index) => {
+          // The payment step reflects the proof review itself: it is only
+          // "done" once the merchant approves the transfer, never inferred
+          // from the order status alone.
           const stepState: StepState = cancelled
             ? "upcoming"
-            : index < currentIndex
-              ? "done"
-              : index === currentIndex
-                ? "current"
-                : "upcoming";
+            : key === "payment" && !paymentDone
+              ? "current"
+              : index < currentIndex
+                ? "done"
+                : index === currentIndex
+                  ? "current"
+                  : "upcoming";
 
-          const isLast = index === TRACKING_STEP_KEYS.length - 1;
+          const isLast = index === steps.length - 1;
 
           const circleClass =
             stepState === "done"

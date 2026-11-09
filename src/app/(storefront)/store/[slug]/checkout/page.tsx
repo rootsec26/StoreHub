@@ -17,13 +17,15 @@ import {
   ArrowLeft,
   MessageCircle,
   CreditCard,
-  Smartphone,
-  Banknote,
   Truck,
   Lock,
   AlertCircle,
   Zap,
   Sparkles,
+  Upload,
+  Wallet,
+  Copy,
+  PackageSearch,
 } from "lucide-react";
 
 import { useCartStore, type CartItem } from "@/lib/cart";
@@ -38,6 +40,15 @@ import {
 import { useStoreCurrency } from "@/components/CurrencySelector";
 import { convertAndFormatPrice } from "@/lib/currency";
 import type { CheckoutLoyaltyOutcome, VipTierRecord } from "@/lib/loyalty";
+import { getAnalyticsVisitorId } from "@/lib/analytics-client";
+import { compressImageForUpload } from "@/lib/imageCompress";
+import { orderTrackingCode } from "@/lib/order-tracking";
+import {
+  EMPTY_MANUAL_PAYMENT_CONFIG,
+  hasManualPaymentDetails,
+  parseManualPaymentConfig,
+  type ManualPaymentConfig,
+} from "@/lib/manual-payments";
 
 interface PlacedOrder {
   items: { name: string; quantity: number; unitPrice: number }[];
@@ -76,7 +87,18 @@ function CheckoutContent() {
   const [storeSupportedCurrencies, setStoreSupportedCurrencies] = useState<string[]>(["EGP", "USD", "SAR", "AED", "EUR"]);
   const [stripeEnabled, setStripeEnabled] = useState(false);
   const [paddleEnabled, setPaddleEnabled] = useState(false);
-  const [manualPaymentInstructions, setManualPaymentInstructions] = useState("");
+  const [manualConfig, setManualConfig] = useState<ManualPaymentConfig>(
+    EMPTY_MANUAL_PAYMENT_CONFIG
+  );
+  const [orderToken, setOrderToken] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [proofUploading, setProofUploading] = useState(false);
+  const [proofUploaded, setProofUploaded] = useState(false);
+  const [proofError, setProofError] = useState("");
+  const [proofMethodDetail, setProofMethodDetail] = useState("");
+  const [trackingCodeCopied, setTrackingCodeCopied] = useState(false);
+  const proofInputRef = useRef<HTMLInputElement>(null);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -88,7 +110,6 @@ function CheckoutContent() {
   const [success, setSuccess] = useState(false);
   const [orderId, setOrderId] = useState("");
   const [placedOrder, setPlacedOrder] = useState<PlacedOrder | null>(null);
-  const [manualInstructions, setManualInstructions] = useState("");
   const [codVerifyNotice, setCodVerifyNotice] = useState("");
   const [codVerifyUrl, setCodVerifyUrl] = useState("");
   const [loyaltyRedeemed, setLoyaltyRedeemed] = useState(0);
@@ -99,7 +120,29 @@ function CheckoutContent() {
 
   const priceLocale = locale === "ar" ? "ar-EG" : "en-US";
 
+  // Payment order: Cash on Delivery first, then the merchant's mobile
+  // wallet / e-transfer details, with Stripe/Paddle as optional gateways.
   const paymentOptions = useMemo((): PaymentOption[] => [
+    {
+      id: "cod",
+      label: t("checkout.payment.cod"),
+      description: t("checkout.payment.codDesc"),
+      icon: <Truck className="h-5 w-5" />,
+      enabled: manualConfig.cashOnDeliveryEnabled,
+      disabledReason: manualConfig.cashOnDeliveryEnabled
+        ? undefined
+        : t("checkout.payment.codDisabled"),
+    },
+    {
+      id: "manual",
+      label: t("checkout.payment.manual"),
+      description: t("checkout.payment.manualDesc"),
+      icon: <Wallet className="h-5 w-5" />,
+      enabled: hasManualPaymentDetails(manualConfig),
+      disabledReason: hasManualPaymentDetails(manualConfig)
+        ? undefined
+        : t("checkout.payment.manualNotConfigured"),
+    },
     {
       id: "stripe",
       label: t("checkout.payment.stripe"),
@@ -112,27 +155,11 @@ function CheckoutContent() {
       id: "paddle",
       label: t("checkout.payment.paddle"),
       description: t("checkout.payment.paddleDesc"),
-      icon: <Smartphone className="h-5 w-5" />,
+      icon: <CreditCard className="h-5 w-5" />,
       enabled: paddleEnabled,
       disabledReason: paddleEnabled ? undefined : t("checkout.payment.paddleDisabled"),
     },
-    {
-      id: "cod",
-      label: t("checkout.payment.cod"),
-      description: t("checkout.payment.codDesc"),
-      icon: <Truck className="h-5 w-5" />,
-      enabled: true,
-      disabledReason: undefined,
-    },
-    {
-      id: "manual",
-      label: t("checkout.payment.manual"),
-      description: t("checkout.payment.manualDesc"),
-      icon: <Banknote className="h-5 w-5" />,
-      enabled: true,
-      disabledReason: undefined,
-    },
-  ], [stripeEnabled, paddleEnabled, t]);
+  ], [stripeEnabled, paddleEnabled, manualConfig, t]);
 
   // Loyalty state
   const [loyalty, setLoyalty] = useState<{
@@ -217,12 +244,23 @@ function CheckoutContent() {
           setStoreSupportedCurrencies(data.store.supportedCurrencies || ["EGP", "USD", "SAR", "AED", "EUR"]);
           setStripeEnabled(data.store.stripeEnabled || false);
           setPaddleEnabled(data.store.paddleEnabled || false);
-          setManualPaymentInstructions(data.store.manualPaymentInstructions || "");
-          
-          // Initialize payment method selection based on available options
+          const parsedManual = parseManualPaymentConfig(
+            data.store.manualPaymentInstructions
+          );
+          setManualConfig(parsedManual);
+
+          // Cash on Delivery is the default; the mobile wallet is next, and
+          // gateways only when the merchant explicitly enabled them.
           if (!selectedPaymentMethodInitialized.current) {
-            const firstEnabled = data.store.stripeEnabled ? "stripe" : 
-              data.store.paddleEnabled ? "paddle" : "manual";
+            const firstEnabled = parsedManual.cashOnDeliveryEnabled
+              ? "cod"
+              : hasManualPaymentDetails(parsedManual)
+                ? "manual"
+                : data.store.stripeEnabled
+                  ? "stripe"
+                  : data.store.paddleEnabled
+                    ? "paddle"
+                    : "manual";
             setSelectedPaymentMethod(firstEnabled);
             selectedPaymentMethodInitialized.current = true;
           }
@@ -324,6 +362,9 @@ function CheckoutContent() {
           ? { couponCode: recoveryCode.trim() }
           : {}),
         locale,
+        ...(getAnalyticsVisitorId()
+          ? { visitorId: getAnalyticsVisitorId() }
+          : {}),
       };
 
       const res = await fetch("/api/checkout", {
@@ -339,6 +380,9 @@ function CheckoutContent() {
       }
 
       setOrderId(data.orderId || "");
+      if (data.orderToken) {
+        setOrderToken(data.orderToken);
+      }
       if (data.loyalty) {
         setLoyaltyResult(data.loyalty);
       }
@@ -358,8 +402,6 @@ function CheckoutContent() {
               : t("orders.cod.pending")
           );
           setCodVerifyUrl(data.codVerification?.verifyUrl || "");
-        } else {
-          setManualInstructions(data.message || manualPaymentInstructions || "");
         }
         setPlacedOrder(snapshot);
         setSuccess(true);
@@ -376,6 +418,65 @@ function CheckoutContent() {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  function handleProofFile(file: File) {
+    setProofError("");
+    if (!file.type.startsWith("image/")) {
+      setProofError(t("checkout.proof.invalidType"));
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setProofError(t("upload.tooLarge"));
+      return;
+    }
+    const previewUrl = URL.createObjectURL(file);
+    setProofPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return previewUrl;
+    });
+    setProofFile(file);
+    setProofUploaded(false);
+  }
+
+  async function handleProofUpload() {
+    if (!proofFile || !orderId || !orderToken) return;
+    setProofUploading(true);
+    setProofError("");
+    try {
+      const prepared = await compressImageForUpload(proofFile);
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(prepared);
+      });
+
+      const res = await fetch("/api/orders/payment-proof", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          storeSlug: slug,
+          token: orderToken,
+          proofDataUrl: dataUrl,
+          paymentMethodDetail: proofMethodDetail.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || t("checkout.proof.failed"));
+      }
+      setProofUploaded(true);
+    } catch (err) {
+      setProofError(
+        err instanceof Error && err.message
+          ? err.message
+          : t("checkout.proof.failed")
+      );
+    } finally {
+      setProofUploading(false);
     }
   }
 
@@ -414,17 +515,160 @@ function CheckoutContent() {
           <p className="mb-2 text-slate-600">
             {isManual ? t("checkout.manualSuccessSubtitle") : t("checkout.successSubtitle")}
           </p>
-          <p className="mb-8 text-sm text-slate-500" dir="ltr">
+          <p className="mb-2 text-sm text-slate-500" dir="ltr">
             {t("checkout.orderId", { id: `${orderId.slice(0, 8)}…` })}
           </p>
 
-          {isManual && manualInstructions && (
-            <div className="mb-6 rounded-lg bg-blue-50 p-4 text-left text-sm text-blue-800">
-              <h3 className="font-semibold mb-2 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                {t("checkout.payment.instructions")}
+          {orderId && (
+            <div className="mb-6 inline-flex items-center gap-2 rounded-xl border border-dashed border-[var(--color-primary)]/40 bg-[var(--color-primary)]/5 px-4 py-2.5">
+              <PackageSearch className="h-4 w-4 text-[var(--color-primary)]" />
+              <span className="text-xs font-medium text-slate-500">
+                {t("checkout.trackingCode")}
+              </span>
+              <code
+                className="text-base font-bold tracking-wider text-[var(--color-primary)]"
+                dir="ltr"
+              >
+                {orderTrackingCode(orderId)}
+              </code>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(
+                      orderTrackingCode(orderId)
+                    );
+                    setTrackingCodeCopied(true);
+                    setTimeout(() => setTrackingCodeCopied(false), 2000);
+                  } catch {
+                    setTrackingCodeCopied(false);
+                  }
+                }}
+                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white hover:text-slate-600"
+                aria-label={t("track.copy")}
+                title={t("track.copy")}
+              >
+                {trackingCodeCopied ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+          )}
+
+          {isManual && hasManualPaymentDetails(manualConfig) && (
+            <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 text-left">
+              <h3 className="mb-3 flex items-center gap-2 font-semibold text-emerald-900">
+                <Wallet className="h-4 w-4" />
+                {t("checkout.manual.paymentDetails")}
               </h3>
-              <p className="whitespace-pre-wrap">{manualInstructions}</p>
+              <dl className="space-y-2 text-sm">
+                {manualConfig.vodafoneCashNumber && (
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="font-medium text-emerald-800">
+                      {t("payment.manual.vodafoneCash")}
+                    </dt>
+                    <dd className="font-bold text-slate-900" dir="ltr">
+                      {manualConfig.vodafoneCashNumber}
+                    </dd>
+                  </div>
+                )}
+                {manualConfig.instaPayNumber && (
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="font-medium text-emerald-800">
+                      {t("payment.manual.instaPay")}
+                    </dt>
+                    <dd className="font-bold text-slate-900" dir="ltr">
+                      {manualConfig.instaPayNumber}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+              {manualConfig.otherMethods && (
+                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                  {manualConfig.otherMethods}
+                </p>
+              )}
+              {manualConfig.instructions && (
+                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">
+                  {manualConfig.instructions}
+                </p>
+              )}
+            </div>
+          )}
+
+          {isManual && (
+            <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm">
+              <h3 className="mb-1 flex items-center gap-2 font-semibold text-slate-900">
+                <Upload className="h-4 w-4 text-[var(--color-primary)]" />
+                {t("checkout.proof.title")}
+              </h3>
+              <p className="mb-3 text-xs text-slate-500">{t("checkout.proof.hint")}</p>
+
+              {proofUploaded ? (
+                <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {t("checkout.proof.uploaded")}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={proofMethodDetail}
+                    onChange={(e) => setProofMethodDetail(e.target.value)}
+                    placeholder={t("checkout.proof.methodPlaceholder")}
+                    maxLength={120}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
+                  />
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => proofInputRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      {proofFile ? t("checkout.proof.changeFile") : t("upload.choose")}
+                    </button>
+                    {proofPreview && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={proofPreview}
+                        alt={t("checkout.proof.title")}
+                        className="h-12 w-12 rounded-lg border border-slate-200 object-cover"
+                      />
+                    )}
+                  </div>
+                  <input
+                    ref={proofInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleProofFile(file);
+                    }}
+                  />
+                  {proofError && (
+                    <p className="text-xs text-red-600">{proofError}</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleProofUpload}
+                    disabled={!proofFile || proofUploading || !orderToken}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    {proofUploading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    {proofUploading
+                      ? t("checkout.proof.uploading")
+                      : t("checkout.proof.upload")}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -722,6 +966,51 @@ function CheckoutContent() {
                     ))}
                   </div>
                 </div>
+
+                {selectedPaymentMethod === "manual" &&
+                  hasManualPaymentDetails(manualConfig) && (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+                      <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-emerald-900">
+                        <Wallet className="h-4 w-4" />
+                        {t("checkout.manual.paymentDetails")}
+                      </h3>
+                      <dl className="space-y-1.5 text-sm">
+                        {manualConfig.vodafoneCashNumber && (
+                          <div className="flex items-center justify-between gap-3">
+                            <dt className="font-medium text-emerald-800">
+                              {t("payment.manual.vodafoneCash")}
+                            </dt>
+                            <dd className="font-bold text-slate-900" dir="ltr">
+                              {manualConfig.vodafoneCashNumber}
+                            </dd>
+                          </div>
+                        )}
+                        {manualConfig.instaPayNumber && (
+                          <div className="flex items-center justify-between gap-3">
+                            <dt className="font-medium text-emerald-800">
+                              {t("payment.manual.instaPay")}
+                            </dt>
+                            <dd className="font-bold text-slate-900" dir="ltr">
+                              {manualConfig.instaPayNumber}
+                            </dd>
+                          </div>
+                        )}
+                      </dl>
+                      {manualConfig.otherMethods && (
+                        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                          {manualConfig.otherMethods}
+                        </p>
+                      )}
+                      {manualConfig.instructions && (
+                        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">
+                          {manualConfig.instructions}
+                        </p>
+                      )}
+                      <p className="mt-3 text-xs text-emerald-800">
+                        {t("checkout.manual.proofNote")}
+                      </p>
+                    </div>
+                  )}
 
                 {recoveryCode && (
                   <div className="flex items-center justify-between gap-3 rounded-lg bg-emerald-50 p-3">

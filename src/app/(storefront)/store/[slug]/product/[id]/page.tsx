@@ -100,7 +100,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     "@type": "Product",
     name: product.name,
     description: buildDescription(product),
-    sku: product.id,
+    sku: product.sku || product.id,
     url,
     ...(product.imageUrl ? { image: product.imageUrl } : {}),
     ...(categoryName ? { category: categoryName } : {}),
@@ -143,6 +143,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
           stock: product.stock ?? 0,
           imageUrl: product.imageUrl ?? "",
           categoryId: product.categoryId,
+          sku: product.sku ?? "",
+          compareAtPrice: product.compareAtPrice ?? null,
+          salePrice: product.salePrice ?? null,
+          discountPercent: product.discountPercent ?? null,
+          availability: product.availability ?? "IN_STOCK",
+          imageGallery: product.imageGallery ?? [],
+          specifications: product.specifications ?? [],
+          tags: product.tags ?? [],
         }}
         categoryName={categoryName}
         initialPromotions={promotionRecords}

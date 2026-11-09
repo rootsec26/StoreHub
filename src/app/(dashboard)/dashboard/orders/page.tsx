@@ -14,8 +14,12 @@ import {
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { useOrdersRealtime } from "@/lib/realtime";
-import { ORDER_STATUSES } from "@/lib/types";
-import { normalizeOrderStatus, orderStatusTitle } from "@/lib/order-state-machine";
+import { ORDER_STATUSES, type OrderStatus } from "@/lib/types";
+import {
+  normalizeOrderStatus,
+  orderStatusTitle,
+  isValidTransition,
+} from "@/lib/order-state-machine";
 import StatusBadge from "@/components/StatusBadge";
 import CodVerificationBadge, {
   CodRiskBadge,
@@ -194,7 +198,14 @@ export default function OrdersPage() {
   ] as const;
 
   const statusSelect = (order: Order) => {
-    const statusOptions = STATUS_OPTIONS.map((opt) => (
+    // Only offer transitions the state machine accepts — jumping straight
+    // from PENDING to SHIPPED/DELIVERED would be rejected with a 400.
+    const currentStatus = normalizeOrderStatus(order.status) ?? order.status;
+    const statusOptions = STATUS_OPTIONS.filter(
+      (opt) =>
+        opt.value === currentStatus ||
+        isValidTransition(currentStatus as OrderStatus, opt.value)
+    ).map((opt) => (
       <option key={opt.value} value={opt.value}>
         {opt.label}
       </option>

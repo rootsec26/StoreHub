@@ -4,7 +4,13 @@ import { db } from "@/db";
 import { orderItems, orders, products, shippingZones, stores } from "@/db/schema";
 import { createErrorResponse } from "@/lib/errors";
 import { summarizeShipment } from "@/lib/shipping";
-import { isValidOrderId, isValidPhoneNumber, normalizePhoneDigits } from "@/lib/order-tracking";
+import {
+  isValidOrderId,
+  isValidPhoneNumber,
+  isValidTrackingCode,
+  normalizePhoneDigits,
+  trackingCodePrefix,
+} from "@/lib/order-tracking";
 import { createOrderToken, verifyOrderToken } from "@/lib/order-tokens";
 import { isAuthenticatedStoreOwner } from "@/lib/orders/order-access";
 import { normalizeOrderStatus } from "@/lib/order-state-machine";
@@ -32,7 +38,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (orderId && !isValidOrderId(orderId)) {
+    if (orderId && !isValidOrderId(orderId) && !isValidTrackingCode(orderId)) {
       return NextResponse.json(
         { error: "Invalid order ID format", code: "INVALID_ORDER_ID" },
         { status: 400 }
@@ -63,11 +69,30 @@ export async function GET(request: NextRequest) {
 
     let orderResult;
     if (orderId) {
-      orderResult = await db
-        .select()
-        .from(orders)
-        .where(and(eq(orders.id, orderId), eq(orders.storeId, storeId)))
-        .limit(1);
+      if (isValidOrderId(orderId)) {
+        orderResult = await db
+          .select()
+          .from(orders)
+          .where(and(eq(orders.id, orderId), eq(orders.storeId, storeId)))
+          .limit(1);
+      } else {
+        // Short tracking code (ORD-XXXXXXXX) or bare hex prefix — matched
+        // against the dash-stripped UUID so customers never type the full id.
+        const prefix = trackingCodePrefix(orderId);
+        orderResult = prefix
+          ? await db
+              .select()
+              .from(orders)
+              .where(
+                and(
+                  eq(orders.storeId, storeId),
+                  sql`replace(${orders.id}::text, '-', '') ILIKE ${prefix + "%"}`
+                )
+              )
+              .orderBy(desc(orders.createdAt))
+              .limit(1)
+          : [];
+      }
     } else {
       const phoneDigits = normalizePhoneDigits(phone);
       orderResult = await db

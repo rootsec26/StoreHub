@@ -27,6 +27,8 @@ export const checkoutRequestSchema = z.object({
   couponCode: z.string().trim().min(1, "Coupon code is required").max(64).optional(),
   /** Language used for the automated WhatsApp COD verification message. */
   locale: z.enum(["en", "ar"]).optional(),
+  /** Anonymous analytics visitor id used only for conversion measurement. */
+  visitorId: z.string().max(128).optional(),
 });
 
 export const orderCreateSchema = z.object({

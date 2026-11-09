@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { UserPlus, Mail, Lock, User, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { getAnalyticsVisitorId } from "@/lib/analytics-client";
 
 export default function SignupPage() {
   const { t } = useI18n();
@@ -22,7 +23,14 @@ export default function SignupPage() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          ...(getAnalyticsVisitorId()
+            ? { visitorId: getAnalyticsVisitorId() }
+            : {}),
+        }),
       });
 
       const data = await res.json();

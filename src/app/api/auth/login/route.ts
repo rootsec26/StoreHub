@@ -7,8 +7,27 @@ export async function POST(request: NextRequest) {
   const rateLimitResponse = await withRateLimit(request, authRateLimiter);
   if (rateLimitResponse) return rateLimitResponse;
 
+  let body: unknown;
   try {
-    const { email, password } = await request.json();
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Request body must be valid JSON", code: "INVALID_JSON" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+      return NextResponse.json(
+        { error: "Request body must be a JSON object", code: "INVALID_PAYLOAD" },
+        { status: 400 }
+      );
+    }
+
+    const payload = body as Record<string, unknown>;
+    const email = typeof payload.email === "string" ? payload.email.trim() : "";
+    const password = typeof payload.password === "string" ? payload.password : "";
 
     if (!email || !password) {
       return NextResponse.json(

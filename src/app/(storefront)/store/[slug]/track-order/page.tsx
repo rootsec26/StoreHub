@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock,
+  Copy,
   FileText,
   Loader2,
   MapPin,
@@ -20,6 +21,7 @@ import {
   SearchX,
   Truck,
   User,
+  Wallet,
   XCircle,
 } from "lucide-react";
 
@@ -35,6 +37,8 @@ import {
   isFinalOrderStatus,
   isValidOrderId,
   isValidPhoneNumber,
+  isValidTrackingCode,
+  orderTrackingCode,
   type StorefrontStore,
   type TrackedOrder,
 } from "@/lib/order-tracking";
@@ -61,6 +65,7 @@ function TrackOrderContent() {
   const [searchQuery, setSearchQuery] = useState(prefillId);
   const [searchType, setSearchType] = useState<SearchType>("orderId");
   const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const prefillApplied = useRef(false);
@@ -111,7 +116,12 @@ function TrackOrderContent() {
       const query = rawQuery.trim();
 
       if (!query) return t("orders.enterOrderIdOrPhone");
-      if (type === "orderId" && !isValidOrderId(query)) return t("orders.invalidOrderId");
+      if (
+        type === "orderId" &&
+        !isValidOrderId(query) &&
+        !isValidTrackingCode(query)
+      )
+        return t("orders.invalidOrderId");
       if (type === "phone" && !isValidPhoneNumber(query)) return t("orders.invalidPhone");
 
       try {
@@ -147,17 +157,32 @@ function TrackOrderContent() {
   );
 
   useEffect(() => {
-    if (!prefillId || prefillApplied.current || !isValidOrderId(prefillId)) return;
+    if (
+      !prefillId ||
+      prefillApplied.current ||
+      (!isValidOrderId(prefillId) && !isValidTrackingCode(prefillId))
+    )
+      return;
     prefillApplied.current = true;
     void lookupOrder(prefillId, "orderId");
   }, [prefillId, lookupOrder]);
 
   useEffect(() => {
     if (!order || isFinalOrderStatus(order.status)) return;
-    const timer = setInterval(() => {
-      void lookupOrder(order.id, "orderId", true);
-    }, 30000);
-    return () => clearInterval(timer);
+
+    // Live-ish sync: poll while the tab is visible, plus an immediate refetch
+    // whenever the shopper returns to the tab after the merchant updated it.
+    const poll = () => {
+      if (document.visibilityState === "visible") {
+        void lookupOrder(order.id, "orderId", true);
+      }
+    };
+    const timer = setInterval(poll, 15000);
+    document.addEventListener("visibilitychange", poll);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", poll);
+    };
   }, [order, lookupOrder]);
 
   function handleSearch(event: React.FormEvent) {
@@ -187,6 +212,16 @@ function TrackOrderContent() {
     setError("");
     inputRef.current?.focus();
     inputRef.current?.select();
+  }
+
+  async function handleCopyCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    } catch {
+      setCodeCopied(false);
+    }
   }
 
   function formatDate(dateString: string) {
@@ -391,6 +426,30 @@ function TrackOrderContent() {
                     {t("orders.orderDetails", { id: order.id.slice(0, 8) })}
                   </h2>
                   <p className="mt-1 text-sm text-slate-500">{formatDate(order.createdAt)}</p>
+                  <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-dashed border-[var(--color-primary)]/40 bg-[var(--color-primary)]/5 px-3 py-1.5">
+                    <span className="text-xs font-medium text-slate-500">
+                      {t("checkout.trackingCode")}
+                    </span>
+                    <code
+                      className="text-sm font-bold tracking-wide text-[var(--color-primary)]"
+                      dir="ltr"
+                    >
+                      {orderTrackingCode(order.id)}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyCode(orderTrackingCode(order.id))}
+                      className="rounded p-1 text-slate-400 transition-colors hover:bg-white hover:text-slate-600"
+                      aria-label={t("track.copy")}
+                      title={t("track.copy")}
+                    >
+                      {codeCopied ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {getStatusBadge(order.status)}
@@ -410,8 +469,60 @@ function TrackOrderContent() {
             </div>
 
             <div className="mt-6">
-              <OrderStatusTimeline status={order.status} />
+              <OrderStatusTimeline
+                status={order.status}
+                paymentMethod={order.paymentMethod}
+                paymentProofStatus={order.paymentProofStatus}
+              />
             </div>
+
+            {order.paymentMethod === "manual" && (
+              <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm sm:p-5">
+                <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-emerald-900">
+                  <Wallet className="h-4 w-4" />
+                  {t("track.paymentProof.title")}
+                </h3>
+                {(() => {
+                  const proofStatus = order.paymentProofStatus || "NONE";
+                  const map: Record<
+                    string,
+                    { label: string; className: string; desc: string }
+                  > = {
+                    PENDING: {
+                      label: t("orders.proofs.statusPending"),
+                      className: "bg-amber-100 text-amber-700",
+                      desc: t("track.paymentProof.pendingDesc"),
+                    },
+                    APPROVED: {
+                      label: t("orders.proofs.statusApproved"),
+                      className: "bg-emerald-100 text-emerald-700",
+                      desc: t("track.paymentProof.approvedDesc"),
+                    },
+                    REJECTED: {
+                      label: t("orders.proofs.statusRejected"),
+                      className: "bg-red-100 text-red-700",
+                      desc: t("track.paymentProof.rejectedDesc"),
+                    },
+                    NONE: {
+                      label: t("orders.proofs.statusNone"),
+                      className: "bg-slate-100 text-slate-600",
+                      desc: t("track.paymentProof.noneDesc"),
+                    },
+                  };
+                  const entry = map[proofStatus] ?? map.NONE;
+                  return (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${entry.className}`}
+                      >
+                        {entry.label}
+                      </span>
+                      <p className="text-xs text-emerald-800">{entry.desc}</p>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
 
             <div className="mt-6 rounded-xl bg-white p-4 shadow-sm sm:p-6">
               <div className="grid gap-6 sm:grid-cols-2">

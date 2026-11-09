@@ -103,6 +103,14 @@ export const abandonedCartRateLimiter = createRateLimiter({
   message: "Too many cart sync requests. Please slow down.",
 });
 
+/** Page-view beacons are chatty but must stay cheap for real visitors. */
+export const analyticsTrackRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 120,
+  keyPrefix: "analytics-track",
+  message: "Too many analytics events. Please slow down.",
+});
+
 export async function withRateLimit(
   request: NextRequest,
   limiter: (req: NextRequest) => Promise<NextResponse | null>
