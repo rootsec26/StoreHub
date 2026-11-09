@@ -22,6 +22,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Android App Links: open StoreHub links (incl. /store/[slug])
+                 inside the installed app. Requires a valid
+                 /.well-known/assetlinks.json on the domain for silent
+                 verification; without it Android shows a disambiguation
+                 dialog instead. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="store-hub-beta.vercel.app" />
+            </intent-filter>
+
         </activity>
 
         <provider
