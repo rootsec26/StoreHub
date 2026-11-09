@@ -119,6 +119,14 @@ export const priceAlertRateLimiter = createRateLimiter({
   message: "Too many alert requests. Please wait before trying again.",
 });
 
+/** Store reviews are public writes — cap spam/abuse per IP. */
+export const storefrontReviewRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 10,
+  keyPrefix: "storefront-review",
+  message: "Too many review submissions. Please wait before trying again.",
+});
+
 /** Coupon previews hit the DB per attempt — cap enumeration speed. */
 export const couponValidateRateLimiter = createRateLimiter({
   windowMs: 60 * 1000,

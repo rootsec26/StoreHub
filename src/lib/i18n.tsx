@@ -61,6 +61,7 @@ const en = {
   "nav.aiRadar": "AI Radar",
   "nav.socialBot": "AI Sales Rep",
   "nav.signOut": "Sign Out",
+  "nav.reviews": "Reviews",
 
   // Desktop notifications
   "notifications.enable": "Enable desktop order alerts",
@@ -966,6 +967,25 @@ const en = {
   "store.addAllToCart": "Add All to Cart",
   "store.recentlyViewedEmpty": "No recently viewed products",
   "store.viewProduct": "View Product",
+
+  // Store reviews
+  "reviews.title": "Customer Reviews",
+  "reviews.subtitle": "See what shoppers say about this store",
+  "reviews.count": "{count} review(s)",
+  "reviews.average": "Average rating",
+  "reviews.total": "Total reviews",
+  "reviews.empty": "No reviews yet — be the first to share your experience.",
+  "reviews.writeYours": "Write a review",
+  "reviews.yourName": "Your name",
+  "reviews.namePlaceholder": "e.g. Ahmed",
+  "reviews.yourRating": "Your rating",
+  "reviews.yourComment": "Your comment",
+  "reviews.commentPlaceholder": "Tell others about your experience (optional)",
+  "reviews.submit": "Submit review",
+  "reviews.submitting": "Submitting...",
+  "reviews.thanks": "Thank you! Your review was published.",
+  "reviews.submitError": "Could not submit your review. Please try again.",
+  "reviews.forStore": "Reviewing {name}",
 
   // Customer notification inbox
   "store.notifications": "Notifications",
@@ -1990,6 +2010,7 @@ const ar: Record<TranslationKey, string> = {
   "nav.aiRadar": "رادار الذكاء الاصطناعي",
   "nav.socialBot": "مندوب المبيعات الذكي",
   "nav.signOut": "تسجيل الخروج",
+  "nav.reviews": "التقييمات",
 
   // Desktop notifications
   "notifications.enable": "تفعيل تنبيهات الطلبات على سطح المكتب",
@@ -3041,6 +3062,25 @@ const ar: Record<TranslationKey, string> = {
   "store.addAllToCart": "أضف الكل للسلة",
   "store.recentlyViewedEmpty": "لا توجد منتجات مشاهدة مؤخرًا",
   "store.viewProduct": "عرض المنتج",
+
+  // Store reviews
+  "reviews.title": "تقييمات العملاء",
+  "reviews.subtitle": "شاهد ما يقوله المتسوقون عن هذا المتجر",
+  "reviews.count": "{count} تقييم",
+  "reviews.average": "متوسط التقييم",
+  "reviews.total": "إجمالي التقييمات",
+  "reviews.empty": "لا توجد تقييمات بعد — كن أول من يشارك تجربته.",
+  "reviews.writeYours": "اكتب تقييمًا",
+  "reviews.yourName": "اسمك",
+  "reviews.namePlaceholder": "مثال: أحمد",
+  "reviews.yourRating": "تقييمك",
+  "reviews.yourComment": "تعليقك",
+  "reviews.commentPlaceholder": "أخبر الآخرين عن تجربتك (اختياري)",
+  "reviews.submit": "إرسال التقييم",
+  "reviews.submitting": "جارٍ الإرسال...",
+  "reviews.thanks": "شكرًا لك! تم نشر تقييمك.",
+  "reviews.submitError": "تعذّر إرسال تقييمك. حاول مرة أخرى.",
+  "reviews.forStore": "أنت تقيّم {name}",
 
   // Customer notification inbox
   "store.notifications": "الإشعارات",

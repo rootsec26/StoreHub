@@ -30,6 +30,7 @@ import CurrencySelector, { useStoreCurrency } from "@/components/CurrencySelecto
 import AIShoppingAssistant from "@/components/storefront/AIShoppingAssistant";
 import FlashSaleBanner from "@/components/storefront/FlashSaleBanner";
 import StoreFooter from "@/components/storefront/Footer";
+import StoreReviews from "@/components/storefront/StoreReviews";
 import { useNow, useStorePromotions } from "@/lib/promotions-hooks";
 import {
   bestPromotionFor,
@@ -1257,6 +1258,9 @@ export default function StorefrontView({
 
       {/* AI Shopping Assistant */}
       <AIShoppingAssistant slug={slug} store={store} />
+
+      {/* Customer reviews */}
+      <StoreReviews slug={slug} storeId={store.id} storeName={store.name} />
 
       {/* Footer */}
       <StoreFooter hasWhiteLabel={store.hasWhiteLabel} />

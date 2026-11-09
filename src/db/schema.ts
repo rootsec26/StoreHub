@@ -621,6 +621,30 @@ export const priceAlerts = pgTable(
 );
 
 // ============================================
+// STORE REVIEWS (shopper -> merchant ratings)
+// ============================================
+export const storeReviews = pgTable(
+  "store_reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    customerName: text("customer_name").notNull().default(""),
+    // 1-5 stars; enforced by the API and a DB CHECK constraint.
+    rating: integer("rating").notNull().default(5),
+    comment: text("comment").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("store_reviews_store_id_idx").on(table.storeId),
+    index("store_reviews_created_at_idx").on(table.createdAt),
+  ]
+);
+
+// ============================================
 // WAREHOUSES & BRANCHES (multi-warehouse stock engine)
 // ============================================
 export const warehouses = pgTable(

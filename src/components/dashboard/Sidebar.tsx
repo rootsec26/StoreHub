@@ -25,6 +25,7 @@ import {
   Bot,
   Barcode,
   Receipt,
+  Star,
 } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
@@ -64,6 +65,7 @@ export const NAV_ITEMS = [
     group: "fulfillment",
   },
   { href: "/dashboard/customers", labelKey: "nav.customers", icon: Users, group: "growth" },
+  { href: "/dashboard/reviews", labelKey: "nav.reviews", icon: Star, group: "growth" },
   {
     href: "/dashboard/notifications",
     labelKey: "nav.messages",
