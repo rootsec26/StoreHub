@@ -28,6 +28,7 @@ import {
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { isFreeMode } from "@/lib/free-mode";
 import LanguageToggle from "@/components/LanguageToggle";
+import TopStoresShowcase from "@/components/landing/TopStoresShowcase";
 
 const FEATURES: {
   icon: typeof Bot;
@@ -197,13 +198,20 @@ export default function LandingPage() {
           </Link>
 
           <nav className="hidden items-center gap-1 rounded-full border border-slate-200 bg-slate-50/80 p-1.5 lg:flex">
-            {["#features", "#pricing", "#faq"].map((href, index) => (
+            {(
+              [
+                ["#features", "nav.features"],
+                ["#top-stores", "nav.topStores"],
+                ["#pricing", "nav.pricing"],
+                ["#faq", "nav.faq"],
+              ] as [string, TranslationKey][]
+            ).map(([href, labelKey]) => (
               <a
                 key={href}
                 href={href}
                 className="inline-flex h-10 items-center rounded-full px-4 text-sm font-semibold text-slate-600 transition-colors hover:bg-white hover:text-slate-950 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               >
-                {t(index === 0 ? "nav.features" : index === 1 ? "nav.pricing" : "nav.faq")}
+                {t(labelKey)}
               </a>
             ))}
           </nav>
@@ -444,6 +452,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Top Rated Stores */}
+      <TopStoresShowcase />
 
       {/* Payments */}
       <section className="bg-slate-50 py-20">
