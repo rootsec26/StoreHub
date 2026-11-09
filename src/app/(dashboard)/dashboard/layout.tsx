@@ -417,6 +417,51 @@ export default function DashboardLayout({
 
           <LanguageSwitcher />
         </header>
+
+        {/* Mobile store link bar */}
+        {store && (
+          <div className="border-b border-slate-200/80 bg-slate-50 px-4 py-2.5 md:hidden">
+            <div className="flex items-center gap-2 rounded-xl border border-indigo-500/30 bg-slate-900 px-3 py-2 shadow-sm">
+              <Link
+                href={`/store/${store.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="min-w-0 flex-1 truncate text-sm font-semibold text-white"
+                title={storeUrl}
+                dir="ltr"
+              >
+                {storeUrl.replace(/^https?:\/\//, "")}
+              </Link>
+              <button
+                onClick={copyStoreLink}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-white/15 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-white/25"
+                title={t("orders.cod.copyLink")}
+                aria-label={t("orders.cod.copyLink")}
+              >
+                {linkCopied ? (
+                  <Check className="h-4 w-4 text-emerald-400" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+                <span className="hidden sm:inline">
+                  {linkCopied ? t("orders.cod.linkCopied") : t("orders.cod.copyLink")}
+                </span>
+              </button>
+              <Link
+                href={`/store/${store.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-500 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-indigo-400"
+                title={t("domain.visitStore")}
+                aria-label={t("domain.visitStore")}
+              >
+                <ExternalLink className="h-4 w-4" />
+                <span className="hidden sm:inline">{t("domain.visitStore")}</span>
+              </Link>
+            </div>
+          </div>
+        )}
+
         <div className="mx-auto w-full max-w-7xl p-4 sm:p-6">{children}</div>
       </main>
 
