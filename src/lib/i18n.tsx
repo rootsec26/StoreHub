@@ -1296,7 +1296,7 @@ const en = {
     "Not at all. Launch your store in minutes, pick a theme and add your products — no code required.",
   "landing.faq.q2": "Can I start for free?",
   "landing.faq.a2":
-    "Yes. The Free plan includes up to 15 products and all essential selling tools — no credit card required.",
+    "Yes — the platform is 100% free with no limits on products or tools, and no credit card required at all.",
   "landing.faq.q3": "How does WhatsApp order verification protect me?",
   "landing.faq.a3":
     "A confirmation message reaches the customer on WhatsApp and the order ships only after they confirm — cutting fake orders and returns.",
@@ -3362,7 +3362,7 @@ const ar: Record<TranslationKey, string> = {
     "لا إطلاقاً. أطلق متجرك في دقائق، اختر تصميمك وأضف منتجاتك دون أي كود.",
   "landing.faq.q2": "هل يمكنني البدء مجاناً؟",
   "landing.faq.a2":
-    "نعم. الباقة المجانية تتيح لك حتى 15 منتج وجميع أدوات البيع الأساسية، دون بطاقة ائتمان.",
+    "نعم، المنصة مجانية بالكامل بنسبة 100% دون أي قيود على عدد المنتجات أو الأدوات، وبدون الحاجة لبطاقة ائتمان إطلاقاً.",
   "landing.faq.q3": "كيف يحميني تأكيد الطلبات بالواتساب؟",
   "landing.faq.a3":
     "يصل رسالة تأكيد للعميل على واتساب، ولا يُشحن الطلب إلا بعد تأكيده — مما يقلل الطلبات الوهمية والمرتجعات.",
