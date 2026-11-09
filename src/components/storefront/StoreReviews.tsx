@@ -76,6 +76,9 @@ export default function StoreReviews({
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Store owners may browse their own storefront while logged in — they must
+  // not be able to review themselves (the API rejects it too).
+  const [isOwner, setIsOwner] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -99,6 +102,24 @@ export default function StoreReviews({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then(
+        (data: { store?: { id?: string; slug?: string } | null } | null) => {
+          if (cancelled || !data?.store) return;
+          if (data.store.id === storeId || data.store.slug === slug) {
+            setIsOwner(true);
+          }
+        }
+      )
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [storeId, slug]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -220,6 +241,13 @@ export default function StoreReviews({
             )}
           </div>
 
+          {isOwner ? (
+            <div className="flex h-fit items-center justify-center rounded-xl border border-dashed border-indigo-200 bg-indigo-50/60 p-6 text-center">
+              <p className="text-sm font-medium text-indigo-700">
+                {t("reviews.ownStore")}
+              </p>
+            </div>
+          ) : (
           <form
             onSubmit={handleSubmit}
             className="h-fit space-y-3 rounded-xl border border-slate-200 bg-white p-4"
@@ -278,6 +306,7 @@ export default function StoreReviews({
               {t("reviews.forStore", { name: storeName })}
             </p>
           </form>
+          )}
         </div>
       </div>
     </section>

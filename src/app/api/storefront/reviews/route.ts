@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { storeReviews, stores } from "@/db/schema";
 import { createErrorResponse } from "@/lib/errors";
+import { getSessionWithStore } from "@/lib/auth";
 import { getStoreBySlug, isValidUuid } from "@/lib/storefront";
 import { storefrontReviewRateLimiter, withRateLimit } from "@/lib/rate-limit";
 
@@ -123,6 +124,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Store not found", code: "STORE_NOT_FOUND" },
         { status: 404 }
+      );
+    }
+
+    // A merchant must never review their own storefront — the UI hides the
+    // form, and this guard stops a crafted request from doing it anyway.
+    const session = await getSessionWithStore();
+    if (session?.storeId && session.storeId === store.id) {
+      return NextResponse.json(
+        {
+          error: "You cannot review your own store",
+          code: "OWN_STORE_REVIEW",
+        },
+        { status: 403 }
       );
     }
 

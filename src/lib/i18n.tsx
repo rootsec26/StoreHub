@@ -987,6 +987,7 @@ const en = {
   "reviews.thanks": "Thank you! Your review was published.",
   "reviews.submitError": "Could not submit your review. Please try again.",
   "reviews.forStore": "Reviewing {name}",
+  "reviews.ownStore": "This is your store — you can't review your own store.",
 
   // Customer notification inbox
   "store.notifications": "Notifications",
@@ -3087,6 +3088,7 @@ const ar: Record<TranslationKey, string> = {
   "reviews.thanks": "شكرًا لك! تم نشر تقييمك.",
   "reviews.submitError": "تعذّر إرسال تقييمك. حاول مرة أخرى.",
   "reviews.forStore": "أنت تقيّم {name}",
+  "reviews.ownStore": "هذا متجرك، لا يمكنك تقييم متجرك بنفسك.",
 
   // Customer notification inbox
   "store.notifications": "الإشعارات",
