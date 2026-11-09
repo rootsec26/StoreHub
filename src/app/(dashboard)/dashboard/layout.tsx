@@ -358,12 +358,12 @@ export default function DashboardLayout({
           </h2>
 
           {store && (
-            <div className="hidden items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 md:flex">
+            <div className="hidden items-center gap-1 rounded-lg border border-indigo-500/30 bg-slate-900 px-2.5 py-1.5 shadow-sm md:flex">
               <Link
                 href={`/store/${store.slug}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="max-w-[200px] truncate text-xs font-medium text-slate-500 transition-colors hover:text-indigo-600 lg:max-w-[280px]"
+                className="max-w-[200px] truncate text-xs font-semibold text-white transition-colors hover:text-indigo-300 lg:max-w-[280px]"
                 title={storeUrl}
                 dir="ltr"
               >
@@ -371,12 +371,12 @@ export default function DashboardLayout({
               </Link>
               <button
                 onClick={copyStoreLink}
-                className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                className="rounded p-1 text-indigo-300 transition-colors hover:bg-indigo-500/20 hover:text-white"
                 title={t("orders.cod.copyLink")}
                 aria-label={t("orders.cod.copyLink")}
               >
                 {linkCopied ? (
-                  <Check className="h-3.5 w-3.5 text-emerald-500" />
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
                 ) : (
                   <Copy className="h-3.5 w-3.5" />
                 )}
@@ -385,7 +385,7 @@ export default function DashboardLayout({
                 href={`/store/${store.slug}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                className="rounded p-1 text-indigo-300 transition-colors hover:bg-indigo-500/20 hover:text-white"
                 title={t("domain.visitStore")}
                 aria-label={t("domain.visitStore")}
               >
