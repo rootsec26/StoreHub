@@ -23,6 +23,8 @@ jobs:
       # Production origin the Android app loads at runtime.
       CAPACITOR_SERVER_URL: https://store-hub-beta.vercel.app
       NEXT_PUBLIC_SITE_URL: https://store-hub-beta.vercel.app
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,8 +50,15 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses || true
+      - name: Install required SDK packages
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Verify Android SDK
+        run: |
+          sdkmanager --list_installed | grep -E "platforms;android-36|build-tools"
+          echo "ANDROID_HOME=$ANDROID_HOME"
 
       - name: Prepare Capacitor web dir
         # The app loads the deployed site via server.url, so an empty
