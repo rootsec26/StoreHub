@@ -3344,7 +3344,7 @@ const ar: Record<TranslationKey, string> = {
   "landing.app.title": "حمّل تطبيق StoreHub",
   "landing.app.subtitle":
     "حمّل تطبيق StoreHub الرسمي لأجهزة أندرويد وأدر متجرك من أي مكان.",
-  "landing.app.button": "حمل تطبيق StoreHub الآن للروبوت",
+  "landing.app.button": "حمل تطبيق StoreHub الآن لأجهزة أندرويد",
   "landing.app.note": "مجاني • ملف APK لأندرويد • يعمل على جميع أجهزة أندرويد",
 
   // Abandoned Cart Recovery & WhatsApp Commerce Engine
