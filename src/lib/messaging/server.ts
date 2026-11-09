@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { ZodError } from "zod";
-import { eq } from "drizzle-orm";
 
-import { db } from "@/db";
-import { stores } from "@/db/schema";
 import { isAdminAuthorized } from "@/lib/admin";
-import { getSession, type SessionUser } from "@/lib/auth";
+import { getSession, resolveStoreAccess, type SessionUser } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
 
 import { MessagingError } from "./service";
@@ -26,17 +23,14 @@ export async function requireSession(): Promise<SessionUser> {
 export async function requireMerchantContext(): Promise<MerchantContext> {
   const session = await requireSession();
 
-  const rows = await db
-    .select({ id: stores.id })
-    .from(stores)
-    .where(eq(stores.ownerId, session.id))
-    .limit(1);
-
-  if (rows.length === 0) {
+  // resolveStoreAccess covers both the owner and store_members (role ADMIN)
+  // so team members are not locked out of merchant notification routes.
+  const access = await resolveStoreAccess(session.id);
+  if (!access) {
     throw new MessagingError("STORE_NOT_FOUND", "Store not found", 404);
   }
 
-  return { session, storeId: rows[0].id };
+  return { session, storeId: access.store.id };
 }
 
 /** Returns a 404 response when the caller is not an authorized admin. */

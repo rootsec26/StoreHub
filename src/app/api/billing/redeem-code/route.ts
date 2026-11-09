@@ -28,6 +28,23 @@ function redeemError(message: string, code: RedeemErrorBody["code"], status: num
 }
 
 /**
+ * Business error thrown inside the redemption transaction. `db.transaction`
+ * re-throws it, so the outer catch maps it to the right HTTP status instead
+ * of collapsing every failure into a generic 500.
+ */
+class RedeemError extends Error {
+  readonly code: RedeemErrorBody["code"];
+  readonly status: number;
+
+  constructor(code: RedeemErrorBody["code"], message: string, status: number) {
+    super(message);
+    this.name = "RedeemError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+/**
  * POST /api/billing/redeem-code
  * Body: { code: string }
  *
@@ -90,16 +107,16 @@ export async function POST(request: NextRequest) {
 
       const record = rows[0];
       if (!record) {
-        throw new Error("KOD_INVALID:Invalid activation code");
+        throw new RedeemError("KOD_INVALID", "Invalid activation code", 400);
       }
       if (record.isUsed) {
-        throw new Error("KOD_USED:This activation code has already been used");
+        throw new RedeemError("KOD_USED", "This activation code has already been used", 409);
       }
       if (record.expiresAt && new Date(record.expiresAt).getTime() <= Date.now()) {
-        throw new Error("KOD_EXPIRED:This activation code has expired");
+        throw new RedeemError("KOD_EXPIRED", "This activation code has expired", 410);
       }
       if (!isActivationCodeType(record.type)) {
-        throw new Error("KOD_INVALID:Invalid activation code");
+        throw new RedeemError("KOD_INVALID", "Invalid activation code", 400);
       }
 
       // Atomically claim the code so it can never be redeemed twice, even by
@@ -117,13 +134,13 @@ export async function POST(request: NextRequest) {
         .returning({ id: activationCodes.id });
 
       if (claimed.length === 0) {
-        throw new Error("KOD_USED:This activation code has already been used");
+        throw new RedeemError("KOD_USED", "This activation code has already been used", 409);
       }
 
       const spec = activationCodeSpec(record.type);
 
       if (spec.kind === "credit" && (!spec.creditType || !spec.creditAmount)) {
-        throw new Error("KOD_INVALID:Invalid activation code");
+        throw new RedeemError("KOD_INVALID", "Invalid activation code", 400);
       }
 
       if (spec.kind === "plan") {
@@ -156,12 +173,6 @@ export async function POST(request: NextRequest) {
       return { record, spec };
     });
 
-    if (result instanceof Error) {
-      const [code, message] = result.message.split(":", 2);
-      return redeemError(message, code as RedeemErrorBody["code"], 
-        code === "KOD_INVALID" ? 400 : code === "KOD_USED" ? 409 : 410);
-    }
-
     const { record, spec } = result;
     const billing = await buildBillingInfo(session.id);
 
@@ -180,6 +191,9 @@ export async function POST(request: NextRequest) {
       billing,
     });
   } catch (error) {
+    if (error instanceof RedeemError) {
+      return redeemError(error.message, error.code, error.status);
+    }
     if (error instanceof PaywallError) {
       return NextResponse.json(
         { error: error.message, code: error.code },

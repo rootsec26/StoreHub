@@ -8,13 +8,15 @@ export const STORAGE_BUCKET = "store-assets";
 
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
+// Raster formats only — SVG is excluded because it can carry executable
+// script (vector-XSS vector) and uploads bypass the app server entirely
+// (browser → Supabase Storage), so sanitization cannot be enforced here.
 export const ALLOWED_IMAGE_MIME_TYPES = [
   "image/jpeg",
   "image/png",
   "image/webp",
   "image/gif",
   "image/avif",
-  "image/svg+xml",
 ] as const;
 
 /** Which tenant asset is being replaced — drives the `{store_id}/*` folder. */
@@ -47,7 +49,6 @@ const EXTENSION_BY_MIME: Record<string, string> = {
   "image/webp": "webp",
   "image/gif": "gif",
   "image/avif": "avif",
-  "image/svg+xml": "svg",
 };
 
 const FIELD_FOLDER: Record<StoreAssetField, { folder: "branding" | "products"; prefix: string }> = {

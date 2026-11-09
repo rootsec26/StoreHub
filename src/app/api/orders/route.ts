@@ -23,6 +23,7 @@ import {
 } from "@/lib/order-state-machine";
 import { orderStatusIs } from "@/lib/order-status-sql";
 import { validateRequest, orderCreateSchema, orderStatusUpdateSchema, formatZodError } from "@/lib/validators";
+import { effectiveProductPrice } from "@/lib/product-details";
 import type { OrderStatus } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import {
@@ -173,11 +174,65 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate total
-    let totalAmount = 0;
+    // ── Server-side pricing & tenant isolation ────────────────────────────
+    // Never trust client-supplied unitPrice. Re-fetch every product scoped to
+    // the session's store, reject unknown/foreign/invisible products, merge
+    // duplicate lines and rebuild the cart with DB prices only.
+    const requestedIds = [...new Set(items.map((item) => item.productId))];
+    const dbProducts = await db
+      .select({
+        id: products.id,
+        price: products.price,
+        salePrice: products.salePrice,
+        isVisible: products.isVisible,
+      })
+      .from(products)
+      .where(and(eq(products.storeId, storeId), inArray(products.id, requestedIds)));
+    const productById = new Map(dbProducts.map((row) => [row.id, row]));
+
+    const invalidIds = requestedIds.filter((id) => {
+      const product = productById.get(id);
+      return !product || product.isVisible === false;
+    });
+    if (invalidIds.length > 0) {
+      return NextResponse.json(
+        {
+          error: "One or more products are unavailable in this store",
+          code: "INVALID_PRODUCT",
+          productIds: invalidIds,
+        },
+        { status: 400 }
+      );
+    }
+
+    const mergedQuantity = new Map<string, number>();
     for (const item of items) {
+      mergedQuantity.set(
+        item.productId,
+        (mergedQuantity.get(item.productId) ?? 0) + item.quantity
+      );
+    }
+    const pricedItems = [...mergedQuantity.entries()].map(
+      ([productId, quantity]) => {
+        const product = productById.get(productId)!;
+        return {
+          productId,
+          quantity,
+          unitPrice: Number(
+            effectiveProductPrice({
+              price: product.price,
+              salePrice: product.salePrice,
+            }).toFixed(2)
+          ),
+        };
+      }
+    );
+
+    let totalAmount = 0;
+    for (const item of pricedItems) {
       totalAmount += item.unitPrice * item.quantity;
     }
+    totalAmount = Number(totalAmount.toFixed(2));
 
     // Smart COD Verification: pay-later orders are scored and gated behind a
     // WhatsApp confirmation before fulfilment.
@@ -217,8 +272,8 @@ export async function POST(request: NextRequest) {
 
     const order = orderResult[0];
 
-    // Create order items
-    const orderItemsData = items.map((item) => ({
+    // Create order items (server-priced lines only)
+    const orderItemsData = pricedItems.map((item) => ({
       orderId: order.id,
       productId: item.productId,
       quantity: item.quantity,
@@ -232,7 +287,7 @@ export async function POST(request: NextRequest) {
     await deductWarehouseStockForOrder({
       storeId,
       customerAddress: customerAddress || "",
-      items,
+      items: pricedItems,
     });
 
     if (isCodOrder) {

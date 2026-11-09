@@ -1,0 +1,81 @@
+-- ============================================================
+-- Test-data purge template — REVIEW BEFORE RUNNING
+-- ============================================================
+-- This file is a manual toolkit, NOT a migration. Nothing here runs
+-- automatically. Uncomment only the statements you need, run them in
+-- the Supabase SQL editor (or psql), and re-comment afterwards.
+--
+-- Ordering matters: child tables first. `stores`/`users` deletes rely
+-- on ON DELETE CASCADE for most children, but explicit deletes are
+-- safer for tables without cascade FKs.
+--
+-- SAFETY: wrap risky deletes in a transaction and check counts first:
+--   BEGIN;
+--   SELECT count(*) FROM orders;   -- verify scope
+--   -- ... your DELETE ...
+--   -- ROLLBACK;  or  COMMIT;
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- 1. Preview: how much test-looking data exists
+-- ------------------------------------------------------------
+-- SELECT count(*) FROM orders
+--   WHERE customer_email ILIKE '%test%' OR customer_email ILIKE '%example%'
+--      OR customer_name ILIKE '%test%';
+--
+-- SELECT count(*) FROM products WHERE name ILIKE '%test%' OR name ILIKE '%تجريبي%';
+--
+-- SELECT count(*) FROM stores WHERE name ILIKE '%test%' OR name ILIKE '%تجريبي%';
+
+-- ------------------------------------------------------------
+-- 2. Purge test ORDERS (children first)
+-- ------------------------------------------------------------
+-- DELETE FROM order_status_logs
+--   WHERE order_id IN (
+--     SELECT id FROM orders
+--     WHERE customer_email ILIKE '%test%' OR customer_email ILIKE '%example%'
+--   );
+--
+-- DELETE FROM order_items
+--   WHERE order_id IN (
+--     SELECT id FROM orders
+--     WHERE customer_email ILIKE '%test%' OR customer_email ILIKE '%example%'
+--   );
+--
+-- DELETE FROM orders
+--   WHERE customer_email ILIKE '%test%' OR customer_email ILIKE '%example%';
+
+-- ------------------------------------------------------------
+-- 3. Purge test PRODUCTS of a specific store
+--    (replace :store_id or use a name pattern)
+-- ------------------------------------------------------------
+-- DELETE FROM products
+--   WHERE store_id = '<STORE_UUID>'
+--     AND (name ILIKE '%test%' OR name ILIKE '%تجريبي%' OR sku ILIKE 'TEST%');
+
+-- ------------------------------------------------------------
+-- 4. Purge notification history older than N days
+-- ------------------------------------------------------------
+-- DELETE FROM notification_events
+--   WHERE created_at < now() - interval '90 days';
+-- DELETE FROM notification_recipients
+--   WHERE created_at < now() - interval '90 days';
+-- DELETE FROM notifications
+--   WHERE created_at < now() - interval '90 days';
+
+-- ------------------------------------------------------------
+-- 5. Purge analytics / abandoned carts older than N days
+-- ------------------------------------------------------------
+-- DELETE FROM analytics_events WHERE created_at < now() - interval '180 days';
+-- DELETE FROM abandoned_carts   WHERE updated_at < now() - interval '180 days';
+-- DELETE FROM price_alerts      WHERE created_at < now() - interval '180 days';
+
+-- ------------------------------------------------------------
+-- 6. NUCLEAR OPTION — wipe ALL transactional data, keep catalog
+--    Uncomment ONLY if you intend a full reset of orders/customers.
+-- ------------------------------------------------------------
+-- TRUNCATE order_status_logs, order_items, orders,
+--          loyalty_transactions, price_alerts, abandoned_carts,
+--          analytics_events, notification_events,
+--          notification_recipients, notifications
+-- RESTART IDENTITY CASCADE;

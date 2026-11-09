@@ -344,7 +344,7 @@ export default function StorefrontView({
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.22),transparent_38%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.14),transparent_32%)]" />
 
         <div className="relative mx-auto max-w-7xl px-4 pb-8 pt-10 sm:px-6 sm:pb-10 sm:pt-14">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-8 sm:flex-row sm:items-center sm:gap-10">
             <div
               className="animate-storefront-pop shrink-0 self-center sm:self-auto"
               style={{ animationDelay: "60ms" }}
@@ -353,14 +353,14 @@ export default function StorefrontView({
                 <Image
                   src={store.logoUrl!}
                   alt={store.name}
-                  width={96}
-                  height={96}
+                  width={160}
+                  height={160}
                   unoptimized={!canOptimizeImage(store.logoUrl)}
-                  className="h-20 w-20 rounded-3xl border-4 border-white/30 object-cover shadow-2xl ring-1 ring-white/20 sm:h-24 sm:w-24"
+                  className="h-28 w-28 rounded-[2rem] border-4 border-white/40 object-cover shadow-2xl shadow-black/25 ring-2 ring-white/30 sm:h-36 sm:w-36"
                 />
               ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-3xl border-4 border-white/30 bg-white/15 shadow-2xl ring-1 ring-white/20 backdrop-blur sm:h-24 sm:w-24">
-                  <Store className="h-10 w-10 text-white" />
+                <div className="flex h-28 w-28 items-center justify-center rounded-[2rem] border-4 border-white/40 bg-white/15 shadow-2xl shadow-black/25 ring-2 ring-white/30 backdrop-blur sm:h-36 sm:w-36">
+                  <Store className="h-14 w-14 text-white" />
                 </div>
               )}
             </div>

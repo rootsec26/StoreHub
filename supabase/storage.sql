@@ -19,7 +19,7 @@ values (
   'store-assets',
   true,
   5 * 1024 * 1024, -- 5 MB per file
-  array['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/svg+xml']
+  array['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']
 )
 on conflict (id) do update
   set public = excluded.public,

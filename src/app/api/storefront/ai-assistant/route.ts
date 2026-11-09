@@ -6,6 +6,10 @@ import { orderItems, orders } from "@/db/schema";
 import { convertPrice, validateCurrencyCode } from "@/lib/currency";
 import { createErrorResponse } from "@/lib/errors";
 import {
+  storefrontAssistantRateLimiter,
+  withRateLimit,
+} from "@/lib/rate-limit";
+import {
   getStoreBySlug,
   getStoreCategories,
   getStoreProducts,
@@ -420,6 +424,12 @@ function truncate(value: string, max: number): string {
 
 export async function POST(request: NextRequest) {
   try {
+    const rateLimitResponse = await withRateLimit(
+      request,
+      storefrontAssistantRateLimiter
+    );
+    if (rateLimitResponse) return rateLimitResponse;
+
     const body = (await request.json().catch(() => null)) as {
       storeSlug?: unknown;
       message?: unknown;

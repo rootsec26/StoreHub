@@ -4,7 +4,7 @@ import { jwtVerify } from "jose";
 import { safeParseUrl, safeResolveUrl } from "@/lib/url";
 import { db } from "@/db";
 import { stores } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDefaultCurrencyForCountry } from "@/lib/currency";
 import { isGatedApiPath, resolveApiFeatureGate } from "@/lib/paywall";
 import {
@@ -88,10 +88,17 @@ async function resolveCustomDomain(hostname: string): Promise<string | null> {
   }
 
   try {
+    // Only DNS/Vercel-verified domains may serve a storefront. Registering a
+    // domain (custom_domain set, verified=false) must never hijack the Host.
     const result = await db
       .select({ slug: stores.slug })
       .from(stores)
-      .where(eq(stores.customDomain, hostname))
+      .where(
+        and(
+          eq(stores.customDomain, hostname),
+          eq(stores.customDomainVerified, true)
+        )
+      )
       .limit(1);
 
     if (result.length > 0) {

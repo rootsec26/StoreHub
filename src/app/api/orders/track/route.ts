@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { eq, and } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { orders, orderItems, products, stores } from "@/db/schema";
-import { inArray } from "drizzle-orm";
 import { createErrorResponse } from "@/lib/errors";
 import { createOrderToken, verifyOrderToken } from "@/lib/order-tokens";
 import { isAuthenticatedStoreOwner } from "@/lib/orders/order-access";
 import { normalizeOrderStatus } from "@/lib/order-state-machine";
+import { normalizePhoneDigits } from "@/lib/order-tracking";
 import { buildTrackingOrder } from "@/lib/orders/tracking-dto";
 
 export async function GET(request: NextRequest) {
@@ -55,11 +55,20 @@ export async function GET(request: NextRequest) {
         .where(and(eq(orders.id, orderId), eq(orders.storeId, storeId)))
         .limit(1);
     } else if (phone) {
+      const phoneDigits = normalizePhoneDigits(phone);
       orderResult = await db
         .select()
         .from(orders)
-        .where(and(eq(orders.customerPhone, phone), eq(orders.storeId, storeId)))
-        .orderBy(orders.createdAt)
+        .where(
+          and(
+            eq(orders.storeId, storeId),
+            or(
+              eq(orders.customerPhone, phone),
+              sql`regexp_replace(${orders.customerPhone}, '\\D', '', 'g') = ${phoneDigits}`
+            )
+          )
+        )
+        .orderBy(desc(orders.createdAt))
         .limit(1);
     }
 

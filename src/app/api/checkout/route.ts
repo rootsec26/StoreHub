@@ -137,6 +137,32 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
       );
     }
 
+    // Redirect URLs are handed to Stripe/Paddle verbatim — they become the
+    // post-payment landing page. Only same-origin URLs are allowed (the
+    // storefront's own domain, subdomain or custom domain), otherwise an
+    // attacker could bounce buyers to a phishing page after payment.
+    const allowedRedirectOrigins = new Set<string>([request.nextUrl.origin]);
+    try {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+      if (siteUrl) allowedRedirectOrigins.add(new URL(siteUrl).origin);
+    } catch {
+      // Malformed NEXT_PUBLIC_SITE_URL — request origin still applies.
+    }
+    const isAllowedRedirectUrl = (value: string | undefined): boolean => {
+      if (!value) return true;
+      try {
+        return allowedRedirectOrigins.has(new URL(value).origin);
+      } catch {
+        return false;
+      }
+    };
+    if (!isAllowedRedirectUrl(successUrl) || !isAllowedRedirectUrl(cancelUrl)) {
+      return NextResponse.json(
+        { message: "Invalid redirect URL", code: "INVALID_REDIRECT_URL" },
+        { status: 400 }
+      ) as NextResponse<CheckoutResponse>;
+    }
+
     const defaultSuccessUrl = successUrl || `${process.env.NEXT_PUBLIC_SITE_URL}/store/${storeData.slug}/track-order`;
     const defaultCancelUrl = cancelUrl || `${process.env.NEXT_PUBLIC_SITE_URL}/store/${storeData.slug}/checkout`;
 
@@ -467,30 +493,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
           );
         }
 
-        const paddleItems = chargeItems.map((item) => ({
-          name: item.productId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          productId: item.productId,
-        }));
-
-        const result = await createPaddleCheckoutSession({
-          vendorId: "",
-          vendorAuthCode: "",
-          currency,
-          items: paddleItems,
-          customerEmail,
-          customerName,
-          customerPhone,
-          customerAddress,
-          successUrl: defaultSuccessUrl,
-          cancelUrl: defaultCancelUrl,
-          metadata: {
-            order_notes: notes || "",
-          },
-        });
-
+        // Create the order BEFORE the Paddle transaction so its id can be
+        // embedded in customData — that is how a payment webhook (or manual
+        // reconciliation) matches the payment to this exact order. Mirrors
+        // the Stripe flow.
+        const orderId = randomUUID();
         const order = await createOrder({
+          id: orderId,
           storeId,
           customerName,
           customerPhone: customerPhone || "",
@@ -504,6 +513,40 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
         });
 
         await recordOrderConversion(order, "paddle");
+
+        const paddleItems = chargeItems.map((item) => ({
+          name: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          productId: item.productId,
+        }));
+
+        let result;
+        try {
+          result = await createPaddleCheckoutSession({
+            vendorId: "",
+            vendorAuthCode: "",
+            currency,
+            items: paddleItems,
+            customerEmail,
+            customerName,
+            customerPhone,
+            customerAddress,
+            successUrl: defaultSuccessUrl,
+            cancelUrl: defaultCancelUrl,
+            metadata: {
+              order_notes: notes || "",
+              order_id: orderId,
+              store_id: storeId,
+            },
+          });
+        } catch (error) {
+          // Compensate: never leave an orphaned Pending order (nor a consumed
+          // coupon use) when the payment session could not be created.
+          await db.delete(orders).where(eq(orders.id, orderId));
+          await releaseCouponClaim();
+          throw error;
+        }
 
         const loyaltyOutcome = await finalizeLoyalty(order.id);
         await fulfilFromWarehouse();

@@ -4,10 +4,14 @@ import { stores } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { validateCoupon } from "@/lib/coupons";
 import { createErrorResponse } from "@/lib/errors";
+import { couponValidateRateLimiter, withRateLimit } from "@/lib/rate-limit";
 
 // Public: preview a coupon against the current cart before checkout.
 export async function POST(request: NextRequest) {
   try {
+    const rateLimitResponse = await withRateLimit(request, couponValidateRateLimiter);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const body = await request.json();
     const { storeId, code, subtotal } = body ?? {};
 

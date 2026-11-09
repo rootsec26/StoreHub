@@ -175,6 +175,7 @@ export async function POST(request: NextRequest) {
       storeId: store.id,
       storeSlug: store.slug,
       storeName: store.name,
+      role: "OWNER",
     });
 
     const response = NextResponse.json(

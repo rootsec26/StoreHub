@@ -103,6 +103,30 @@ export const abandonedCartRateLimiter = createRateLimiter({
   message: "Too many cart sync requests. Please slow down.",
 });
 
+/** The storefront AI assistant scans the whole catalog per message — keep it cheap. */
+export const storefrontAssistantRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 20,
+  keyPrefix: "storefront-assistant",
+  message: "Too many assistant requests. Please wait before trying again.",
+});
+
+/** Price-alert signups write rows (and later trigger metered alerts) per call. */
+export const priceAlertRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 10,
+  keyPrefix: "price-alert",
+  message: "Too many alert requests. Please wait before trying again.",
+});
+
+/** Coupon previews hit the DB per attempt — cap enumeration speed. */
+export const couponValidateRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 30,
+  keyPrefix: "coupon-validate",
+  message: "Too many coupon checks. Please slow down.",
+});
+
 /** Page-view beacons are chatty but must stay cheap for real visitors. */
 export const analyticsTrackRateLimiter = createRateLimiter({
   windowMs: 60 * 1000,
@@ -116,4 +140,36 @@ export async function withRateLimit(
   limiter: (req: NextRequest) => Promise<NextResponse | null>
 ): Promise<NextResponse | null> {
   return limiter(request);
+}
+
+/**
+ * Low-level fixed-window check against the shared in-memory store for callers
+ * that need a custom key (e.g. store+phone) rather than the client IP.
+ */
+export async function consumeRateLimit(options: {
+  key: string;
+  windowMs: number;
+  maxRequests: number;
+  message?: string;
+}): Promise<NextResponse | null> {
+  const { key, windowMs, maxRequests, message = "Too many requests" } = options;
+
+  const now = Date.now();
+  const entry = memoryStore.get(key);
+
+  if (!entry || entry.resetTime < now) {
+    memoryStore.set(key, { count: 1, resetTime: now + windowMs });
+    return null;
+  }
+
+  if (entry.count >= maxRequests) {
+    const retryAfter = Math.ceil((entry.resetTime - now) / 1000);
+    return NextResponse.json(
+      { error: message, code: "RATE_LIMIT_EXCEEDED", retryAfter },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } }
+    );
+  }
+
+  entry.count++;
+  return null;
 }

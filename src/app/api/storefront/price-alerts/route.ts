@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { priceAlerts, products, stores } from "@/db/schema";
 import { createErrorResponse } from "@/lib/errors";
 import { getStoreBySlug } from "@/lib/storefront";
+import { priceAlertRateLimiter, withRateLimit } from "@/lib/rate-limit";
 import { validateAlertContact, canonicalContactValue, type AlertContactType } from "@/lib/price-alerts";
 
 /**
@@ -23,6 +24,9 @@ import { validateAlertContact, canonicalContactValue, type AlertContactType } fr
  */
 export async function POST(request: NextRequest) {
   try {
+    const rateLimitResponse = await withRateLimit(request, priceAlertRateLimiter);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const body = await request.json().catch(() => ({}));
     const { storeSlug, productId, contactRaw, baselinePrice } = body;
 

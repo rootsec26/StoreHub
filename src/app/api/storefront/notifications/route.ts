@@ -11,6 +11,11 @@ import {
 import { createErrorResponse } from "@/lib/errors";
 import { isValidPhoneNumber, normalizePhoneDigits } from "@/lib/order-tracking";
 import { getStoreBySlug } from "@/lib/storefront";
+import {
+  consumeRateLimit,
+  createRateLimiter,
+  withRateLimit,
+} from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -18,6 +23,29 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const MAX_ITEMS = 50;
+
+/** Per-IP ceiling for the public inbox endpoints (both GET and POST). */
+const storefrontInboxRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 30,
+  keyPrefix: "storefront-inbox",
+  message: "Too many inbox requests. Please slow down.",
+});
+
+/**
+ * Per-(store, phone) ceiling: the phone number alone is the only credential
+ * for this inbox, so each number gets its own small bucket on top of the IP
+ * limit — this throttles targeted enumeration of a victim's messages.
+ */
+async function phoneInboxRateLimit(slug: string, phone: string) {
+  const digits = normalizePhoneDigits(phone) || phone.trim().slice(0, 32);
+  return consumeRateLimit({
+    key: `storefront-inbox-phone:${slug}:${digits}`,
+    windowMs: 60 * 1000,
+    maxRequests: 10,
+    message: "Too many inbox lookups for this number. Please slow down.",
+  });
+}
 
 /**
  * Guest-facing customer inbox for a storefront.
@@ -124,6 +152,9 @@ async function findCustomerIds(storeId: string, variants: string[]) {
 /** GET /api/storefront/notifications?slug=&phone= — customer inbox. */
 export async function GET(request: NextRequest) {
   try {
+    const ipLimit = await withRateLimit(request, storefrontInboxRateLimiter);
+    if (ipLimit) return ipLimit;
+
     const params = request.nextUrl.searchParams;
     const slug = params.get("slug")?.trim() || "";
     const phone = params.get("phone")?.trim() || "";
@@ -138,6 +169,9 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const phoneLimit = await phoneInboxRateLimit(slug, phone);
+    if (phoneLimit) return phoneLimit;
 
     const identity = await resolveIdentity(slug, phone);
     if ("error" in identity) {
@@ -228,6 +262,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const ipLimit = await withRateLimit(request, storefrontInboxRateLimiter);
+    if (ipLimit) return ipLimit;
+
     const body = await request.json().catch(() => ({}));
     const slug = typeof body.slug === "string" ? body.slug.trim() : "";
     const phone = typeof body.phone === "string" ? body.phone.trim() : "";
@@ -242,6 +279,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const phoneLimit = await phoneInboxRateLimit(slug, phone);
+    if (phoneLimit) return phoneLimit;
 
     const identity = await resolveIdentity(slug, phone);
     if ("error" in identity) {

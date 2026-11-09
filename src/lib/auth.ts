@@ -3,7 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { db } from "@/db";
 import { users, stores, storeMembers } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) {
@@ -66,7 +66,51 @@ export async function getSession(): Promise<SessionUser | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get("session")?.value;
   if (!token) return null;
-  return verifyToken(token);
+  const session = await verifyToken(token);
+  if (session?.storeId && !session.role) {
+    // Sessions minted by store-creation endpoints before `role` was included
+    // carry storeId but no role claim — heal them instead of failing RBAC.
+    const access = await resolveStoreAccess(session.id);
+    if (access && access.store.id === session.storeId) {
+      session.role = access.role;
+      session.storeSlug = access.store.slug;
+      session.storeName = access.store.name;
+    }
+  }
+
+  if (session?.storeId && session.role && session.role !== "OWNER") {
+    // Member (non-owner) sessions: re-validate the store_members row on every
+    // request so removing a team member takes effect immediately instead of
+    // waiting for the 7-day JWT to expire. On mismatch the session is
+    // re-resolved — the user falls back to a store they still belong to, or
+    // loses store context entirely (fail-closed).
+    const membership = await db
+      .select({ id: storeMembers.id })
+      .from(storeMembers)
+      .where(
+        and(
+          eq(storeMembers.storeId, session.storeId),
+          eq(storeMembers.userId, session.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) {
+      const access = await resolveStoreAccess(session.id);
+      if (access) {
+        session.storeId = access.store.id;
+        session.storeSlug = access.store.slug;
+        session.storeName = access.store.name;
+        session.role = access.role;
+      } else {
+        session.storeId = undefined;
+        session.storeSlug = undefined;
+        session.storeName = undefined;
+        session.role = undefined;
+      }
+    }
+  }
+  return session;
 }
 
 // Create session (set cookie)

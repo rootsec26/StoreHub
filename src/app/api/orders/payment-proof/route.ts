@@ -15,8 +15,8 @@ const proofSchema = z.object({
   token: z.string().min(20).max(512),
   /** Compressed `data:image/...;base64,...` payload (preferred). */
   proofDataUrl: z.string().max(8_000_000).optional(),
-  /** Or an already-hosted public image URL. */
-  proofUrl: z.string().url().max(2000).optional(),
+  /** Same safe data-URL format — external http(s) proof links are rejected. */
+  proofUrl: z.string().max(8_000_000).optional(),
   paymentMethodDetail: z.string().max(120).optional(),
 });
 
@@ -120,13 +120,17 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    if (proofDataUrl) {
-      if (proofDataUrl.length > MAX_PROOF_DATA_URL_LENGTH || !isAllowedProofUrl(proofDataUrl)) {
-        return NextResponse.json(
-          { error: "Invalid or too-large payment screenshot", code: "INVALID_PROOF" },
-          { status: 400 }
-        );
-      }
+    // Strict allowlist: only `data:image/(png|jpeg|webp|gif|avif);base64,…`
+    // payloads are stored. Arbitrary external URLs are rejected so a buyer
+    // cannot point the merchant dashboard at a tracking pixel or hostile host.
+    if (
+      resolvedProof.length > MAX_PROOF_DATA_URL_LENGTH ||
+      !isAllowedProofUrl(resolvedProof)
+    ) {
+      return NextResponse.json(
+        { error: "Invalid or too-large payment screenshot", code: "INVALID_PROOF" },
+        { status: 400 }
+      );
     }
 
     await db

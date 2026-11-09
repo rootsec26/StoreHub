@@ -159,7 +159,7 @@ export default function ProductGalleryField({
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
         multiple
         className="hidden"
         onChange={(e) => void handleFiles(e.target.files)}
