@@ -30,7 +30,6 @@ interface SelectableCustomer {
   name: string;
   phone: string;
   email: string;
-  loyaltyPoints: number;
   totalSpent: number;
 }
 
@@ -63,7 +62,6 @@ export default function CampaignComposer({
     useState<AudienceType>("ALL_CUSTOMERS");
   const [minSpend, setMinSpend] = useState("");
   const [lastOrderDays, setLastOrderDays] = useState("");
-  const [loyaltyPoints, setLoyaltyPoints] = useState("");
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
 
   const [customers, setCustomers] = useState<SelectableCustomer[]>([]);
@@ -87,7 +85,6 @@ export default function CampaignComposer({
     setAudienceType("ALL_CUSTOMERS");
     setMinSpend("");
     setLastOrderDays("");
-    setLoyaltyPoints("");
     setSelectedCustomerIds([]);
     setCustomerSearch("");
     setPreview(null);
@@ -110,7 +107,6 @@ export default function CampaignComposer({
       return {
         minSpend: numberOrUndefined(minSpend),
         lastOrderDays: numberOrUndefined(lastOrderDays),
-        loyaltyPoints: numberOrUndefined(loyaltyPoints),
       };
     }
     return {};
@@ -119,7 +115,6 @@ export default function CampaignComposer({
     selectedCustomerIds,
     minSpend,
     lastOrderDays,
-    loyaltyPoints,
   ]);
 
   // Audience preview with a light debounce so typing a segment threshold
@@ -141,8 +136,7 @@ export default function CampaignComposer({
     if (audienceType === "CUSTOMER_SEGMENT") {
       const hasFilter =
         numberOrUndefined(minSpend) !== undefined ||
-        numberOrUndefined(lastOrderDays) !== undefined ||
-        numberOrUndefined(loyaltyPoints) !== undefined;
+        numberOrUndefined(lastOrderDays) !== undefined;
       if (!hasFilter) {
         setPreview(null);
         setPreviewLoading(false);
@@ -165,12 +159,6 @@ export default function CampaignComposer({
           }
           if (numberOrUndefined(lastOrderDays) !== undefined) {
             params.set("lastOrderDays", String(numberOrUndefined(lastOrderDays)));
-          }
-          if (numberOrUndefined(loyaltyPoints) !== undefined) {
-            params.set(
-              "loyaltyPoints",
-              String(numberOrUndefined(loyaltyPoints))
-            );
           }
         }
 
@@ -197,7 +185,6 @@ export default function CampaignComposer({
     selectedCustomerIds,
     minSpend,
     lastOrderDays,
-    loyaltyPoints,
   ]);
 
   // Customer picker data, refreshed as the search term changes.
@@ -251,8 +238,7 @@ export default function CampaignComposer({
     if (audienceType === "CUSTOMER_SEGMENT") {
       const hasFilter =
         numberOrUndefined(minSpend) !== undefined ||
-        numberOrUndefined(lastOrderDays) !== undefined ||
-        numberOrUndefined(loyaltyPoints) !== undefined;
+        numberOrUndefined(lastOrderDays) !== undefined;
       if (!hasFilter) return t("messages.audience.empty");
     }
     if (!preview || preview.count === 0) return t("messages.audience.empty");
@@ -572,15 +558,6 @@ export default function CampaignComposer({
                 value={lastOrderDays}
                 onChange={(event) => setLastOrderDays(event.target.value)}
                 disabled={submitting !== null}
-              />
-              <Input
-                label={t("messages.audience.loyaltyPoints")}
-                type="number"
-                min={0}
-                value={loyaltyPoints}
-                onChange={(event) => setLoyaltyPoints(event.target.value)}
-                disabled={submitting !== null}
-                className="sm:col-span-2"
               />
             </div>
           )}

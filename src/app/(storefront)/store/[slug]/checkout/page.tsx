@@ -20,8 +20,6 @@ import {
   Truck,
   Lock,
   AlertCircle,
-  Zap,
-  Sparkles,
   Upload,
   Wallet,
   Copy,
@@ -39,7 +37,6 @@ import {
 } from "@/lib/whatsapp";
 import { useStoreCurrency } from "@/components/CurrencySelector";
 import { convertAndFormatPrice } from "@/lib/currency";
-import type { CheckoutLoyaltyOutcome, VipTierRecord } from "@/lib/loyalty";
 import { getAnalyticsVisitorId } from "@/lib/analytics-client";
 import { compressImageForUpload } from "@/lib/imageCompress";
 import { orderTrackingCode } from "@/lib/order-tracking";
@@ -112,8 +109,6 @@ function CheckoutContent() {
   const [placedOrder, setPlacedOrder] = useState<PlacedOrder | null>(null);
   const [codVerifyNotice, setCodVerifyNotice] = useState("");
   const [codVerifyUrl, setCodVerifyUrl] = useState("");
-  const [loyaltyRedeemed, setLoyaltyRedeemed] = useState(0);
-  const [loyaltyResult, setLoyaltyResult] = useState<CheckoutLoyaltyOutcome | null>(null);
   const selectedPaymentMethodInitialized = useRef(false);
 
   const { currency: selectedCurrency } = useStoreCurrency(storeCurrency, storeSupportedCurrencies, locale);
@@ -154,75 +149,6 @@ function CheckoutContent() {
       disabledReason: paddleEnabled ? undefined : t("checkout.payment.paddleDisabled"),
     },
   ], [stripeEnabled, paddleEnabled, t]);
-
-  // Loyalty state
-  const [loyalty, setLoyalty] = useState<{
-    enabled: boolean;
-    points: number;
-    totalLifetimeSpend: number;
-    vipTier: null | { tierName: string; discountPercentage: number; badgeColor: string };
-    tiers: VipTierRecord[];
-    redemptionRate: number;
-  }>({
-    enabled: false,
-    points: 0,
-    totalLifetimeSpend: 0,
-    vipTier: null,
-    tiers: [],
-    redemptionRate: 10,
-  });
-
-  useEffect(() => {
-    async function loadLoyalty() {
-      try {
-        if (!storeId) return;
-        const params = new URLSearchParams({ storeId });
-        if (customerPhone) params.set("phone", customerPhone);
-        const res = await fetch(`/api/storefront/loyalty?${params.toString()}`, {
-          cache: "no-store",
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data.enabled) {
-          setLoyalty((prev) => ({ ...prev, enabled: false }));
-          return;
-        }
-
-        const tiers: VipTierRecord[] = data.tiers ?? [];
-        const spend = Number(data.profile?.totalLifetimeSpend) || 0;
-        const points = Number(data.profile?.points) || 0;
-        const redemptionRate = Number(data.settings?.redemptionRate) || 10;
-        const vipTier =
-          spend > 0 && tiers.length > 0
-            ? tiers.find((tier) => spend >= tier.minSpendThreshold) ??
-              tiers[tiers.length - 1]
-            : null;
-
-        setLoyalty({
-          enabled: true,
-          points,
-          totalLifetimeSpend: spend,
-          vipTier: vipTier
-            ? {
-                tierName: vipTier.tierName,
-                discountPercentage: vipTier.discountPercentage,
-                badgeColor: vipTier.badgeColor,
-              }
-            : null,
-          tiers,
-          redemptionRate,
-        });
-      } catch {
-        // Silently fail - loyalty is optional
-      }
-    }
-
-    loadLoyalty();
-
-    // Keep the member balance fresh while the shopper types
-    const loyaltyTimer = setInterval(loadLoyalty, 30000);
-    return () => clearInterval(loyaltyTimer);
-  }, [storeId, customerPhone]);
 
   useEffect(() => {
     async function loadStore() {
@@ -291,20 +217,7 @@ function CheckoutContent() {
     locale,
   ]);
 
-  // Compute loyalty discount amount from selected points
-  const loyaltyDiscountAmount = useMemo(() => {
-    if (!loyalty.enabled || loyaltyRedeemed <= 0 || loyalty.redemptionRate <= 0) {
-      return 0;
-    }
-    // discount = points / redemptionRate (e.g., 100 points at rate 10 = 10 EGP)
-    return Math.floor((loyaltyRedeemed / loyalty.redemptionRate) * 100) / 100;
-  }, [loyalty.enabled, loyaltyRedeemed, loyalty.redemptionRate]);
-
-  // Compute final total with loyalty discount
-  const finalTotal = useMemo(() => {
-    const subtotal = cart.getTotal();
-    return Math.max(0, subtotal - loyaltyDiscountAmount);
-  }, [cart, loyaltyDiscountAmount]);
+  const finalTotal = cart.getTotal();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -327,8 +240,6 @@ function CheckoutContent() {
         unitPrice: parseFloat(item.price),
       }));
 
-      // Loyalty (VIP discount + points redemption) is computed server-side
-      // inside POST /api/checkout, which also finalizes the member's balance.
       const orderData = {
         storeId,
         customerName,
@@ -339,7 +250,6 @@ function CheckoutContent() {
         items,
         paymentMethod: selectedPaymentMethod,
         currency: storeCurrency,
-        redeemPoints: loyaltyRedeemed,
         // Recovery links arrive with `?code=RECOVER10`; send it along so the
         // advertised discount is actually applied server-side.
         ...(recoveryCode &&
@@ -369,10 +279,6 @@ function CheckoutContent() {
       if (data.orderToken) {
         setOrderToken(data.orderToken);
       }
-      if (data.loyalty) {
-        setLoyaltyResult(data.loyalty);
-      }
-
       if (selectedPaymentMethod === "stripe" || selectedPaymentMethod === "paddle") {
         if (data.redirectUrl) {
           window.location.href = data.redirectUrl;
@@ -677,35 +583,6 @@ function CheckoutContent() {
             </div>
           )}
 
-          {success && !isManual && loyaltyResult && (
-            <div className="mb-6 rounded-lg bg-emerald-50 p-4 text-left text-emerald-700">
-              <h3 className="font-semibold mb-2 flex items-center gap-2">
-                <Sparkles className="h-4 w-4" />
-                {t("loyalty.pointsEarnedFromOrder", {
-                  points: loyaltyResult.pointsEarned,
-                })}
-              </h3>
-              <p className="text-sm mb-2">
-                {t("loyalty.pointsBreakdown", {
-                  earned: loyaltyResult.pointsEarned,
-                  redeemed: loyaltyResult.pointsRedeemed,
-                  bonus: loyaltyResult.bonusPoints,
-                  discount: formatMoney(loyaltyResult.discountAmount),
-                })}
-              </p>
-              <p className="text-sm">
-                {t("loyalty.newBalance", {
-                  balance: loyaltyResult.newBalance,
-                })}
-              </p>
-              <p className="text-sm">
-                {t("loyalty.newTier", {
-                  tier: loyaltyResult.tierName || "—",
-                })}
-              </p>
-            </div>
-          )}
-
           <div className="space-y-3">
             {whatsappUrl ? (
               <>
@@ -768,35 +645,6 @@ function CheckoutContent() {
           <span className="flex-1 text-lg font-semibold text-slate-900">
             {storeName || t("checkout.customerDetails")}
           </span>
-          {loyalty.enabled && (
-            <div className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-emerald-500" />
-              <span className="text-sm font-medium text-emerald-600">
-                {loyalty.points} {t("loyalty.points")}
-              </span>
-            </div>
-          )}
-          {loyalty.vipTier && (
-            <div className="ml-3 flex items-center gap-2">
-              <span
-                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                  loyalty.vipTier.badgeColor
-                    ? `bg-${loyalty.vipTier.badgeColor.replace(
-                      "#",
-                      ""
-                    )}`
-                    : "bg-slate-200"
-                } text-slate-600`}
-              >
-                {loyalty.vipTier.tierName}
-              </span>
-              <span className="text-xs text-slate-500">
-                {t("loyalty.discount", {
-                  discount: loyalty.vipTier.discountPercentage,
-                })} {t("loyalty.discountPercent")}
-              </span>
-            </div>
-          )}
         </div>
       </header>
 
@@ -1068,58 +916,7 @@ function CheckoutContent() {
                   </div>
                 ))}
 
-                {/* Loyalty Points Redemption */}
-                {loyalty.enabled && loyalty.points > 0 && (
-                  <div className="mt-4 p-4 rounded-lg bg-emerald-50 border border-emerald-200">
-                    <h3 className="font-medium text-emerald-700 mb-3">
-                      {t("loyalty.pointsToCash")}
-                    </h3>
-                    <p className="text-sm text-emerald-600 mb-3">
-                      {t("loyalty.pointsAvailable", {
-                        points: loyalty.points,
-                      })}
-                    </p>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      {t("loyalty.redeemAmount")}
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max={loyalty.points}
-                      value={loyaltyRedeemed}
-                      onChange={(e) => setLoyaltyRedeemed(Number(e.target.value))}
-                      className="w-full rounded-lg border border-emerald-300 py-2 ps-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-200"
-                    />
-                    <div className="mt-3 flex justify-between text-sm">
-                      <span>
-                        {t("loyalty.pointsToRedeem", { points: loyaltyRedeemed })}
-                      </span>
-                      <span className="font-medium text-emerald-600">
-                        -{loyaltyRedeemed} {t("loyalty.points")}
-                      </span>
-                    </div>
-                    {loyaltyDiscountAmount > 0 && (
-                      <div className="mt-3 flex justify-between text-sm">
-                        <span className="text-emerald-700">
-                          {t("loyalty.discountApplied", { amount: convertAndFormatPrice(loyaltyDiscountAmount, storeCurrency, selectedCurrency, priceLocale) })}
-                        </span>
-                        <span className="font-medium text-emerald-600">
-                          -{convertAndFormatPrice(loyaltyDiscountAmount, storeCurrency, selectedCurrency, priceLocale)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
                 <div className="mt-4 border-t pt-4">
-                {loyaltyDiscountAmount > 0 && (
-                  <div className="flex items-center justify-between text-sm text-slate-600 mb-2">
-                    <span>{t("store.subtotal")}</span>
-                    <span>
-                      {convertAndFormatPrice(cart.getTotal(), storeCurrency, selectedCurrency, priceLocale)}
-                    </span>
-                  </div>
-                )}
                 <div className="flex items-center justify-between">
                   <span className="text-base font-semibold text-slate-900">
                     {t("store.total")}

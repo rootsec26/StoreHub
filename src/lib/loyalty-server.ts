@@ -64,60 +64,9 @@ export interface ComputeCheckoutLoyaltyParams {
 export async function computeCheckoutLoyalty(
   params: ComputeCheckoutLoyaltyParams
 ): Promise<CheckoutLoyaltyResult> {
-  const { storeId, customerPhone, grossTotal, requestedPoints } = params;
-  try {
-    const settings = await loadSettings(storeId);
-    if (!settings || !settings.isEnabled) return disabledResult(grossTotal);
-
-    const phone = normalizeLoyaltyPhone(customerPhone);
-    const memberRows = phone
-      ? await db
-          .select()
-          .from(customers)
-          .where(
-            and(eq(customers.storeId, storeId), eq(customers.phone, phone))
-          )
-          .limit(1)
-      : [];
-    const member = memberRows[0] ?? null;
-
-    const tiers = await loadTiers(storeId);
-    const lifetimeSpend = member ? Number(member.totalLifetimeSpend) || 0 : 0;
-    const vipTier = tierForSpend(tiers, lifetimeSpend);
-    const vipDiscount =
-      vipTier && vipTier.discountPercentage > 0
-        ? roundMoney((grossTotal * vipTier.discountPercentage) / 100)
-        : 0;
-
-    const budget = Math.max(0, roundMoney(grossTotal - vipDiscount));
-    const pointsRedeemed = clampRedeemedPoints({
-      requested: requestedPoints,
-      balance: member?.loyaltyPoints ?? 0,
-      redemptionRate: Number(settings.redemptionRate) || 0,
-      maxDiscount: budget,
-    });
-    const redemptionDiscount = discountForPoints(
-      pointsRedeemed,
-      Number(settings.redemptionRate) || 0
-    );
-
-    return {
-      enabled: true,
-      customerId: member?.id ?? null,
-      isNewMember: !member,
-      vipDiscount,
-      vipTier,
-      pointsRedeemed,
-      redemptionDiscount,
-      finalTotal: Math.max(
-        0,
-        roundMoney(grossTotal - vipDiscount - redemptionDiscount)
-      ),
-    };
-  } catch (error) {
-    console.error("Compute checkout loyalty error:", error);
-    return disabledResult(grossTotal);
-  }
+  // The loyalty program has been removed from the platform — checkout totals
+  // are always the plain cart total with no VIP or points discounts.
+  return disabledResult(params.grossTotal);
 }
 
 export interface FinalizeCheckoutLoyaltyParams {

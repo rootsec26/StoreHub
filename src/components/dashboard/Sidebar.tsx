@@ -20,7 +20,6 @@ import {
   CreditCard,
   Settings,
   MessageSquareCode,
-  Award,
   Warehouse,
   Bot,
   Barcode,
@@ -86,17 +85,6 @@ export const NAV_ITEMS = [
     badge: "hot",
     group: "growth",
   },
-  {
-    href: "/dashboard/loyalty",
-    labelKey: "nav.loyalty",
-    icon: Award,
-    group: "growth",
-    badge: (pathname: string) => {
-      // We'll handle the badge count separately - showing "members" as an example
-      // The actual count will be fetched from the API summary endpoint
-      return null; // Badge will be set via the summary API
-    },
-  },
   { href: "/dashboard/analytics", labelKey: "nav.analytics", icon: BarChart3, group: "intelligence" },
   { href: "/dashboard/ai-radar", labelKey: "nav.aiRadar", icon: ShieldAlert, group: "intelligence" },
   { href: "/dashboard/ai-radar/social-bot", labelKey: "nav.socialBot", icon: Bot, group: "intelligence" },
@@ -140,7 +128,6 @@ export default function SidebarNav({
   const [activePromotions, setActivePromotions] = useState<number | null>(null);
   const [unfulfilledOrders, setUnfulfilledOrders] = useState<number | null>(null);
   const [pendingAbandonedCarts, setPendingAbandonedCarts] = useState<number | null>(null);
-  const [activeLoyaltyMembers, setActiveLoyaltyMembers] = useState<number | null>(null);
   const [activeWarehouses, setActiveWarehouses] = useState<number | null>(null);
   const lastEvent = useOrdersRealtime((state) => state.lastEvent);
 
@@ -207,25 +194,6 @@ export default function SidebarNav({
       cancelled = true;
     };
   }, [pathname, lastEvent]);
-
-  // Active loyalty program members badge for the Loyalty & VIP Program link.
-  useEffect(() => {
-    let cancelled = false;
-
-    fetch("/api/loyalty?summary=1", { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { members?: number } | null) => {
-        if (cancelled || !data) return;
-        if (typeof data.members === "number") {
-          setActiveLoyaltyMembers(data.members);
-        }
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname]);
 
   // Active warehouse count badge for the Warehouses & Branches link.
   useEffect(() => {
@@ -310,9 +278,6 @@ export default function SidebarNav({
                     ? activePromotions
                     : null;
 
-                const showLoyaltyBadge =
-                  item.href === "/dashboard/loyalty" && activeLoyaltyMembers !== null;
-
                 const showWarehouseBadge =
                   item.href === "/dashboard/warehouses" &&
                   activeWarehouses !== null &&
@@ -381,16 +346,6 @@ export default function SidebarNav({
                           }
                         >
                           {liveCampaigns !== null ? liveCampaigns : "HOT"}
-                        </span>
-                      )}
-                      {showLoyaltyBadge && (
-                        <span
-                          className="ms-auto inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
-                          aria-label={t("loyalty.sidebarMembers", {
-                            count: activeLoyaltyMembers,
-                          })}
-                        >
-                          {activeLoyaltyMembers > 99 ? "99+" : activeLoyaltyMembers}
                         </span>
                       )}
                       {showWarehouseBadge && (
