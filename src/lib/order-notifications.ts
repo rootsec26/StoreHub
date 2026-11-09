@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { notifications, notificationRecipients } from "@/db/schema";
-import { orderTrackingCode } from "@/lib/order-tracking";
+import { orderTrackingCode, trackOrderPath } from "@/lib/order-tracking";
 import { normalizePhoneDigits } from "@/lib/order-tracking";
 
 interface OrderNotificationInput {
@@ -12,6 +12,7 @@ interface OrderNotificationInput {
   customerPhone: string;
   totalAmount: string;
   currency: string;
+  locale?: "en" | "ar";
 }
 
 /**
@@ -32,8 +33,16 @@ export async function notifyCustomerOrderPlaced(
     if (digits.length < 6) return;
 
     const code = orderTrackingCode(input.orderId);
-    const trackPath = `/store/${input.storeSlug}/track-order?id=${encodeURIComponent(input.orderId)}`;
+    const trackPath = trackOrderPath(input.storeSlug, input.orderId);
     const now = new Date();
+    const isAr = input.locale === "ar";
+    const customerName = input.customerName || (isAr ? "عزيزي العميل" : "there");
+    const title = isAr
+      ? `تم تأكيد طلبك — ${code}`
+      : `Order confirmed — ${code}`;
+    const body = isAr
+      ? `مرحباً ${customerName}، تم استلام طلبك ${code} في ${input.storeName} بنجاح. الإجمالي: ${input.totalAmount} ${input.currency}. تتبّع حالة طلبك في أي وقت: ${trackPath}`
+      : `Hi ${customerName}, your order ${code} at ${input.storeName} was placed successfully. Total: ${input.totalAmount} ${input.currency}. Track it anytime at ${trackPath}`;
 
     const [notification] = await db
       .insert(notifications)
@@ -41,8 +50,8 @@ export async function notifyCustomerOrderPlaced(
         scope: "MERCHANT_TO_CUSTOMER",
         storeId: input.storeId,
         senderType: "MERCHANT",
-        title: `Order confirmed — ${code}`,
-        body: `Hi ${input.customerName || "there"}, your order ${code} at ${input.storeName} was placed successfully. Total: ${input.totalAmount} ${input.currency}. Track it anytime at ${trackPath}`,
+        title,
+        body,
         category: "ORDER_UPDATE",
         priority: "NORMAL",
         channel: "IN_APP",

@@ -369,6 +369,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
         customerPhone: values.customerPhone ?? "",
         totalAmount: values.totalAmount ?? "0",
         currency,
+        locale,
       });
 
       return order;
