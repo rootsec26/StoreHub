@@ -1054,7 +1054,9 @@ export default function StorefrontView({
               </div>
             ) : (
               <div className="divide-y px-4" style={{ borderColor: "var(--color-primary-soft)" }}>
-                {notifications.map((item) => (
+                {notifications.map((item) => {
+                  const trackPath = item.body.match(/\/store\/[^\s]+/)?.[0];
+                  return (
                   <div key={item.id} className="flex gap-3 py-4">
                     <span
                       className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${
@@ -1076,14 +1078,24 @@ export default function StorefrontView({
                       <p className="mt-1 whitespace-pre-line text-sm" style={{ color: "var(--color-text-muted)" }}>
                         {item.body}
                       </p>
+                      {trackPath && (
+                        <Link
+                          href={trackPath}
+                          className="mt-2 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-opacity hover:opacity-90"
+                          style={{ backgroundColor: "var(--color-primary)" }}
+                        >
+                          {t("store.trackOrder")}
+                        </Link>
+                      )}
                       {item.category && item.category !== "GENERAL" && (
-                        <span className="mt-2 inline-block rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-xs font-medium" style={{ color: "var(--color-primary)" }}>
+                        <span className="mt-2 ms-2 inline-block rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-xs font-medium" style={{ color: "var(--color-primary)" }}>
                           {item.category.replace(/_/g, " ")}
                         </span>
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
