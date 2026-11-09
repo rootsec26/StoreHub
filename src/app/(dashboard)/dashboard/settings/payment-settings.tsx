@@ -5,6 +5,7 @@ import {
   CreditCard,
   Smartphone,
   Banknote,
+  Truck,
   Loader2,
   Save,
   CheckCircle,
@@ -553,30 +554,6 @@ export default function PaymentSettings({ storeId }: PaymentSettingsProps) {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700">
-                    {t("payment.manual.cashOnDelivery")}
-                  </label>
-                  <p className="text-sm text-slate-500">{t("payment.manual.cashOnDeliveryHint")}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setCashOnDeliveryEnabled(!cashOnDeliveryEnabled)}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-                    cashOnDeliveryEnabled ? "bg-emerald-600" : "bg-slate-200"
-                  }`}
-                  role="switch"
-                  aria-checked={cashOnDeliveryEnabled}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition-transform ${
-                      cashOnDeliveryEnabled ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
                   {t("payment.manual.instructions")}
@@ -592,6 +569,45 @@ export default function PaymentSettings({ storeId }: PaymentSettingsProps) {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Cash on Delivery */}
+      <div className="rounded-xl bg-white p-6 shadow-sm">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="rounded-lg bg-amber-50 p-2">
+            <Truck className="h-6 w-6 text-amber-600" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900">
+              {t("payment.cod.title")}
+            </h3>
+            <p className="text-sm text-slate-500">{t("payment.cod.subtitle")}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              {t("payment.cod.enable")}
+            </label>
+            <p className="text-sm text-slate-500">{t("payment.cod.enableHint")}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCashOnDeliveryEnabled(!cashOnDeliveryEnabled)}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+              cashOnDeliveryEnabled ? "bg-amber-500" : "bg-slate-200"
+            }`}
+            role="switch"
+            aria-checked={cashOnDeliveryEnabled}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition-transform ${
+                cashOnDeliveryEnabled ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
         </div>
       </div>
 
