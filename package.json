@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@capacitor/core": "^8.6.0",
     "@paddle/paddle-node-sdk": "^3.10.0",
     "@stripe/stripe-js": "^9.17.0",
     "@supabase/supabase-js": "^2.117.2",
@@ -31,6 +32,8 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
     "@tailwindcss/postcss": "4.1.17",
     "@types/node": "22.19.15",
     "@types/pg": "8.18.0",

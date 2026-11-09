@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">StoreHub</string>
+    <string name="title_activity_main">StoreHub</string>
+    <string name="package_name">com.storehub.app</string>
+    <string name="custom_url_scheme">com.storehub.app</string>
+</resources>
