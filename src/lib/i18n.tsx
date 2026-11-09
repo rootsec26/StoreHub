@@ -1322,6 +1322,7 @@ const en = {
   "landing.app.note": "Free • Android APK • Works on all Android devices",
   "landing.app.windows.button": "Download Windows App (Coming Soon)",
   "landing.app.windows.note": "StoreHub for Windows — coming soon",
+  "landing.app.inApp": "You're using the official StoreHub app",
   "aiRadar.abandonedCartsValue": "Total Abandoned Carts Value",
   "aiRadar.recoveredRevenue": "Recovered Revenue",
   "aiRadar.totalPendingCOD": "Total Pending COD Orders",
@@ -3350,6 +3351,7 @@ const ar: Record<TranslationKey, string> = {
   "landing.app.note": "مجاني • ملف APK لأندرويد • يعمل على جميع أجهزة أندرويد",
   "landing.app.windows.button": "تحميل برنامج الويندوز (قريباً)",
   "landing.app.windows.note": "StoreHub لأجهزة الويندوز — قريباً",
+  "landing.app.inApp": "أنت تستخدم تطبيق StoreHub الرسمي الآن",
 
   // Abandoned Cart Recovery & WhatsApp Commerce Engine
   "nav.abandonedCarts": "السلات المتروكة",
