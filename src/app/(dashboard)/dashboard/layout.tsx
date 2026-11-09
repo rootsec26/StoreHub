@@ -13,6 +13,8 @@ import {
   VolumeX,
   Bell,
   BellRing,
+  Copy,
+  Check,
 } from "lucide-react";
 
 import SidebarNav, { NAV_ITEMS } from "@/components/dashboard/Sidebar";
@@ -20,6 +22,7 @@ import NotificationBell from "@/components/dashboard/NotificationBell";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
+import { absoluteUrl } from "@/lib/site";
 import { useOrdersRealtime, type RealtimeStatus } from "@/lib/realtime";
 import {
   getDesktopNotificationPermission,
@@ -78,6 +81,7 @@ export default function DashboardLayout({
   const [store, setStore] = useState<StoreInfo | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const desktopPermission = useSyncExternalStore(
     subscribeDesktopPermission,
@@ -215,6 +219,27 @@ export default function DashboardLayout({
     setNotificationMuted(!muted);
   }
 
+  const storeUrl = store ? absoluteUrl(`/store/${store.slug}`) : "";
+
+  async function copyStoreLink() {
+    if (!storeUrl) return;
+    try {
+      await navigator.clipboard.writeText(storeUrl);
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = storeUrl;
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      el.remove();
+    }
+    setLinkCopied(true);
+    setToast(t("orders.cod.linkCopied"));
+    setTimeout(() => setLinkCopied(false), 2000);
+  }
+
   // Deepest matching section wins (e.g. AI Radar vs AI Radar → Social Bot).
   // Falls back to the dashboard title when no section matches (e.g. /dashboard).
   const activeItem = NAV_ITEMS.reduce<(typeof NAV_ITEMS)[number] | null>(
@@ -327,6 +352,43 @@ export default function DashboardLayout({
           <h2 className="flex-1 truncate text-lg font-semibold text-slate-900">
             {t(activeLabelKey)}
           </h2>
+
+          {store && (
+            <div className="hidden items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 md:flex">
+              <Link
+                href={`/store/${store.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="max-w-[200px] truncate text-xs font-medium text-slate-500 transition-colors hover:text-indigo-600 lg:max-w-[280px]"
+                title={storeUrl}
+                dir="ltr"
+              >
+                {storeUrl.replace(/^https?:\/\//, "")}
+              </Link>
+              <button
+                onClick={copyStoreLink}
+                className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                title={t("orders.cod.copyLink")}
+                aria-label={t("orders.cod.copyLink")}
+              >
+                {linkCopied ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-500" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+              </button>
+              <Link
+                href={`/store/${store.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                title={t("domain.visitStore")}
+                aria-label={t("domain.visitStore")}
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          )}
 
           <NotificationBell />
 
