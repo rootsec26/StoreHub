@@ -128,20 +128,14 @@ function CheckoutContent() {
       label: t("checkout.payment.cod"),
       description: t("checkout.payment.codDesc"),
       icon: <Truck className="h-5 w-5" />,
-      enabled: manualConfig.cashOnDeliveryEnabled,
-      disabledReason: manualConfig.cashOnDeliveryEnabled
-        ? undefined
-        : t("checkout.payment.codDisabled"),
+      enabled: true,
     },
     {
       id: "manual",
       label: t("checkout.payment.manual"),
       description: t("checkout.payment.manualDesc"),
       icon: <Wallet className="h-5 w-5" />,
-      enabled: hasManualPaymentDetails(manualConfig),
-      disabledReason: hasManualPaymentDetails(manualConfig)
-        ? undefined
-        : t("checkout.payment.manualNotConfigured"),
+      enabled: true,
     },
     {
       id: "stripe",
@@ -159,7 +153,7 @@ function CheckoutContent() {
       enabled: paddleEnabled,
       disabledReason: paddleEnabled ? undefined : t("checkout.payment.paddleDisabled"),
     },
-  ], [stripeEnabled, paddleEnabled, manualConfig, t]);
+  ], [stripeEnabled, paddleEnabled, t]);
 
   // Loyalty state
   const [loyalty, setLoyalty] = useState<{
@@ -249,19 +243,11 @@ function CheckoutContent() {
           );
           setManualConfig(parsedManual);
 
-          // Cash on Delivery is the default; the mobile wallet is next, and
-          // gateways only when the merchant explicitly enabled them.
+          // Cash on Delivery and the mobile wallet are always available;
+          // COD is the default and gateways only apply when the merchant
+          // explicitly enabled them.
           if (!selectedPaymentMethodInitialized.current) {
-            const firstEnabled = parsedManual.cashOnDeliveryEnabled
-              ? "cod"
-              : hasManualPaymentDetails(parsedManual)
-                ? "manual"
-                : data.store.stripeEnabled
-                  ? "stripe"
-                  : data.store.paddleEnabled
-                    ? "paddle"
-                    : "manual";
-            setSelectedPaymentMethod(firstEnabled);
+            setSelectedPaymentMethod("cod");
             selectedPaymentMethodInitialized.current = true;
           }
         }
