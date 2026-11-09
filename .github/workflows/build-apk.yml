@@ -47,18 +47,26 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install required SDK packages
+      - name: Install Android Command Line Tools
         run: |
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          cd "$ANDROID_HOME/cmdline-tools"
+          curl -fsSL -o commandlinetools.zip \
+            "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+          unzip -q commandlinetools.zip
+          mv cmdline-tools latest
+          rm commandlinetools.zip
+
+      - name: Accept licenses and install SDK packages
+        run: |
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
           yes | sdkmanager --licenses || true
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Verify Android SDK
         run: |
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
           sdkmanager --list_installed | grep -E "platforms;android-36|build-tools"
-          echo "ANDROID_HOME=$ANDROID_HOME"
 
       - name: Prepare Capacitor web dir
         # The app loads the deployed site via server.url, so an empty
@@ -70,6 +78,9 @@ jobs:
 
       - name: Build debug APK
         working-directory: android
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
