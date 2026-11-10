@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -162,6 +162,13 @@ const FAQ: { questionKey: TranslationKey; answerKey: TranslationKey }[] = [
   { questionKey: "landing.faq.q4", answerKey: "landing.faq.a4" },
 ];
 
+const NAV_LINKS: [string, TranslationKey][] = [
+  ["#features", "nav.features"],
+  ["#top-stores", "nav.topStores"],
+  ["#pricing", "nav.pricing"],
+  ["#faq", "nav.faq"],
+];
+
 export default function LandingPage() {
   const { t, formatNumber } = useI18n();
   const [logoTapped, setLogoTapped] = useState(false);
@@ -192,14 +199,7 @@ export default function LandingPage() {
           </Link>
 
           <nav className="hidden items-center gap-1 rounded-full border border-slate-200 bg-slate-50/80 p-1.5 lg:flex">
-            {(
-              [
-                ["#features", "nav.features"],
-                ["#top-stores", "nav.topStores"],
-                ["#pricing", "nav.pricing"],
-                ["#faq", "nav.faq"],
-              ] as [string, TranslationKey][]
-            ).map(([href, labelKey]) => (
+            {NAV_LINKS.map(([href, labelKey]) => (
               <a
                 key={href}
                 href={href}
@@ -226,6 +226,24 @@ export default function LandingPage() {
             </Link>
           </div>
         </div>
+
+        {/* Mobile nav â€” horizontally scrollable pill strip */}
+        <nav
+          aria-label="Mobile navigation"
+          className="border-t border-slate-200/70 bg-white/85 backdrop-blur-xl lg:hidden"
+        >
+          <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {NAV_LINKS.map(([href, labelKey]) => (
+              <a
+                key={href}
+                href={href}
+                className="inline-flex h-10 shrink-0 items-center rounded-full border border-slate-200 bg-slate-50/80 px-4 text-sm font-semibold text-slate-600 transition-colors hover:bg-white hover:text-slate-950 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              >
+                {t(labelKey)}
+              </a>
+            ))}
+          </div>
+        </nav>
       </header>
 
       {/* Hero */}
@@ -294,19 +312,19 @@ export default function LandingPage() {
           <div className="mx-auto mt-14 grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3">
             {[
               {
-                emoji: "⚡",
-                title: "أداء فائق وسرعة خاطفة",
-                desc: "سرعة تحميل عالية للمتاجر وتجربة شراء سلسة للعملاء.",
+                emoji: "âڑ،",
+                title: "ط£ط¯ط§ط، ظپط§ط¦ظ‚ ظˆط³ط±ط¹ط© ط®ط§ط·ظپط©",
+                desc: "ط³ط±ط¹ط© طھط­ظ…ظٹظ„ ط¹ط§ظ„ظٹط© ظ„ظ„ظ…طھط§ط¬ط± ظˆطھط¬ط±ط¨ط© ط´ط±ط§ط، ط³ظ„ط³ط© ظ„ظ„ط¹ظ…ظ„ط§ط،.",
               },
               {
-                emoji: "🔒",
-                title: "حماية وأمان A+",
-                desc: "تشفير كامل للبيانات 256-bit AES-GCM وعزل تام للبيانات.",
+                emoji: "ًں”’",
+                title: "ط­ظ…ط§ظٹط© ظˆط£ظ…ط§ظ† A+",
+                desc: "طھط´ظپظٹط± ظƒط§ظ…ظ„ ظ„ظ„ط¨ظٹط§ظ†ط§طھ 256-bit AES-GCM ظˆط¹ط²ظ„ طھط§ظ… ظ„ظ„ط¨ظٹط§ظ†ط§طھ.",
               },
               {
-                emoji: "📱",
-                title: "دعم تجربة الموبايل 100%",
-                desc: "تصميم متجاوب يعمل بكفاءة على كافة الشاشات والأجهزة.",
+                emoji: "ًں“±",
+                title: "ط¯ط¹ظ… طھط¬ط±ط¨ط© ط§ظ„ظ…ظˆط¨ط§ظٹظ„ 100%",
+                desc: "طھطµظ…ظٹظ… ظ…طھط¬ط§ظˆط¨ ظٹط¹ظ…ظ„ ط¨ظƒظپط§ط،ط© ط¹ظ„ظ‰ ظƒط§ظپط© ط§ظ„ط´ط§ط´ط§طھ ظˆط§ظ„ط£ط¬ظ‡ط²ط©.",
               },
             ].map((badge) => (
               <div
@@ -416,7 +434,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section id="features" className="scroll-mt-20 bg-white py-20">
+      <section id="features" className="scroll-mt-36 lg:scroll-mt-20 bg-white py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="mx-auto mb-14 max-w-2xl text-center">
             <h2 className="text-3xl font-bold text-slate-900 sm:text-4xl">
@@ -520,7 +538,7 @@ export default function LandingPage() {
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="scroll-mt-20 bg-slate-50 py-20">
+      <section id="pricing" className="scroll-mt-36 lg:scroll-mt-20 bg-slate-50 py-20">
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <div className="mx-auto mb-14 max-w-2xl text-center">
             <h2 className="text-3xl font-bold text-slate-900 sm:text-4xl">
@@ -606,7 +624,7 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="scroll-mt-20 bg-white py-20">
+      <section id="faq" className="scroll-mt-36 lg:scroll-mt-20 bg-white py-20">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-bold text-slate-900 sm:text-4xl">
@@ -674,9 +692,9 @@ export default function LandingPage() {
             </span>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3 dir='rtl'">
-            <span>تم التطوير بكل</span>
-            <span className="text-base leading-none">💜</span>
-            <span>بواسطة</span>
+            <span>طھظ… ط§ظ„طھط·ظˆظٹط± ط¨ظƒظ„</span>
+            <span className="text-base leading-none">ًں’œ</span>
+            <span>ط¨ظˆط§ط³ط·ط©</span>
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-950 border border-slate-700 hover:border-purple-500 text-slate-200 hover:text-white text-xs md:text-sm font-mono shadow-md hover:shadow-[0_0_15px_rgba(168,85,247,0.3)] transition-all duration-300">
               <a href="https://github.com/rootsec26" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2">
                 <span className="font-medium">GitHub</span>
@@ -685,7 +703,7 @@ export default function LandingPage() {
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-950/60 border border-purple-500/50 hover:border-purple-400 text-purple-200 hover:text-white text-xs md:text-sm font-medium shadow-md hover:shadow-[0_0_15px_rgba(168,85,247,0.4)] transition-all duration-300">
               <a href="https://rootsec26.vercel.app/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2">
                 <ExternalLink className="w-4 h-4 text-purple-400" />
-                <span className="font-medium">معرض الأعمال</span>
+                <span className="font-medium">ظ…ط¹ط±ط¶ ط§ظ„ط£ط¹ظ…ط§ظ„</span>
               </a>
             </div>
           </div>
