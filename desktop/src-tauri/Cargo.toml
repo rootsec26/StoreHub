@@ -1,6 +1,6 @@
 [package]
 name = "storehub-desktop"
-version = "0.1.2"
+version = "0.1.3"
 description = "StoreHub Windows desktop shell"
 authors = ["StoreHub"]
 edition = "2021"

@@ -3,6 +3,13 @@
   "identifier": "default",
   "description": "Default capability for the main StoreHub window",
   "windows": ["main"],
+  "remote": {
+    "urls": [
+      "https://store-hub-beta.vercel.app",
+      "http://localhost:3000",
+      "http://localhost:1420"
+    ]
+  },
   "permissions": [
     "core:default",
     "core:window:default",
