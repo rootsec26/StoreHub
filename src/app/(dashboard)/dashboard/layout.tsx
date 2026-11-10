@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import SidebarNav, { NAV_ITEMS } from "@/components/dashboard/Sidebar";
+import { isTauriDesktopApp, openExternalUrl } from "@/lib/platform";
 import NotificationBell from "@/components/dashboard/NotificationBell";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 
@@ -225,6 +226,14 @@ export default function DashboardLayout({
   );
   const storeUrl = store ? `${origin}/store/${store.slug}` : "";
 
+  // Inside the Tauri desktop shell, target="_blank" is a no-op — route
+  // store links through the OS default browser via the shell plugin.
+  function handleStoreLinkClick(e: React.MouseEvent) {
+    if (!isTauriDesktopApp() || !storeUrl) return;
+    e.preventDefault();
+    void openExternalUrl(storeUrl);
+  }
+
   async function copyStoreLink() {
     if (!storeUrl) return;
     try {
@@ -303,6 +312,7 @@ export default function DashboardLayout({
             <p className="text-sm font-medium text-white">{store.name}</p>
             <Link
               href={`/store/${store.slug}`}
+              onClick={handleStoreLinkClick}
               target="_blank"
               className="mt-1 inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300"
             >
@@ -361,6 +371,7 @@ export default function DashboardLayout({
             <div className="hidden items-center gap-1 rounded-lg border border-indigo-500/30 bg-slate-900 px-2.5 py-1.5 shadow-sm md:flex">
               <Link
                 href={`/store/${store.slug}`}
+                onClick={handleStoreLinkClick}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="max-w-[200px] truncate text-xs font-semibold text-white transition-colors hover:text-indigo-300 lg:max-w-[280px]"
@@ -383,6 +394,7 @@ export default function DashboardLayout({
               </button>
               <Link
                 href={`/store/${store.slug}`}
+                onClick={handleStoreLinkClick}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded p-1 text-indigo-300 transition-colors hover:bg-indigo-500/20 hover:text-white"
@@ -424,6 +436,7 @@ export default function DashboardLayout({
             <div className="flex items-center gap-2 rounded-xl border border-indigo-500/30 bg-slate-900 px-3 py-2 shadow-sm">
               <Link
                 href={`/store/${store.slug}`}
+                onClick={handleStoreLinkClick}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="min-w-0 flex-1 truncate text-sm font-semibold text-white"
@@ -449,6 +462,7 @@ export default function DashboardLayout({
               </button>
               <Link
                 href={`/store/${store.slug}`}
+                onClick={handleStoreLinkClick}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-500 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-indigo-400"
