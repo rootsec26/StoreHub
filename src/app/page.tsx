@@ -27,6 +27,7 @@ import {
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { isFreeMode } from "@/lib/free-mode";
+import { isNativeAppShell } from "@/lib/platform";
 import LanguageToggle from "@/components/LanguageToggle";
 import TopStoresShowcase from "@/components/landing/TopStoresShowcase";
 
@@ -166,14 +167,7 @@ export default function LandingPage() {
   const [logoTapped, setLogoTapped] = useState(false);
   const isNativeApp = useSyncExternalStore(
     () => () => {},
-    () =>
-      Boolean(
-        (
-          window as unknown as {
-            Capacitor?: { isNativePlatform?: () => boolean };
-          }
-        ).Capacitor?.isNativePlatform?.()
-      ),
+    isNativeAppShell,
     () => false
   );
 
