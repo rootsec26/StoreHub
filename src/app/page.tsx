@@ -402,7 +402,7 @@ export default function LandingPage() {
                 </p>
               </div>
               <a
-                href="https://github.com/rootsec26/StoreHub/releases/download/v0.1.2/StoreHub_0.1.2_x64-setup.exe"
+                href="https://github.com/rootsec26/StoreHub/releases/download/v0.1.3/StoreHub_0.1.3_x64-setup.exe"
                 className="mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-base font-bold text-indigo-700 shadow-xl shadow-indigo-950/30 transition-all hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-2xl"
               >
                 <Download className="h-5 w-5" />
