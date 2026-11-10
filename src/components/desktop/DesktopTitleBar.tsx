@@ -35,12 +35,12 @@ export default function DesktopTitleBar() {
 
     void (async () => {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      const win = getCurrentWindow();
+      const appWindow = getCurrentWindow();
       if (cancelled) return;
 
-      setMaximized(await win.isMaximized());
-      unlisten = await win.onResized(async () => {
-        setMaximized(await win.isMaximized());
+      setMaximized(await appWindow.isMaximized());
+      unlisten = await appWindow.onResized(async () => {
+        setMaximized(await appWindow.isMaximized());
       });
     })();
 
@@ -59,9 +59,9 @@ export default function DesktopTitleBar() {
 
   async function toggleMaximize() {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
-    const win = getCurrentWindow();
-    await win.toggleMaximize();
-    setMaximized(await win.isMaximized());
+    const appWindow = getCurrentWindow();
+    await appWindow.toggleMaximize();
+    setMaximized(await appWindow.isMaximized());
   }
 
   async function close() {
@@ -74,9 +74,11 @@ export default function DesktopTitleBar() {
 
   return (
     <div className="sticky top-0 z-[70] flex h-10 items-stretch border-b border-slate-800 bg-slate-900 text-white select-none">
-      {/* Drag region — logo + app name */}
+      {/* Drag region — logo + app name. Double-click toggles maximize,
+          matching standard Windows title-bar behavior. */}
       <div
         data-tauri-drag-region
+        onDoubleClick={toggleMaximize}
         className="flex min-w-0 flex-1 items-center gap-2 px-3"
       >
         <Image
