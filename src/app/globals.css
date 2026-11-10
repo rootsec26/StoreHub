@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 /* Custom utilities for the app */
@@ -7,6 +8,13 @@
   }
 
   body {
+    font-family:
+      "Cairo",
+      "Noto Sans Arabic",
+      "Segoe UI",
+      Tahoma,
+      Arial,
+      sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -15,7 +23,6 @@
   html[dir="rtl"],
   html[dir="rtl"] body {
     font-family:
-      var(--font-cairo),
       "Cairo",
       "Noto Sans Arabic",
       "Geeza Pro",
@@ -29,7 +36,6 @@
   html[dir="rtl"] .theme-root {
     font-family:
       var(--font-main),
-      var(--font-cairo),
       "Cairo",
       "Noto Sans Arabic",
       sans-serif;
