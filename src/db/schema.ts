@@ -1415,3 +1415,58 @@ export const platformBroadcasts = pgTable(
     index("platform_broadcasts_active_idx").on(table.isActive, table.expiresAt),
   ]
 );
+
+// ============================================
+// PLATFORM FEED (super-admin announcements)
+// ============================================
+// Posts published by the platform owner (ADMIN_EMAIL session) rendered as a
+// verified "StoreHub" feed that merchants and shoppers can follow.
+export const PLATFORM_POST_CATEGORIES = [
+  "UPDATE",
+  "ANNOUNCEMENT",
+  "FEATURE",
+] as const;
+export type PlatformPostCategory =
+  (typeof PLATFORM_POST_CATEGORIES)[number];
+
+export const platformPosts = pgTable(
+  "platform_posts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    authorName: text("author_name").notNull().default("StoreHub"),
+    content: text("content").notNull(),
+    category: text("category").notNull().default("UPDATE"),
+    linkUrl: text("link_url").notNull().default(""),
+    isPublished: boolean("is_published").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("platform_posts_published_idx").on(
+      table.isPublished,
+      table.createdAt
+    ),
+  ]
+);
+
+// ============================================
+// PLATFORM FOLLOWS (follow the StoreHub feed)
+// ============================================
+// follower_id is the app user id for signed-in users, or a client-generated
+// anonymous UUID persisted in localStorage — same convention as
+// store_followers. The platform feed is a singleton, so no store_id column.
+export const platformFollows = pgTable(
+  "platform_follows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    followerId: text("follower_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("platform_follows_follower_unique").on(table.followerId),
+    index("platform_follows_created_at_idx").on(table.createdAt),
+  ]
+);

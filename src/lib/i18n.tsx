@@ -993,6 +993,16 @@ const en = {
   "store.yourStore": "Your Store",
   "store.ownStoreFollow": "You cannot follow your own store",
 
+  // Platform feed
+  "platform.title": "Platform updates",
+  "platform.official": "Official StoreHub announcements",
+  "platform.verified": "Verified StoreHub account",
+  "platform.empty": "No updates yet — check back soon.",
+  "platform.learnMore": "Learn more",
+  "platform.cat.update": "Update",
+  "platform.cat.announcement": "Announcement",
+  "platform.cat.feature": "New feature",
+
   // Store reviews
   "reviews.title": "Customer Reviews",
   "reviews.subtitle": "See what shoppers say about this store",
@@ -3206,6 +3216,16 @@ const ar: Record<TranslationKey, string> = {
   "store.followError": "تعذّر تحديث المتابعة. حاول مرة أخرى.",
   "store.yourStore": "متجرك",
   "store.ownStoreFollow": "لا يمكنك متابعة متجرك الخاص",
+
+  // Platform feed
+  "platform.title": "تحديثات المنصة",
+  "platform.official": "إعلانات StoreHub الرسمية",
+  "platform.verified": "حساب StoreHub موثّق",
+  "platform.empty": "لا توجد تحديثات بعد — عد لاحقًا.",
+  "platform.learnMore": "اعرف المزيد",
+  "platform.cat.update": "تحديث",
+  "platform.cat.announcement": "إعلان",
+  "platform.cat.feature": "ميزة جديدة",
 
   // Store reviews
   "reviews.title": "تقييمات العملاء",
