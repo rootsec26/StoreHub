@@ -1347,11 +1347,11 @@ const en = {
   "landing.app.badge": "Official Android App",
   "landing.app.title": "Get the StoreHub App",
   "landing.app.subtitle":
-    "Download the official StoreHub app for Android and manage your store from anywhere.",
+    "Download the official StoreHub app for Android or Windows and manage your store from anywhere.",
   "landing.app.button": "Download StoreHub for Android",
   "landing.app.note": "Free • Android APK • Works on all Android devices",
-  "landing.app.windows.button": "Download Windows App (Coming Soon)",
-  "landing.app.windows.note": "StoreHub for Windows — coming soon",
+  "landing.app.windows.button": "Download StoreHub for Windows",
+  "landing.app.windows.note": "Free • Windows installer • Fast desktop experience",
   "landing.app.inApp": "You're using the official StoreHub app",
   "landing.app.inAppTitle": "You're using the official StoreHub app",
   "landing.app.inAppSubtitle":
@@ -3413,11 +3413,11 @@ const ar: Record<TranslationKey, string> = {
   "landing.app.badge": "تطبيق أندرويد الرسمي",
   "landing.app.title": "حمّل تطبيق StoreHub",
   "landing.app.subtitle":
-    "حمّل تطبيق StoreHub الرسمي لأجهزة أندرويد وأدر متجرك من أي مكان.",
+    "حمّل تطبيق StoreHub الرسمي لأجهزة أندرويد أو الويندوز وأدر متجرك من أي مكان.",
   "landing.app.button": "حمل تطبيق StoreHub الآن لأجهزة أندرويد",
   "landing.app.note": "مجاني • ملف APK لأندرويد • يعمل على جميع أجهزة أندرويد",
-  "landing.app.windows.button": "تحميل برنامج الويندوز (قريباً)",
-  "landing.app.windows.note": "StoreHub لأجهزة الويندوز — قريباً",
+  "landing.app.windows.button": "تحميل برنامج StoreHub للويندوز",
+  "landing.app.windows.note": "مجاني • ملف تثبيت الويندوز • تجربة سريعة على سطح المكتب",
   "landing.app.inApp": "أنت تستخدم تطبيق StoreHub الرسمي الآن",
   "landing.app.inAppTitle": "أنت تستخدم تطبيق StoreHub الرسمي",
   "landing.app.inAppSubtitle":
