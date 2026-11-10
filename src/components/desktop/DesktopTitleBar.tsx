@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import Image from "next/image";
 import { Copy, Minus, Square, X } from "lucide-react";
 import { isTauriDesktopApp } from "@/lib/platform";
@@ -64,8 +69,12 @@ export default function DesktopTitleBar() {
     await getCurrentWindow().close();
   }
 
+  // Stop mousedown propagation so Tauri's drag-region handler can never
+  // swallow clicks aimed at the window controls.
+  const stopDragPropagation = (e: ReactMouseEvent) => e.stopPropagation();
+
   const btn =
-    "flex h-full w-11 items-center justify-center text-slate-300 transition-colors hover:bg-white/10 hover:text-white";
+    "flex h-full w-11 cursor-pointer items-center justify-center text-slate-300 transition-colors hover:bg-white/10 hover:text-white";
 
   return (
     <div className="sticky top-0 z-[70] flex h-10 items-stretch border-b border-slate-800 bg-slate-900 text-white select-none">
@@ -89,11 +98,17 @@ export default function DesktopTitleBar() {
         </span>
       </div>
 
-      {/* Window controls — always on the right, LTR regardless of page dir */}
-      <div dir="ltr" className="flex items-stretch">
+      {/* Window controls — sibling of the drag region (never nested inside
+          it), elevated with z-10 so nothing overlaps the buttons. */}
+      <div
+        dir="ltr"
+        className="relative z-10 flex items-stretch"
+        onMouseDown={stopDragPropagation}
+      >
         <button
           type="button"
           onClick={minimize}
+          onMouseDown={stopDragPropagation}
           className={btn}
           aria-label="Minimize"
           title="Minimize"
@@ -103,6 +118,7 @@ export default function DesktopTitleBar() {
         <button
           type="button"
           onClick={toggleMaximize}
+          onMouseDown={stopDragPropagation}
           className={btn}
           aria-label={maximized ? "Restore" : "Maximize"}
           title={maximized ? "Restore" : "Maximize"}
@@ -116,6 +132,7 @@ export default function DesktopTitleBar() {
         <button
           type="button"
           onClick={close}
+          onMouseDown={stopDragPropagation}
           className={`${btn} hover:bg-red-600 hover:text-white`}
           aria-label="Close"
           title="Close"
