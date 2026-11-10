@@ -20,6 +20,7 @@ import {
 import { deductWarehouseStockForOrder } from "@/lib/warehouses-server";
 import { validateRequest, checkoutRequestSchema, formatZodError } from "@/lib/validators";
 import { createErrorResponse } from "@/lib/errors";
+import { getSiteUrl } from "@/lib/site";
 import { withRateLimit, checkoutRateLimiter } from "@/lib/rate-limit";
 import {
   evaluateOrderRisk,
@@ -177,8 +178,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
       ) as NextResponse<CheckoutResponse>;
     }
 
-    const defaultSuccessUrl = successUrl || `${process.env.NEXT_PUBLIC_SITE_URL}/store/${storeData.slug}/track-order`;
-    const defaultCancelUrl = cancelUrl || `${process.env.NEXT_PUBLIC_SITE_URL}/store/${storeData.slug}/checkout`;
+    const siteUrl = getSiteUrl();
+    const defaultSuccessUrl = successUrl || `${siteUrl}/store/${storeData.slug}/track-order`;
+    const defaultCancelUrl = cancelUrl || `${siteUrl}/store/${storeData.slug}/checkout`;
 
     // ── Server-side pricing & tenant isolation ────────────────────────────
     // Never trust client-supplied unitPrice. Re-fetch every product scoped to

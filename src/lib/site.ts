@@ -12,6 +12,10 @@ export function getSiteUrl(): string {
   const vercel = safeParseUrl(process.env.VERCEL_URL, "https");
   if (vercel) return urlToString(vercel) || LOCAL_FALLBACK_URL;
 
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+
   return LOCAL_FALLBACK_URL;
 }
 

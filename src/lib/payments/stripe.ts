@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { loadStripe, Stripe as StripeJS } from "@stripe/stripe-js";
 import { convertAmount } from "@/lib/currency";
+import { getSiteUrl } from "@/lib/site";
 import type { CartItem } from "@/lib/cart";
 
 export interface StripeCheckoutParams {
@@ -185,7 +186,7 @@ export async function createConnectedAccount(params: {
     const mockAccountId = `acct_mock_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     return {
       accountId: mockAccountId,
-      onboardingUrl: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/dashboard/settings/payments?mock=true&account_id=${mockAccountId}`,
+      onboardingUrl: `${getSiteUrl()}/dashboard/settings/payments?mock=true&account_id=${mockAccountId}`,
     };
   }
 
@@ -205,8 +206,8 @@ export async function createConnectedAccount(params: {
 
   const accountLink = await stripe.accountLinks.create({
     account: account.id,
-    refresh_url: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/settings/payments?refresh=true`,
-    return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/settings/payments?success=true`,
+    refresh_url: `${getSiteUrl()}/dashboard/settings/payments?refresh=true`,
+    return_url: `${getSiteUrl()}/dashboard/settings/payments?success=true`,
     type: "account_onboarding",
   });
 
