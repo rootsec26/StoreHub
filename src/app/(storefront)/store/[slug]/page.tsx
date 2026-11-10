@@ -45,6 +45,32 @@ function safeSupportedCurrencies(value: unknown): string[] {
   return FALLBACK_SUPPORTED_CURRENCIES;
 }
 
+const META_DESCRIPTION_MAX = 160;
+
+function truncateDescription(text: string, max = META_DESCRIPTION_MAX): string {
+  const trimmed = text.replace(/\s+/g, " ").trim();
+  if (trimmed.length <= max) return trimmed;
+  return `${trimmed.slice(0, max - 1).trimEnd()}…`;
+}
+
+function buildStoreDescription(storeRow: {
+  name: string;
+  description: string | null;
+  category: string | null;
+}): string {
+  const own = storeRow.description?.trim();
+  if (own) {
+    return truncateDescription(
+      storeRow.category
+        ? `${own} — ${storeRow.category} store on ${SITE_NAME}.`
+        : `${own} — shop on ${SITE_NAME}.`
+    );
+  }
+  return truncateDescription(
+    `Shop ${storeRow.name} products, prices and offers. Order online through the ${SITE_NAME} storefront.`
+  );
+}
+
 async function fetchStoreBySlug(slug: string) {
   try {
     const rows = await db
@@ -107,24 +133,28 @@ export async function generateMetadata({
   const accent = normalizeAccent(storeRow.accentColor);
   const url = absoluteUrl(storePath(storeRow.slug));
   const image = storeRow.coverUrl || storeRow.logoUrl || undefined;
+  const description = buildStoreDescription(storeRow);
+  const title = storeRow.category
+    ? `${storeRow.name} — ${storeRow.category}`
+    : storeRow.name;
 
   return {
-    title: storeRow.name,
-    description: `Shop ${storeRow.name} products, prices and offers. Order online through the ${SITE_NAME} storefront.`,
+    title,
+    description,
     keywords: [storeRow.name, storeRow.category || "", "online store"].filter(Boolean),
     alternates: { canonical: url },
     openGraph: {
       type: "website",
       siteName: SITE_NAME,
-      title: storeRow.name,
-      description: `Shop ${storeRow.name} products, prices and offers. Order online through the ${SITE_NAME} storefront.`,
+      title,
+      description,
       url,
       ...(image ? { images: [{ url: image, alt: storeRow.name }] } : {}),
     },
     twitter: {
       card: image ? "summary_large_image" : "summary",
-      title: storeRow.name,
-      description: `Shop ${storeRow.name} products, prices and offers. Order online through the ${SITE_NAME} storefront.`,
+      title,
+      description,
       ...(image ? { images: [image] } : {}),
     },
     other: { "theme-color": accent },
@@ -209,7 +239,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     "@context": "https://schema.org",
     "@type": "Store",
     name: storeRow.name,
-    description: `${storeRow.name} store`,
+    description: buildStoreDescription(storeRow),
     url,
     ...(image ? { image } : {}),
     ...(storeRow.phone ? { telephone: storeRow.phone } : {}),

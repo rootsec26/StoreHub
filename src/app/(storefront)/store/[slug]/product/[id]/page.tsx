@@ -19,7 +19,10 @@ function buildDescription(product: {
   name: string;
   description: string | null;
 }): string {
-  if (product.description) return product.description.slice(0, 300);
+  if (product.description) {
+    const trimmed = product.description.replace(/\s+/g, " ").trim();
+    return trimmed.length > 160 ? `${trimmed.slice(0, 159).trimEnd()}…` : trimmed;
+  }
   return `${product.name} — available now. Order online from our store on ${SITE_NAME}.`;
 }
 

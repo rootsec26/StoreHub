@@ -170,9 +170,13 @@ export async function getSitemapStores(): Promise<
 
 export async function getSitemapProducts(
   limit = 2000
-): Promise<{ storeSlug: string; productId: string }[]> {
+): Promise<{ storeSlug: string; productId: string; createdAt: Date }[]> {
   return db
-    .select({ storeSlug: stores.slug, productId: products.id })
+    .select({
+      storeSlug: stores.slug,
+      productId: products.id,
+      createdAt: products.createdAt,
+    })
     .from(products)
     .innerJoin(stores, eq(products.storeId, stores.id))
     .where(eq(products.isVisible, true))

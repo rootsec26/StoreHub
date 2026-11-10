@@ -32,7 +32,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const product of productList) {
       entries.push({
         url: absoluteUrl(productPath(product.storeSlug, product.productId)),
-        lastModified: undefined,
+        lastModified: product.createdAt,
         changeFrequency: "weekly",
         priority: 0.7,
       });
