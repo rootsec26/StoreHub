@@ -6,20 +6,37 @@ export const SITE_DESCRIPTION =
   "Create your own online store in minutes. Manage products, track orders, and serve customers through unique storefront URLs.";
 
 export function getSiteUrl(): string {
-  // 1. Explicit override — set NEXT_PUBLIC_SITE_URL for local dev
-  //    (e.g. http://localhost:3000) or a custom production domain.
-  const explicit = safeParseUrl(process.env.NEXT_PUBLIC_SITE_URL);
-  if (explicit) return urlToString(explicit) || PRODUCTION_SITE_URL;
-
-  // 2. Genuine browser environment — the origin the user is actually on.
+  // 1. Browser — the origin the user is actually on. This makes local
+  //    development (http://localhost:3000), Vercel previews and the
+  //    production domain each resolve to themselves automatically.
   if (typeof window !== "undefined" && window.location?.origin) {
     return window.location.origin;
   }
 
-  // 3. Canonical production domain. Never fall back to localhost: Vercel's
-  //    per-deployment URLs are unstable and a missing env var must not leak a
-  //    loopback origin into generated links, redirects or metadata.
-  return PRODUCTION_SITE_URL;
+  // 2. Server-side resolution, driven by the deployment environment.
+  const explicit = safeParseUrl(process.env.NEXT_PUBLIC_SITE_URL);
+  const explicitUrl = explicit ? urlToString(explicit) : "";
+
+  if (process.env.VERCEL_URL) {
+    // On Vercel: previews should emit their own deployment URL so generated
+    // links/callbacks stay on the preview; production uses the configured
+    // site URL (or the project's production domain as a last resort).
+    if (process.env.VERCEL_ENV === "preview") {
+      return `https://${process.env.VERCEL_URL}`;
+    }
+    if (explicitUrl) return explicitUrl;
+    if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+      return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+    }
+    return PRODUCTION_SITE_URL;
+  }
+
+  // 3. Local development / self-hosted: loopback by default so generated
+  //    URLs (OAuth redirects, metadata, sitemaps, payment return URLs) never
+  //    point at production. Set NEXT_PUBLIC_SITE_URL to override — e.g. for
+  //    a custom domain or a non-3000 port.
+  if (explicitUrl) return explicitUrl;
+  return `http://localhost:${process.env.PORT || "3000"}`;
 }
 
 export function getRootDomain(): string | null {
