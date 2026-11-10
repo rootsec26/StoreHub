@@ -97,7 +97,8 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
     const store = await resolveStore({
       storeId: params.get("storeId") ?? undefined,
-      storeSlug: params.get("storeSlug") ?? undefined,
+      storeSlug:
+        params.get("storeSlug") ?? params.get("slug") ?? undefined,
     });
     if (!store) {
       return NextResponse.json(
@@ -137,7 +138,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const store = await resolveStore({
       storeId: typeof body.storeId === "string" ? body.storeId : undefined,
-      storeSlug: typeof body.storeSlug === "string" ? body.storeSlug : undefined,
+      storeSlug:
+        typeof body.storeSlug === "string"
+          ? body.storeSlug
+          : typeof body.slug === "string"
+            ? body.slug
+            : undefined,
     });
     if (!store) {
       return NextResponse.json(
@@ -204,7 +210,12 @@ export async function DELETE(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const store = await resolveStore({
       storeId: typeof body.storeId === "string" ? body.storeId : undefined,
-      storeSlug: typeof body.storeSlug === "string" ? body.storeSlug : undefined,
+      storeSlug:
+        typeof body.storeSlug === "string"
+          ? body.storeSlug
+          : typeof body.slug === "string"
+            ? body.slug
+            : undefined,
     });
     if (!store) {
       return NextResponse.json(
