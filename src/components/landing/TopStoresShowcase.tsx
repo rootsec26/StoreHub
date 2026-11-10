@@ -49,7 +49,7 @@ export default function TopStoresShowcase() {
   if (stores.length === 0) return null;
 
   return (
-    <section id="top-stores" className="scroll-mt-20 bg-white py-20">
+    <section id="top-stores" className="scroll-mt-36 bg-white py-20 lg:scroll-mt-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="mx-auto mb-12 max-w-2xl text-center">
           <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-1.5 text-sm font-bold text-amber-700">
