@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionWithStore } from "@/lib/auth";
+import { isAdminEmail } from "@/lib/admin";
 import { createErrorResponse } from "@/lib/errors";
 
 export async function GET() {
@@ -23,6 +24,7 @@ export async function GET() {
             slug: session.storeSlug,
           }
         : null,
+      isAdmin: isAdminEmail(session.email),
     });
   } catch (error) {
     console.error("Get session error:", error);

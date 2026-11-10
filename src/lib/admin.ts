@@ -1,5 +1,46 @@
 import { timingSafeEqual } from "crypto";
+import { jwtVerify } from "jose";
 import { cookies, headers } from "next/headers";
+
+/**
+ * Fallback admin email used when ADMIN_EMAIL is not configured.
+ * Overridable per-environment via the ADMIN_EMAIL env var.
+ */
+const DEFAULT_ADMIN_EMAIL = "rootsec68@gmail.com";
+
+/** The single email allowed to access admin/dashboard surfaces. */
+export function getAdminEmail(): string {
+  return (
+    process.env.ADMIN_EMAIL?.trim() || DEFAULT_ADMIN_EMAIL
+  ).toLowerCase();
+}
+
+/** Constant-time-ish email check (emails are not secret; normalize case). */
+export function isAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return email.trim().toLowerCase() === getAdminEmail();
+}
+
+/**
+ * Read the `email` claim from the app's `session` JWT cookie without going
+ * through `getSession()` — keeps this module safe to import from proxy.ts.
+ */
+async function sessionEmailFromCookies(): Promise<string | null> {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) return null;
+  const token = (await cookies()).get("session")?.value;
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(
+      token,
+      new TextEncoder().encode(secret)
+    );
+    const email = (payload as { email?: unknown }).email;
+    return typeof email === "string" ? email : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Strict admin authorization.
@@ -17,6 +58,10 @@ import { cookies, headers } from "next/headers";
  *                   local development is allowed (operator convenience).
  *   - Production  : fails CLOSED — ADMIN_TOKEN must be set, otherwise every
  *                   admin surface returns 403/404.
+ *
+ * On top of the token credential, the caller must hold a valid app session
+ * whose email matches ADMIN_EMAIL (default: rootsec68@gmail.com). Both
+ * conditions are required in every environment — local dev included.
  */
 
 /** Header used by API clients (curl/CI) to present the admin token. */
@@ -67,9 +112,12 @@ export async function isAdminAuthorized(): Promise<boolean> {
     cookieStore.get(ADMIN_TOKEN_COOKIE)?.value ?? null,
     bearer,
   ];
-  for (const candidate of candidates) {
-    if (verifyAdminToken(candidate)) return true;
-  }
+  const hasCredential = candidates.some(
+    (candidate) => candidate != null && verifyAdminToken(candidate)
+  );
+  if (!hasCredential && !isDevelopmentAdminFallback()) return false;
 
-  return isDevelopmentAdminFallback();
+  // Strict identity gate: the session email must match the configured admin
+  // email regardless of how the admin credential was presented.
+  return isAdminEmail(await sessionEmailFromCookies());
 }

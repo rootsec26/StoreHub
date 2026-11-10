@@ -12,6 +12,7 @@ import {
   ADMIN_TOKEN_HEADER,
   ADMIN_TOKEN_QUERY,
   isDevelopmentAdminFallback,
+  isAdminEmail,
   verifyAdminToken,
 } from "@/lib/admin";
 
@@ -23,6 +24,7 @@ const SECRET = new TextEncoder().encode(jwtSecret);
 
 interface SessionClaims {
   storeId?: string;
+  email?: string;
 }
 
 const CURRENCY_COOKIE_NAME = "storehub_currency";
@@ -319,12 +321,19 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(resolveUrl(request, "/login"));
     }
 
+    let adminPayload: SessionClaims;
     try {
-      await jwtVerify(token, SECRET);
+      const { payload } = await jwtVerify(token, SECRET);
+      adminPayload = payload as SessionClaims;
     } catch {
       const response = NextResponse.redirect(resolveUrl(request, "/login"));
       response.cookies.delete("session");
       return response;
+    }
+
+    // Platform admin surfaces are restricted to the configured admin email.
+    if (!isAdminEmail(adminPayload.email)) {
+      return NextResponse.redirect(resolveUrl(request, "/"));
     }
 
     // Bootstrap the cookie from a one-time ?admin_token= visit, then strip the
