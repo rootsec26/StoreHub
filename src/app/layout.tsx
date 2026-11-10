@@ -3,6 +3,7 @@ import Script from "next/script";
 import type { ReactNode } from "react";
 import { I18nProvider } from "@/lib/i18n";
 import AnalyticsTracker from "@/components/AnalyticsTracker";
+import PlatformBanner from "@/components/PlatformBanner";
 import DesktopTitleBar from "@/components/desktop/DesktopTitleBar";
 import StoreLinkInterceptor from "@/components/desktop/StoreLinkInterceptor";
 import TauriDeepLinkHandler from "@/components/desktop/TauriDeepLinkHandler";
@@ -72,6 +73,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: directionScript }}
         />
+        <PlatformBanner />
         <DesktopTitleBar />
         <StoreLinkInterceptor />
         <TauriDeepLinkHandler />

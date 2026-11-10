@@ -13,6 +13,7 @@ import {
   Ticket,
   Star,
   BadgeCheck,
+  MonitorSmartphone,
 } from "lucide-react";
 
 import { cn } from "@/components/ui/cn";
@@ -23,6 +24,7 @@ const ADMIN_NAV = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/customers", label: "Customers", icon: ShoppingBag },
   { href: "/admin/broadcasts", label: "Broadcasts", icon: Megaphone },
+  { href: "/admin/banner", label: "Site banner", icon: MonitorSmartphone },
   { href: "/admin/messages", label: "Messages", icon: MessageSquareCode },
   { href: "/admin/activity", label: "Activity", icon: Activity },
   { href: "/admin/codes", label: "Activation codes", icon: Ticket },

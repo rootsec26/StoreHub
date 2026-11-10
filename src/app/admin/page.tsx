@@ -6,6 +6,7 @@ import {
   BellRing,
   Heart,
   Megaphone,
+  MonitorSmartphone,
   MessageSquareCode,
   ShoppingBag,
   Store,
@@ -164,6 +165,12 @@ export default async function AdminOverviewPage() {
       title: "Broadcasts",
       description: "Send in-app announcements to store owners.",
       icon: Megaphone,
+    },
+    {
+      href: "/admin/banner",
+      title: "Site banner",
+      description: "Global announcement bar shown to every visitor.",
+      icon: MonitorSmartphone,
     },
     {
       href: "/admin/messages",

@@ -1393,3 +1393,25 @@ export const analyticsEvents = pgTable(
     index("analytics_events_order_id_idx").on(table.orderId),
   ]
 );
+
+// ============================================
+// PLATFORM BROADCASTS (global site banner)
+// ============================================
+// Admin-controlled announcement shown at the top of the platform for every
+// visitor. The public banner endpoint only serves rows where is_active = true
+// and expires_at is still in the future.
+export const platformBroadcasts = pgTable(
+  "platform_broadcasts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    message: text("message").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("platform_broadcasts_active_idx").on(table.isActive, table.expiresAt),
+  ]
+);
