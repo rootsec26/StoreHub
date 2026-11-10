@@ -26,3 +26,6 @@ yarn-error.log*
 # tauri desktop app
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
+
+# windows installer binaries
+*.exe
