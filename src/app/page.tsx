@@ -396,21 +396,24 @@ export default function LandingPage() {
               </a>
             </div>
 
-            {/* Windows (coming soon) */}
-            <div className="flex flex-col items-center gap-4 rounded-2xl border border-white/15 bg-white/5 p-7 text-center opacity-70">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
-                <Laptop className="h-7 w-7 text-indigo-200" />
+            {/* Windows */}
+            <div className="flex flex-col items-center gap-4 rounded-2xl border border-white/20 bg-white/10 p-7 text-center backdrop-blur">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15">
+                <Laptop className="h-7 w-7 text-white" />
               </div>
               <div>
                 <h3 className="text-lg font-bold text-white">Windows</h3>
-                <p className="mt-1 text-sm text-indigo-200/80">
+                <p className="mt-1 text-sm text-indigo-100">
                   {t("landing.app.windows.note")}
                 </p>
               </div>
-              <span className="mt-auto inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-6 py-3.5 text-base font-bold text-indigo-200">
+              <a
+                href="https://github.com/rootsec26/StoreHub/releases/download/v0.1.0/StoreHub_0.1.0_x64-setup.exe"
+                className="mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-base font-bold text-indigo-700 shadow-xl shadow-indigo-950/30 transition-all hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-2xl"
+              >
                 <Download className="h-5 w-5" />
                 {t("landing.app.windows.button")}
-              </span>
+              </a>
             </div>
           </div>
             </>
