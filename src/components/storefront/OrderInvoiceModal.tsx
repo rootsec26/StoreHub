@@ -9,6 +9,7 @@ import { Package, Printer, ShieldCheck, X } from "lucide-react";
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { useStoreCurrency } from "@/components/CurrencySelector";
 import { canOptimizeImage } from "@/lib/images";
+import { getSiteUrl } from "@/lib/site";
 import { normalizeOrderStatus, orderStatusLower } from "@/lib/order-state-machine";
 import type { StorefrontStore, TrackedOrder } from "@/lib/order-tracking";
 
@@ -42,7 +43,7 @@ export default function OrderInvoiceModal({ order, store, onClose }: OrderInvoic
   const [verifyUrl] = useState<string>(() =>
     typeof window === "undefined"
       ? ""
-      : `${window.location.origin}/store/${store.slug}/track-order?id=${encodeURIComponent(order.id)}`
+      : `${getSiteUrl()}/store/${store.slug}/track-order?id=${encodeURIComponent(order.id)}`
   );
 
   useEffect(() => {

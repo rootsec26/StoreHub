@@ -158,10 +158,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
     // attacker could bounce buyers to a phishing page after payment.
     const allowedRedirectOrigins = new Set<string>([request.nextUrl.origin]);
     try {
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-      if (siteUrl) allowedRedirectOrigins.add(new URL(siteUrl).origin);
+      allowedRedirectOrigins.add(new URL(getSiteUrl()).origin);
     } catch {
-      // Malformed NEXT_PUBLIC_SITE_URL — request origin still applies.
+      // Malformed site URL — request origin still applies.
     }
     const isAllowedRedirectUrl = (value: string | undefined): boolean => {
       if (!value) return true;

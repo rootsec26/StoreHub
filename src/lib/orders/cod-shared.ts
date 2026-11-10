@@ -3,6 +3,8 @@
  * merchant dashboard and the storefront can share the same definitions.
  */
 
+import { getSiteUrl } from "@/lib/site";
+
 export type CodVerificationStatus =
   | "NOT_REQUIRED"
   | "PENDING_VERIFICATION"
@@ -42,7 +44,8 @@ function appendQuery(url: string, key: string, value: string): string {
 /**
  * Fallback short link used inside the WhatsApp message, the dashboard and the
  * customer-facing page: https://{slug}.{rootDomain}/order/{id}/verify
- * `origin` is only used as a last resort when no public site URL is configured.
+ * The origin always comes from the centralized site URL helper — `origin` is
+ * only a defensive last resort and is never expected to be a loopback URL.
  */
 export function buildCodVerificationUrl(
   storeSlug: string,
@@ -51,11 +54,7 @@ export function buildCodVerificationUrl(
   tokens: CodVerificationTokens = {}
 ): string {
   const rootDomain = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || "").trim();
-  const siteUrl = (
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
-    (origin || "")
-  ).replace(/\/$/, "");
+  const siteUrl = (getSiteUrl() || origin || "").replace(/\/$/, "");
 
   let url = rootDomain
     ? `https://${storeSlug}.${rootDomain}/order/${orderId}/verify`

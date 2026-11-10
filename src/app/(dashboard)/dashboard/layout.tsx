@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import SidebarNav, { NAV_ITEMS } from "@/components/dashboard/Sidebar";
+import { getSiteUrl } from "@/lib/site";
 import { isTauriDesktopApp, openStoreWindow } from "@/lib/platform";
 import NotificationBell from "@/components/dashboard/NotificationBell";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -221,7 +222,7 @@ export default function DashboardLayout({
 
   const origin = useSyncExternalStore(
     () => () => {},
-    () => window.location.origin,
+    () => getSiteUrl(),
     () => ""
   );
   const storeUrl = store ? `${origin}/store/${store.slug}` : "";

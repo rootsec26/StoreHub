@@ -161,11 +161,7 @@ export default function OrdersPage() {
   }
 
   const verifyUrlFor = (orderId: string) =>
-    buildCodVerificationUrl(
-      storeSlug,
-      orderId,
-      typeof window !== "undefined" ? window.location.origin : undefined
-    );
+    buildCodVerificationUrl(storeSlug, orderId);
 
   async function copyVerifyLink(orderId: string) {
     if (!storeSlug) return;

@@ -7,6 +7,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Package, Printer, ScanLine, Store, X } from "lucide-react";
 
 import { useI18n } from "@/lib/i18n";
+import { getSiteUrl } from "@/lib/site";
 import { canOptimizeImage } from "@/lib/images";
 import { buildTrackingUrl, type ShippingLabelStore, type ShippingOrderRecord } from "@/lib/shipping";
 import Code128Barcode from "@/components/shipping/Code128Barcode";
@@ -43,7 +44,7 @@ export default function ThermalLabelModal({
   );
 
   const origin = useMemo(
-    () => (typeof window === "undefined" ? "" : window.location.origin),
+    () => (typeof window === "undefined" ? "" : getSiteUrl()),
     []
   );
 

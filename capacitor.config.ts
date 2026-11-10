@@ -1,5 +1,6 @@
 import { config as loadEnv } from "dotenv";
 import type { CapacitorConfig } from "@capacitor/cli";
+import { PRODUCTION_SITE_URL } from "./src/lib/url";
 
 loadEnv({ path: [".env.local", ".env"] });
 
@@ -19,7 +20,7 @@ loadEnv({ path: [".env.local", ".env"] });
 const serverUrl =
   process.env.CAPACITOR_SERVER_URL ??
   process.env.NEXT_PUBLIC_SITE_URL ??
-  "";
+  PRODUCTION_SITE_URL;
 
 const isHttp = serverUrl.startsWith("http://");
 

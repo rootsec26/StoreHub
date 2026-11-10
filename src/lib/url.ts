@@ -1,4 +1,5 @@
-export const LOCAL_FALLBACK_URL = "http://localhost:3000";
+/** Canonical production origin — the ultimate fallback for absolute URLs. */
+export const PRODUCTION_SITE_URL = "https://store-hub-beta.vercel.app";
 
 const SCHEME_RE = /^[a-z][a-z0-9+\-.]*:\/\//i;
 const LOOPBACK_RE = /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:[/?#]|$)/i;
@@ -60,16 +61,16 @@ export function urlToString(url: URL): string {
 
 export function safeUrl(
   raw: string | null | undefined,
-  fallback: string = LOCAL_FALLBACK_URL
+  fallback: string = PRODUCTION_SITE_URL
 ): URL {
-  return safeParseUrl(raw) ?? safeParseUrl(fallback) ?? new URL(LOCAL_FALLBACK_URL);
+  return safeParseUrl(raw) ?? safeParseUrl(fallback) ?? new URL(PRODUCTION_SITE_URL);
 }
 
 export function safeUrlString(
   raw: string | null | undefined,
-  fallback: string = LOCAL_FALLBACK_URL
+  fallback: string = PRODUCTION_SITE_URL
 ): string {
-  return urlToString(safeUrl(raw, fallback)) || LOCAL_FALLBACK_URL;
+  return urlToString(safeUrl(raw, fallback)) || PRODUCTION_SITE_URL;
 }
 
 export function safeResolveUrl(

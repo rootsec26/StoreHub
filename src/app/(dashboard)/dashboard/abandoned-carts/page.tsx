@@ -162,7 +162,6 @@ export default function AbandonedCartsPage() {
         customerName: cart.customerName,
         itemQuantity: cartQuantity(cart.cartItems),
         checkoutUrl: buildRecoveryCheckoutUrl(
-          window.location.origin,
           storeSlug,
           cart.recoveryToken
         ),

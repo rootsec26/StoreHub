@@ -1,4 +1,4 @@
-import { checkoutPath } from "@/lib/site";
+import { checkoutPath, getSiteUrl } from "@/lib/site";
 import { normalizeWhatsAppNumber } from "@/lib/whatsapp";
 import type { Locale, TranslationKey } from "@/lib/i18n";
 
@@ -141,12 +141,12 @@ export function buildRecoveryCheckoutPath(
 
 /** Absolute deep link used inside the WhatsApp message. */
 export function buildRecoveryCheckoutUrl(
-  origin: string,
   slug: string,
   recoveryToken: string,
-  couponCode: string = RECOVERY_COUPON_CODE
+  couponCode: string = RECOVERY_COUPON_CODE,
+  origin?: string
 ): string {
-  const base = origin.replace(/\/+$/, "");
+  const base = (origin || getSiteUrl()).replace(/\/+$/, "");
   return `${base}${buildRecoveryCheckoutPath(slug, recoveryToken, couponCode)}`;
 }
 
