@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { I18nProvider } from "@/lib/i18n";
 import AnalyticsTracker from "@/components/AnalyticsTracker";
 import DesktopTitleBar from "@/components/desktop/DesktopTitleBar";
+import StoreLinkInterceptor from "@/components/desktop/StoreLinkInterceptor";
 import { getInitialLocale } from "@/components/locale-initializer";
 import { SITE_DESCRIPTION, SITE_NAME, absoluteUrl, getSiteUrl } from "@/lib/site";
 import { safeUrl } from "@/lib/url";
@@ -68,6 +69,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           dangerouslySetInnerHTML={{ __html: directionScript }}
         />
         <DesktopTitleBar />
+        <StoreLinkInterceptor />
         <AnalyticsTracker />
         <I18nProvider initialLocale={initialLocale}>{children}</I18nProvider>
       </body>
