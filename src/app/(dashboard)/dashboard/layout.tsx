@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 import SidebarNav, { NAV_ITEMS } from "@/components/dashboard/Sidebar";
-import { isTauriDesktopApp, openExternalUrl } from "@/lib/platform";
+import { isTauriDesktopApp, openStoreWindow } from "@/lib/platform";
 import NotificationBell from "@/components/dashboard/NotificationBell";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 
@@ -226,12 +226,16 @@ export default function DashboardLayout({
   );
   const storeUrl = store ? `${origin}/store/${store.slug}` : "";
 
-  // Inside the Tauri desktop shell, target="_blank" is a no-op — route
-  // store links through the OS default browser via the shell plugin.
+  // Inside the Tauri desktop shell, target="_blank" is a no-op — open the
+  // storefront in a dedicated app window (or the OS browser as fallback).
   function handleStoreLinkClick(e: React.MouseEvent) {
-    if (!isTauriDesktopApp() || !storeUrl) return;
+    if (!isTauriDesktopApp() || !store || !storeUrl) return;
     e.preventDefault();
-    void openExternalUrl(storeUrl);
+    void openStoreWindow(
+      storeUrl,
+      `store-${store.slug}`,
+      `StoreHub — ${store.name}`
+    );
   }
 
   async function copyStoreLink() {
