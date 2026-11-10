@@ -17,6 +17,7 @@ import {
 import { useI18n } from "@/lib/i18n";
 import { normalizeWhatsAppNumber } from "@/lib/whatsapp";
 import { normalizeOrderStatus } from "@/lib/order-state-machine";
+import { absoluteUrl, checkoutPath, productPath } from "@/lib/site";
 
 interface Order {
   id: string;
@@ -207,6 +208,18 @@ export default function AIRadarPage() {
   );
   const [generatedText, setGeneratedText] = useState<string | null>(null);
   const [copyLoading, setCopyLoading] = useState(false);
+  const [storeSlug, setStoreSlug] = useState("");
+
+  // Resolve the merchant's storefront slug once so generated links point at
+  // the real store on the current site origin (never a placeholder domain).
+  useEffect(() => {
+    fetch("/api/stores/my")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.store?.slug) setStoreSlug(data.store.slug);
+      })
+      .catch(() => {});
+  }, []);
 
   // Fetch products (only while the studio tab is active)
   useEffect(() => {
@@ -253,7 +266,10 @@ ${product.name} is here to elevate your style! 🌟
           // WhatsApp promo template (Arabic + English)
           const arabicText = `🛍️ ${product.name} الآن متاح!\n\n💎 جودة عالية وسريعة التوصيل\n🎁 خصم خاص لأول طلب: 10% باستخدام كود WELCOME10\n\n👉 اطلب الآن واضغط على الرابط:\n`;
           const englishText = `🛍️ ${product.name} is now available!\n\n💎 High quality and fast delivery\n🎁 Special discount on first order: 10% with code WELCOME10\n\n👉 Shop now:\n`;
-          generatedText = `${arabicText}${englishText}https://your-store.com/cart`;
+          const productUrl = storeSlug
+            ? absoluteUrl(productPath(storeSlug, product.id))
+            : absoluteUrl("/");
+          generatedText = `${arabicText}${englishText}${productUrl}`;
           break;
         }
         case "ad": {
@@ -266,7 +282,7 @@ ${product.name} is here to elevate your style! 🌟
       setGeneratedText(generatedText);
       setCopyLoading(false);
     }, 500);
-  }, [platform, products, selectedProductId]);
+  }, [platform, products, selectedProductId, storeSlug]);
 
   // Copy to clipboard
   const handleCopyToClipboard = useCallback(() => {
@@ -349,7 +365,9 @@ ${product.name} is here to elevate your style! 🌟
                           if (!phoneDigits) return;
                           // Arabic message for WhatsApp offer
                           const arabicMessage = `🛒 عربة التسوق فارغة\nنشتاق لك! ارجع واستمتع بعرض خاص:\n`;
-                          const recoveryLink = `https://your-store.com/cart/${cart.id}`;
+                          const recoveryLink = storeSlug
+                            ? absoluteUrl(checkoutPath(storeSlug))
+                            : absoluteUrl("/");
                           const waUrl = `https://wa.me/${phoneDigits}?text=${encodeURIComponent(
                             arabicMessage + recoveryLink
                           )}`;

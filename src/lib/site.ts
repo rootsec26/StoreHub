@@ -9,6 +9,11 @@ export function getSiteUrl(): string {
   const explicit = safeParseUrl(process.env.NEXT_PUBLIC_SITE_URL);
   if (explicit) return urlToString(explicit) || LOCAL_FALLBACK_URL;
 
+  // VERCEL_URL is the unique per-deployment domain — unstable across deploys.
+  // Prefer the project's stable production domain when available.
+  const production = safeParseUrl(process.env.VERCEL_PROJECT_PRODUCTION_URL, "https");
+  if (production) return urlToString(production) || LOCAL_FALLBACK_URL;
+
   const vercel = safeParseUrl(process.env.VERCEL_URL, "https");
   if (vercel) return urlToString(vercel) || LOCAL_FALLBACK_URL;
 
