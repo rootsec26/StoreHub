@@ -4,7 +4,7 @@ import { cache } from "react";
 import { and, asc, desc, eq, gt } from "drizzle-orm";
 
 import { db } from "@/db";
-import { categories, products, promotions, stores } from "@/db/schema";
+import { categories, products, promotions, shippingZones, stores } from "@/db/schema";
 import { hasFeatureAccess } from "@/lib/paywall";
 import type { PromotionRecord } from "@/lib/promotions";
 
@@ -136,6 +136,29 @@ export const getStorePromotions = cache(
     } catch (error) {
       console.error(`Failed to fetch promotions for store "${storeId}":`, error);
       return [];
+    }
+  }
+);
+
+/** Active exception zones — decides whether "zones" mode varies by address. */
+export const getStoreActiveShippingZoneCount = cache(
+  async (storeId: string): Promise<number> => {
+    if (!storeId || !isValidUuid(storeId)) return 0;
+
+    try {
+      const rows = await db
+        .select({ id: shippingZones.id })
+        .from(shippingZones)
+        .where(
+          and(
+            eq(shippingZones.storeId, storeId),
+            eq(shippingZones.isActive, true)
+          )
+        );
+      return rows.length;
+    } catch (error) {
+      console.error(`Failed to count shipping zones for store "${storeId}":`, error);
+      return 0;
     }
   }
 );

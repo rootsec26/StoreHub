@@ -31,6 +31,8 @@ import AIShoppingAssistant from "@/components/storefront/AIShoppingAssistant";
 import FlashSaleBanner from "@/components/storefront/FlashSaleBanner";
 import StoreFooter from "@/components/storefront/Footer";
 import StoreReviews from "@/components/storefront/StoreReviews";
+import VerifiedBadge from "@/components/storefront/VerifiedBadge";
+import OpenInAppButton from "@/components/desktop/OpenInAppButton";
 import StoreFollowButton from "@/components/storefront/StoreFollowButton";
 import { useNow, useStorePromotions } from "@/lib/promotions-hooks";
 import {
@@ -63,6 +65,8 @@ export interface StoreData {
   supportedCurrencies: string[];
   /** White-label add-on: hides the "Powered by StoreHub" credit. */
   hasWhiteLabel: boolean;
+  /** Official Store Verification (توثيق المتجر) badge. */
+  isVerified: boolean;
   themeConfig: ThemeConfig;
 }
 
@@ -187,6 +191,7 @@ export default function StorefrontView({
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(notifStorageKey);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (saved) setNotifPhone(saved);
     } catch {}
   }, [notifStorageKey]);
@@ -251,6 +256,7 @@ export default function StorefrontView({
   // the unread badge count.
   useEffect(() => {
     if (notifPhone) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchNotifications(notifPhone, showNotifications);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -398,7 +404,15 @@ export default function StorefrontView({
                 className="animate-storefront-fade-up text-3xl font-extrabold tracking-tight text-white drop-shadow-sm sm:text-4xl"
                 style={{ animationDelay: "150ms" }}
               >
-                {store.name}
+                <span className="inline-flex items-center justify-center gap-2.5 sm:justify-start">
+                  {store.name}
+                  {store.isVerified && (
+                    <VerifiedBadge
+                      className="h-8 w-8"
+                      label={t("store.verifiedBadge")}
+                    />
+                  )}
+                </span>
               </h1>
               {store.description && (
                 <p
@@ -1269,6 +1283,8 @@ export default function StorefrontView({
 
       {/* Footer */}
       <StoreFooter hasWhiteLabel={store.hasWhiteLabel} />
+
+      <OpenInAppButton />
     </div>
   );
 }

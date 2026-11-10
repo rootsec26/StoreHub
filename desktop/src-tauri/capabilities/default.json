@@ -28,6 +28,7 @@
     "core:window:allow-set-focus",
     "core:webview:allow-create-webview-window",
     "updater:default",
+    "deep-link:default",
     "shell:allow-open"
   ]
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { db } from "@/db";
-import { stores, orders, orderItems, products, coupons } from "@/db/schema";
+import { stores, orders, orderItems, products, coupons, shippingZones } from "@/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { createCheckoutSession as createStripeCheckoutSession } from "@/lib/payments/stripe";
 import { createCheckoutSession as createPaddleCheckoutSession } from "@/lib/payments/paddle";
@@ -34,7 +34,18 @@ import { recordAnalyticsEvent } from "@/lib/analytics";
 import { effectiveProductPrice } from "@/lib/product-details";
 import { createOrderToken } from "@/lib/order-tokens";
 import { notifyCustomerOrderPlaced } from "@/lib/order-notifications";
+import { computeShippingQuote } from "@/lib/shipping-pricing";
 import { revalidatePath } from "next/cache";
+
+/** Synthetic line id for the delivery fee inside gateway checkout sessions. */
+const SHIPPING_LINE_PRODUCT_ID = "shipping";
+
+function chargeLineName(item: { productId: string; name?: string }): string {
+  if (item.productId === SHIPPING_LINE_PRODUCT_ID) {
+    return item.name || "Shipping";
+  }
+  return item.productId;
+}
 
 export interface CheckoutRequest {
   storeId: string;
@@ -75,6 +86,8 @@ export interface CheckoutResponse {
   risk?: { score: "LOW" | "MEDIUM" | "HIGH"; reasons: string[] };
   /** Signed token authorizing the buyer to upload a payment proof. */
   orderToken?: string;
+  /** Delivery fee the server actually charged (store base currency). */
+  shippingFee?: number;
   /** WhatsApp COD verification hand-off (pay-later orders only). */
   codVerification?: {
     status: string;
@@ -267,6 +280,38 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
     );
     const totalDiscountAmount = roundMoney(couponDiscount + loyaltyDiscountAmount);
     const finalTotal = loyaltyResult.finalTotal;
+
+    // Flexible shipping pricing: resolve the delivery fee from the store's
+    // configured mode (disabled / flat / zones) and the customer's free-text
+    // address. The fee is added on top of the discounted merchandise total —
+    // discounts never reduce shipping — and persisted on the order row.
+    const shippingZoneRows =
+      storeData.shippingMode === "zones"
+        ? await db
+            .select({
+              id: shippingZones.id,
+              zoneName: shippingZones.zoneName,
+              rate: shippingZones.rate,
+              estimatedDeliveryDays: shippingZones.estimatedDeliveryDays,
+              isActive: shippingZones.isActive,
+            })
+            .from(shippingZones)
+            .where(
+              and(
+                eq(shippingZones.storeId, storeId),
+                eq(shippingZones.isActive, true)
+              )
+            )
+        : [];
+    const shippingQuote = computeShippingQuote({
+      mode: storeData.shippingMode,
+      flatRate: storeData.shippingFlatRate,
+      zones: shippingZoneRows,
+      address: customerAddress,
+    });
+    const shippingFee = shippingQuote.fee;
+    const orderTotal = roundMoney(finalTotal + shippingFee);
+
     const paymentItems =
       totalDiscountAmount > 0
         ? applyDiscountToItems(cartItems, totalDiscountAmount)
@@ -281,6 +326,21 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
       ...item,
       unitPrice: convertAmount(item.unitPrice, storeCurrency, currency),
     }));
+
+    // The delivery fee rides along as its own charge line so gateway totals
+    // match `orderTotal` exactly — merchandise discounts never touch it.
+    const shippingCharge = convertAmount(shippingFee, storeCurrency, currency);
+    const chargeLines =
+      shippingCharge > 0
+        ? [
+            ...chargeItems,
+            {
+              productId: SHIPPING_LINE_PRODUCT_ID,
+              quantity: 1,
+              unitPrice: roundMoney(shippingCharge),
+            },
+          ]
+        : chargeItems;
 
     const finalizeLoyalty = (orderId: string) =>
       finalizeCheckoutLoyalty({
@@ -430,8 +490,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
           customerPhone: customerPhone || "",
           customerAddress: customerAddress || "",
           notes: notes || "",
-          totalAmount: finalTotal.toFixed(2),
+          totalAmount: orderTotal.toFixed(2),
           discountAmount: totalDiscountAmount.toFixed(2),
+          shippingFee: shippingFee.toFixed(2),
+          shippingZoneId: shippingQuote.zoneId,
           couponCode: appliedCoupon?.code ?? null,
           status: "PENDING",
           paymentMethod: "stripe",
@@ -441,8 +503,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
 
         let result;
         try {
-          const stripeItems = chargeItems.map((item) => ({
-            name: item.productId,
+          const stripeItems = chargeLines.map((item) => ({
+            name: chargeLineName(item),
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             productId: item.productId,
@@ -481,6 +543,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
           sessionId: result.sessionId,
           orderId: order.id,
           isSandbox: result.isSandbox,
+          shippingFee,
           ...(loyaltyOutcome ? { loyalty: loyaltyOutcome } : {}),
         });
       }
@@ -512,8 +575,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
           customerPhone: customerPhone || "",
           customerAddress: customerAddress || "",
           notes: notes || "",
-          totalAmount: finalTotal.toFixed(2),
+          totalAmount: orderTotal.toFixed(2),
           discountAmount: totalDiscountAmount.toFixed(2),
+          shippingFee: shippingFee.toFixed(2),
+          shippingZoneId: shippingQuote.zoneId,
           couponCode: appliedCoupon?.code ?? null,
           status: "PENDING",
           paymentMethod: "paddle",
@@ -521,8 +586,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
 
         await recordOrderConversion(order, "paddle");
 
-        const paddleItems = chargeItems.map((item) => ({
-          name: item.productId,
+        const paddleItems = chargeLines.map((item) => ({
+          name: chargeLineName(item),
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           productId: item.productId,
@@ -562,6 +627,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
           redirectUrl: result.checkoutUrl,
           orderId: order.id,
           isSandbox: result.isSandbox,
+          shippingFee,
           ...(loyaltyOutcome ? { loyalty: loyaltyOutcome } : {}),
         });
       }
@@ -578,8 +644,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
           customerPhone: customerPhone || "",
           customerAddress: customerAddress || "",
           notes: notes || "",
-          totalAmount: finalTotal.toFixed(2),
+          totalAmount: orderTotal.toFixed(2),
           discountAmount: totalDiscountAmount.toFixed(2),
+          shippingFee: shippingFee.toFixed(2),
+          shippingZoneId: shippingQuote.zoneId,
           couponCode: appliedCoupon?.code ?? null,
           status: "PENDING",
           paymentMethod,
@@ -632,6 +700,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
               : undefined,
           message: manualInstructions,
           isSandbox: false,
+          shippingFee,
           risk: { score: risk.riskScore, reasons: risk.riskReasons },
           ...(codVerification
             ? {

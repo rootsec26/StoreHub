@@ -100,12 +100,15 @@ export function productDiscountPercent(product: {
   compareAtPrice?: string | number | null;
   discountPercent?: number | null;
 }): number | null {
-  if (typeof product.discountPercent === "number" && product.discountPercent > 0) {
-    return Math.min(100, product.discountPercent);
-  }
+  // The badge is derived ONLY from real prices: a strikethrough reference
+  // price that is strictly greater than the current price. The stored
+  // discount_percent field is ignored — it can be stale or set without a
+  // compare price, which produced fake "خصم X%" badges.
   const compare = comparePriceFor(product);
   const current = effectiveProductPrice(product);
-  if (!compare || compare <= 0 || current <= 0 || current >= compare) return null;
+  if (compare == null || compare <= 0 || current <= 0 || current >= compare) {
+    return null;
+  }
   return Math.round(((compare - current) / compare) * 100);
 }
 

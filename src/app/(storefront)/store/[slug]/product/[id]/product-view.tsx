@@ -12,6 +12,7 @@ import {
   Plus,
   ShoppingCart,
   Store,
+  Truck,
 } from "lucide-react";
 
 import { useCartStore, type CartItem } from "@/lib/cart";
@@ -28,6 +29,8 @@ import { canOptimizeImage, isValidImageUrl } from "@/lib/images";
 import { storePath } from "@/lib/site";
 import { useStoreCurrency } from "@/components/CurrencySelector";
 import StoreFooter from "@/components/storefront/Footer";
+import VerifiedBadge from "@/components/storefront/VerifiedBadge";
+import type { StorefrontShippingDisplay } from "@/lib/shipping-pricing";
 import {
   comparePriceFor,
   effectiveProductPrice,
@@ -45,6 +48,8 @@ export interface ProductViewStore {
   supportedCurrencies: string[];
   /** White-label add-on: hides the "Powered by StoreHub" credit. */
   hasWhiteLabel?: boolean;
+  /** Official Store Verification (توثيق المتجر) badge. */
+  isVerified?: boolean;
 }
 
 export interface ProductViewProduct {
@@ -71,6 +76,8 @@ interface ProductViewProps {
   product: ProductViewProduct;
   categoryName: string | null;
   initialPromotions?: PromotionRecord[] | null;
+  /** Merchant shipping pricing — rendered as a hint under the price. */
+  shipping?: StorefrontShippingDisplay;
 }
 
 export default function ProductView({
@@ -79,6 +86,7 @@ export default function ProductView({
   product,
   categoryName,
   initialPromotions,
+  shipping,
 }: ProductViewProps) {
   const router = useRouter();
   const { t, locale } = useI18n();
@@ -151,6 +159,12 @@ export default function ProductView({
             <span className="truncate text-sm font-semibold text-white">
               {store.name}
             </span>
+            {store.isVerified && (
+              <VerifiedBadge
+                className="h-5 w-5"
+                label={t("store.verifiedBadge")}
+              />
+            )}
           </div>
 
           <button
@@ -271,6 +285,24 @@ export default function ProductView({
                 </span>
               )}
             </div>
+
+            {shipping && shipping.kind !== "none" && (
+              <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-600">
+                <Truck className="h-4 w-4 shrink-0 text-slate-400" />
+                {shipping.kind === "varies"
+                  ? t("product.shipping.varies")
+                  : shipping.kind === "free"
+                    ? t("product.shipping.free")
+                    : t("product.shipping.flat", {
+                        price: convertAndFormatPrice(
+                          shipping.rate,
+                          store.currency,
+                          selectedCurrency,
+                          priceLocale
+                        ),
+                      })}
+              </p>
+            )}
 
             <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
               <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-600">

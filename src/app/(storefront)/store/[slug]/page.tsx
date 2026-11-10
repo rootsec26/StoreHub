@@ -205,6 +205,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     currency,
     supportedCurrencies,
     hasWhiteLabel,
+    isVerified: storeRow.isVerified ?? false,
     themeConfig: resolveThemeConfig(storeRow.themeConfig),
   };
 

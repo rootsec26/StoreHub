@@ -23,6 +23,7 @@ export function redactTrackingOrder<T extends TrackedOrderRow>(
     customerAddress: null,
     notes: null,
     totalAmount: order.totalAmount,
+    shippingFee: order.shippingFee,
     status: order.status,
     createdAt: order.createdAt,
     items,

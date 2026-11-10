@@ -3,10 +3,12 @@ import { notFound } from "next/navigation";
 
 import {
   getCategoryName,
+  getStoreActiveShippingZoneCount,
   getStoreBySlug,
   getStoreProduct,
   getStorePromotions,
 } from "@/lib/storefront";
+import { storefrontShippingDisplay } from "@/lib/shipping-pricing";
 import { SITE_NAME, absoluteUrl, productPath, storePath } from "@/lib/site";
 import { normalizeAccent } from "@/lib/theme";
 import ProductView from "./product-view";
@@ -90,6 +92,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   const categoryName = await getCategoryName(product.categoryId);
   const promotionRecords = await getStorePromotions(store.id);
+  const shippingZoneCount = await getStoreActiveShippingZoneCount(store.id);
+  const shipping = storefrontShippingDisplay({
+    mode: store.shippingMode,
+    flatRate: Number(store.shippingFlatRate ?? 0),
+    hasZoneExceptions: shippingZoneCount > 0,
+  });
   const url = absoluteUrl(productPath(store.slug, product.id));
   const inStock = (product.stock ?? 0) > 0;
   const currency = (store.currency ?? "EGP").toUpperCase();
@@ -137,6 +145,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           currency,
           supportedCurrencies,
           hasWhiteLabel: store.hasWhiteLabel ?? false,
+          isVerified: store.isVerified ?? false,
         }}
         product={{
           id: product.id,
@@ -157,6 +166,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         }}
         categoryName={categoryName}
         initialPromotions={promotionRecords}
+        shipping={shipping}
       />
     </>
   );

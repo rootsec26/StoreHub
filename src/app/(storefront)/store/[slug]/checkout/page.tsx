@@ -52,6 +52,13 @@ interface PlacedOrder {
   total: number;
 }
 
+interface ShippingQuoteState {
+  mode: "disabled" | "flat" | "zones";
+  fee: number;
+  zoneName: string | null;
+  zoneMatched: boolean;
+}
+
 type PaymentMethod = "stripe" | "paddle" | "manual" | "cod";
 
 interface PaymentOption {
@@ -109,6 +116,7 @@ function CheckoutContent() {
   const [placedOrder, setPlacedOrder] = useState<PlacedOrder | null>(null);
   const [codVerifyNotice, setCodVerifyNotice] = useState("");
   const [codVerifyUrl, setCodVerifyUrl] = useState("");
+  const [shippingQuote, setShippingQuote] = useState<ShippingQuoteState | null>(null);
   const selectedPaymentMethodInitialized = useRef(false);
 
   const { currency: selectedCurrency } = useStoreCurrency(storeCurrency, storeSupportedCurrencies, locale);
@@ -182,6 +190,33 @@ function CheckoutContent() {
     loadStore();
   }, [slug]);
 
+  // Live shipping quote: re-priced whenever the delivery address changes so
+  // zone exceptions show up in the order summary before the order is placed.
+  // The server recomputes the authoritative fee at POST /api/checkout.
+  useEffect(() => {
+    const trimmed = customerAddress.trim();
+    if (trimmed.length > 0 && trimmed.length < 3) return;
+
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams({ slug });
+      if (trimmed) params.set("address", trimmed);
+      fetch(`/api/shipping/quote?${params.toString()}`, { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!data) return;
+          setShippingQuote({
+            mode: data.mode === "flat" || data.mode === "zones" ? data.mode : "disabled",
+            fee: Number(data.fee) || 0,
+            zoneName: typeof data.zoneName === "string" ? data.zoneName : null,
+            zoneMatched: Boolean(data.zoneMatched),
+          });
+        })
+        .catch(() => {});
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [slug, customerAddress]);
+
   useEffect(() => {
     if (cart.items.length === 0 && !success) {
       router.push(`/store/${slug}`);
@@ -217,7 +252,9 @@ function CheckoutContent() {
     locale,
   ]);
 
-  const finalTotal = cart.getTotal();
+  const merchandiseTotal = cart.getTotal();
+  const shippingFee = shippingQuote?.fee ?? 0;
+  const orderTotal = merchandiseTotal + shippingFee;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -230,7 +267,7 @@ function CheckoutContent() {
         quantity: item.quantity,
         unitPrice: parseFloat(item.price),
       })),
-      total: cart.getTotal(),
+      total: orderTotal,
     };
 
     try {
@@ -916,16 +953,36 @@ function CheckoutContent() {
                   </div>
                 ))}
 
-                <div className="mt-4 border-t pt-4">
-                <div className="flex items-center justify-between">
+                <div className="mt-4 space-y-2 border-t pt-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">{t("checkout.subtotal")}</span>
+                  <span className="font-medium text-slate-800">
+                    {convertAndFormatPrice(merchandiseTotal, storeCurrency, selectedCurrency, priceLocale)}
+                  </span>
+                </div>
+                {shippingQuote && shippingQuote.mode !== "disabled" && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-1.5 text-slate-500">
+                    <Truck className="h-3.5 w-3.5" />
+                    {t("checkout.shipping")}
+                    {shippingQuote.zoneMatched && shippingQuote.zoneName && (
+                      <span className="text-xs text-slate-400">({shippingQuote.zoneName})</span>
+                    )}
+                  </span>
+                  <span className="font-medium text-slate-800">
+                    {convertAndFormatPrice(shippingFee, storeCurrency, selectedCurrency, priceLocale)}
+                  </span>
+                </div>
+                )}
+                <div className="flex items-center justify-between pt-1">
                   <span className="text-base font-semibold text-slate-900">
                     {t("store.total")}
                   </span>
                   <span className="text-xl font-bold text-[var(--color-primary)]">
-                    {convertAndFormatPrice(finalTotal, storeCurrency, selectedCurrency, priceLocale)}
+                    {convertAndFormatPrice(orderTotal, storeCurrency, selectedCurrency, priceLocale)}
                   </span>
                 </div>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="text-xs text-slate-500">
                   {t("checkout.itemsInCart", { count: cart.getItemCount() })}
                 </p>
               </div>

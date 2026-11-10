@@ -58,7 +58,13 @@ export async function GET() {
       .where(eq(shippingZones.storeId, store.id))
       .orderBy(asc(shippingZones.rate));
 
-    return NextResponse.json({ zones: result.map(toRecord) });
+    return NextResponse.json({
+      zones: result.map(toRecord),
+      settings: {
+        mode: store.shippingMode ?? "disabled",
+        flatRate: Number(store.shippingFlatRate ?? 0),
+      },
+    });
   } catch (error) {
     console.error("Get shipping zones error:", error);
     return createErrorResponse(error, "Failed to fetch shipping zones");

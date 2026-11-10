@@ -234,7 +234,7 @@ export const GOVERNORATES: GovernorateAlias[] = [
 ];
 
 /** Folds Arabic variants + casing so "القاهره" matches "القاهرة". */
-function normalizeDestination(value: string): string {
+export function normalizeDestination(value: string): string {
   return value
     .toLowerCase()
     .replace(/[\u064B-\u0652\u0640]/g, "")

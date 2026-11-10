@@ -28,6 +28,8 @@ export interface TrackedOrder {
   customerAddress: string | null;
   notes: string | null;
   totalAmount: string;
+  /** Delivery fee included in totalAmount (0 for pre-shipping-pricing orders). */
+  shippingFee?: string | null;
   status: string;
   createdAt: string;
   items: TrackOrderItem[];

@@ -63,7 +63,8 @@ export async function GET() {
     ]);
 
     return NextResponse.json({
-      count: countRows[0]?.count ?? 0,
+      // Real follower rows + the verification milestone boost (10k on approval).
+      count: (countRows[0]?.count ?? 0) + Math.max(0, userStore[0].followerBoost ?? 0),
       recentFollowers: recent.map((row) => ({
         id: row.id,
         label:

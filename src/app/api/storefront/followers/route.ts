@@ -18,6 +18,7 @@ const FOLLOWER_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 interface StoreRef {
   id: string;
   slug: string;
+  followerBoost: number;
 }
 
 async function resolveStore(params: {
@@ -26,15 +27,28 @@ async function resolveStore(params: {
 }): Promise<StoreRef | null> {
   if (params.storeSlug) {
     const store = await getStoreBySlug(params.storeSlug);
-    return store ? { id: store.id, slug: store.slug } : null;
+    return store
+      ? {
+          id: store.id,
+          slug: store.slug,
+          followerBoost: store.followerBoost ?? 0,
+        }
+      : null;
   }
   if (params.storeId && isValidUuid(params.storeId)) {
     const rows = await db
-      .select({ id: stores.id, slug: stores.slug })
+      .select({
+        id: stores.id,
+        slug: stores.slug,
+        followerBoost: stores.followerBoost,
+      })
       .from(stores)
       .where(eq(stores.id, params.storeId))
       .limit(1);
-    return rows[0] ?? null;
+    const row = rows[0];
+    return row
+      ? { id: row.id, slug: row.slug, followerBoost: row.followerBoost ?? 0 }
+      : null;
   }
   return null;
 }
@@ -47,12 +61,13 @@ function isValidFollowerId(value: unknown): value is string {
   );
 }
 
-async function followerCount(storeId: string): Promise<number> {
+async function followerCount(store: StoreRef): Promise<number> {
   const rows = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(storeFollowers)
-    .where(eq(storeFollowers.storeId, storeId));
-  return rows[0]?.count ?? 0;
+    .where(eq(storeFollowers.storeId, store.id));
+  // Real followers + the verification milestone boost (10k on approval).
+  return (rows[0]?.count ?? 0) + Math.max(0, store.followerBoost ?? 0);
 }
 
 async function isFollowing(storeId: string, userId: string): Promise<boolean> {
@@ -111,7 +126,7 @@ export async function GET(request: NextRequest) {
       params.get("followerId")
     );
     const [count, following] = await Promise.all([
-      followerCount(store.id),
+      followerCount(store),
       followerId ? isFollowing(store.id, followerId) : Promise.resolve(false),
     ]);
 
@@ -187,7 +202,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const count = await followerCount(store.id);
+    const count = await followerCount(store);
     return NextResponse.json({ success: true, count, following: true });
   } catch (error) {
     console.error("Storefront follow error:", error);
@@ -241,7 +256,7 @@ export async function DELETE(request: NextRequest) {
         )
       );
 
-    const count = await followerCount(store.id);
+    const count = await followerCount(store);
     return NextResponse.json({ success: true, count, following: false });
   } catch (error) {
     console.error("Storefront unfollow error:", error);

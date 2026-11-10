@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Crown, Store, Star } from "lucide-react";
+import { Crown, Store, Star, Users } from "lucide-react";
 
 import { useI18n } from "@/lib/i18n";
 import { canOptimizeImage, isValidImageUrl } from "@/lib/images";
 import { accentGradient, normalizeAccent } from "@/lib/theme";
+import VerifiedBadge from "@/components/storefront/VerifiedBadge";
 
 interface TopStore {
   id: string;
@@ -15,8 +16,11 @@ interface TopStore {
   slug: string;
   logoUrl: string;
   accentColor: string;
-  average: number;
+  isVerified: boolean;
+  average: number | null;
   count: number;
+  followers: number;
+  goldCrown: boolean;
 }
 
 const MEDAL_CLASSES = [
@@ -98,22 +102,49 @@ export default function TopStoresShowcase() {
                       <Store className="h-9 w-9 text-slate-400" />
                     )}
                   </div>
-                  {index === 0 && (
+                  {index === 0 && !store.goldCrown && (
                     <span className="absolute -top-1.5 -end-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-[11px] font-black text-white shadow">
                       1
                     </span>
                   )}
+                  {store.goldCrown && (
+                    <span
+                      className="absolute -top-2 -start-2 flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-500 text-amber-900 shadow-lg ring-2 ring-white"
+                      title={t("landing.topStores.goldCrown")}
+                    >
+                      <Crown className="h-4 w-4 fill-amber-700" />
+                    </span>
+                  )}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-slate-900 transition-colors group-hover:text-indigo-600">
-                    {store.name}
+                  <p className="flex items-center justify-center gap-1 truncate text-sm font-bold text-slate-900 transition-colors group-hover:text-indigo-600">
+                    <span className="truncate">{store.name}</span>
+                    {store.isVerified && (
+                      <VerifiedBadge
+                        className="h-4 w-4"
+                        label={t("store.verifiedBadge")}
+                      />
+                    )}
                   </p>
-                  <div className="mt-1 flex items-center justify-center gap-1 text-xs font-semibold text-amber-500" dir="ltr">
-                    <Star className="h-3.5 w-3.5 fill-amber-400" />
-                    {store.average.toFixed(1)}
-                    <span className="font-normal text-slate-400">
-                      ({formatNumber(store.count)})
-                    </span>
+                  {store.average != null ? (
+                    <div className="mt-1 flex items-center justify-center gap-1 text-xs font-semibold text-amber-500" dir="ltr">
+                      <Star className="h-3.5 w-3.5 fill-amber-400" />
+                      {store.average.toFixed(1)}
+                      <span className="font-normal text-slate-400">
+                        ({formatNumber(store.count)})
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-xs font-medium text-slate-400">
+                      {t("landing.topStores.noReviews")}
+                    </p>
+                  )}
+                  <div
+                    className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-600 ring-1 ring-indigo-100"
+                    title={t("verify.followers")}
+                  >
+                    <Users className="h-3 w-3" />
+                    <span dir="ltr">{formatNumber(store.followers)}</span>
                   </div>
                 </div>
               </Link>

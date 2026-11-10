@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { stores } from "@/db/schema";
 import { isHexColor } from "@/lib/theme";
+import { isShippingMode } from "@/lib/shipping-pricing";
 import {
   THEME_CONFIG_KEYS,
   parseThemeConfig,
@@ -115,6 +116,31 @@ export function buildStoreUpdate(
         "STRIPE_NOT_CONNECTED"
       ),
     };
+  }
+
+  if (body.shippingMode !== undefined) {
+    if (!isShippingMode(body.shippingMode)) {
+      return {
+        error: badRequest(
+          "shippingMode must be one of: disabled, flat, zones",
+          "INVALID_SHIPPING_MODE"
+        ),
+      };
+    }
+    update.shippingMode = body.shippingMode;
+  }
+
+  if (body.shippingFlatRate !== undefined) {
+    const rate = Number(body.shippingFlatRate);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100000) {
+      return {
+        error: badRequest(
+          "shippingFlatRate must be a number between 0 and 100000",
+          "INVALID_SHIPPING_RATE"
+        ),
+      };
+    }
+    update.shippingFlatRate = String(Math.round(rate * 100) / 100);
   }
 
   if (body.accentColor !== undefined) {

@@ -12,6 +12,7 @@ import {
   MessageSquareCode,
   Ticket,
   Star,
+  BadgeCheck,
 } from "lucide-react";
 
 import { cn } from "@/components/ui/cn";
@@ -26,6 +27,7 @@ const ADMIN_NAV = [
   { href: "/admin/activity", label: "Activity", icon: Activity },
   { href: "/admin/codes", label: "Activation codes", icon: Ticket },
   { href: "/admin/reviews", label: "Store reviews", icon: Star },
+  { href: "/admin/verification", label: "Verification", icon: BadgeCheck },
 ] as const;
 
 /** Deepest matching entry wins so nested admin pages highlight correctly. */

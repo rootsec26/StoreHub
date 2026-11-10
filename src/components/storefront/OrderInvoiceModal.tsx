@@ -58,7 +58,7 @@ export default function OrderInvoiceModal({ order, store, onClose }: OrderInvoic
     0
   );
   const total = parseFloat(order.totalAmount) || subtotal;
-  const shipping = 0;
+  const shipping = parseFloat(order.shippingFee ?? "") || 0;
   const tax = 0;
 
   const normalizedStatus = normalizeOrderStatus(order.status);

@@ -143,6 +143,14 @@ export const couponValidateRateLimiter = createRateLimiter({
   message: "Too many coupon checks. Please slow down.",
 });
 
+/** Public shipping-quote lookups run on every checkout keystroke — stay cheap. */
+export const shippingQuoteRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 60,
+  keyPrefix: "shipping-quote",
+  message: "Too many shipping quote requests. Please slow down.",
+});
+
 /** Page-view beacons are chatty but must stay cheap for real visitors. */
 export const analyticsTrackRateLimiter = createRateLimiter({
   windowMs: 60 * 1000,

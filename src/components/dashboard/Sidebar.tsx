@@ -25,6 +25,7 @@ import {
   Barcode,
   Receipt,
   Star,
+  BadgeCheck,
 } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
@@ -65,6 +66,12 @@ export const NAV_ITEMS = [
   },
   { href: "/dashboard/customers", labelKey: "nav.customers", icon: Users, group: "growth" },
   { href: "/dashboard/reviews", labelKey: "nav.reviews", icon: Star, group: "growth" },
+  {
+    href: "/dashboard/verification",
+    labelKey: "nav.verification",
+    icon: BadgeCheck,
+    group: "growth",
+  },
   {
     href: "/dashboard/notifications",
     labelKey: "nav.messages",

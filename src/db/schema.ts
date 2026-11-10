@@ -53,6 +53,23 @@ export const stores = pgTable(
     paddleVendorId: text("paddle_vendor_id"),
     paddleEnabled: boolean("paddle_enabled").default(false),
     manualPaymentInstructions: text("manual_payment_instructions"),
+    // Flexible shipping pricing (see src/lib/shipping-pricing.ts):
+    //  shipping_mode      -> 'disabled' | 'flat' | 'zones'
+    //  shipping_flat_rate -> fixed rate, or the base rate zone exceptions
+    //                        override in 'zones' mode
+    shippingMode: text("shipping_mode").notNull().default("disabled"),
+    shippingFlatRate: numeric("shipping_flat_rate", { precision: 10, scale: 2 })
+      .notNull()
+      .default("0"),
+    // Store Verification (توثيق المتجر): official badge state. `verificationCode`
+    // is issued by an admin; the merchant redeems it in the dashboard.
+    isVerified: boolean("is_verified").notNull().default(false),
+    verificationType: text("verification_type"),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verificationCode: text("verification_code"),
+    // Synthetic followers granted on verification approval — added to the
+    // real store_followers count wherever a store's follower total is shown.
+    followerBoost: integer("follower_boost").notNull().default(0),
     // Pay-per-use balances + paid add-ons (Add-ons, Credits & Paywall system)
     aiCredits: integer("ai_credits").notNull().default(50),
     whatsappCredits: integer("whatsapp_credits").notNull().default(0),
@@ -277,6 +294,11 @@ export const orders = pgTable(
     // Coupon redemption tracking (Promotions & Flash Sales engine)
     couponCode: text("coupon_code"),
     discountAmount: numeric("discount_amount", { precision: 10, scale: 2 })
+      .notNull()
+      .default("0"),
+    // Delivery fee charged on top of the discounted merchandise total,
+    // resolved from the store's shipping_mode / zones at checkout.
+    shippingFee: numeric("shipping_fee", { precision: 10, scale: 2 })
       .notNull()
       .default("0"),
     // Canonical uppercase status — see src/lib/order-state-machine.ts and
@@ -668,6 +690,37 @@ export const storeFollowers = pgTable(
       table.storeId,
       table.userId
     ),
+  ]
+);
+
+// ============================================
+// STORE VERIFICATION REQUESTS (توثيق المتجر)
+// ============================================
+// `type` is 'free' (10k followers milestone) or 'paid' (700 EGP Vodafone Cash).
+// `status` is pending | approved | rejected. `paymentProof` stores a compressed
+// data:image/...;base64,... screenshot; `paymentReference` is the Vodafone Cash
+// transaction reference / sender number the merchant reports.
+export const storeVerificationRequests = pgTable(
+  "store_verification_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    status: text("status").notNull().default("pending"),
+    paymentReference: text("payment_reference").notNull().default(""),
+    paymentProof: text("payment_proof").notNull().default(""),
+    adminNote: text("admin_note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("store_verification_requests_store_id_idx").on(table.storeId),
+    index("store_verification_requests_status_idx").on(table.status),
+    index("store_verification_requests_created_at_idx").on(table.createdAt),
   ]
 );
 

@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 
-import { useI18n } from "@/lib/i18n";
+import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { useOrdersRealtime } from "@/lib/realtime";
 import StatusBadge from "@/components/StatusBadge";
 import ThermalLabelModal from "@/components/shipping/ThermalLabelModal";
@@ -27,6 +27,10 @@ import {
   type ShippingOrderRecord,
   type ShippingZoneRecord,
 } from "@/lib/shipping";
+import {
+  isShippingMode,
+  type ShippingMode,
+} from "@/lib/shipping-pricing";
 
 type TabKey = "zones" | "orders";
 type BusyAction = "create" | "ship" | "labels" | null;
@@ -49,9 +53,41 @@ interface ZoneDraft {
   estimatedDeliveryDays: number;
 }
 
+const PRICING_MODE_OPTIONS: {
+  mode: ShippingMode;
+  label: TranslationKey;
+  desc: TranslationKey;
+}[] = [
+  {
+    mode: "disabled",
+    label: "shipping.pricing.mode.disabled",
+    desc: "shipping.pricing.mode.disabledDesc",
+  },
+  {
+    mode: "flat",
+    label: "shipping.pricing.mode.flat",
+    desc: "shipping.pricing.mode.flatDesc",
+  },
+  {
+    mode: "zones",
+    label: "shipping.pricing.mode.zones",
+    desc: "shipping.pricing.mode.zonesDesc",
+  },
+];
+
 interface ShippingQueuePayload {
   store: ShippingLabelStore | null;
   orders: ShippingOrderRecord[];
+}
+
+interface ShippingSettingsPayload {
+  mode: ShippingMode;
+  flatRate: number;
+}
+
+interface ShippingZonesPayload {
+  zones: ShippingZoneRecord[];
+  settings: ShippingSettingsPayload | null;
 }
 
 /** Network-only fetchers (no state) so effects can chain them safely. */
@@ -70,12 +106,21 @@ async function fetchShippingQueue(): Promise<ShippingQueuePayload | null> {
   }
 }
 
-async function fetchShippingZones(): Promise<ShippingZoneRecord[] | null> {
+async function fetchShippingZones(): Promise<ShippingZonesPayload | null> {
   try {
     const res = await fetch("/api/shipping/zones", { cache: "no-store" });
     if (!res.ok) return null;
     const data = await res.json();
-    return Array.isArray(data.zones) ? data.zones : null;
+    const mode: ShippingMode = isShippingMode(data?.settings?.mode)
+      ? data.settings.mode
+      : "disabled";
+    return {
+      zones: Array.isArray(data.zones) ? data.zones : [],
+      settings: {
+        mode,
+        flatRate: Number(data?.settings?.flatRate) || 0,
+      },
+    };
   } catch (error) {
     console.error("Failed to load shipping zones:", error);
     return null;
@@ -103,6 +148,11 @@ export default function ShippingPage() {
   const [zoneDays, setZoneDays] = useState("2");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ZoneDraft | null>(null);
+
+  // Shipping pricing mode (disabled / flat / zones + base rate)
+  const [pricingMode, setPricingMode] = useState<ShippingMode>("disabled");
+  const [pricingRate, setPricingRate] = useState("");
+  const [pricingSaving, setPricingSaving] = useState(false);
 
   const lastEvent = useOrdersRealtime((state) => state.lastEvent);
 
@@ -133,7 +183,13 @@ export default function ShippingPage() {
             current.filter((id) => queue.orders.some((order) => order.id === id))
           );
         }
-        if (zoneList) setZones(zoneList);
+        if (zoneList) {
+          setZones(zoneList.zones);
+          if (zoneList.settings) {
+            setPricingMode(zoneList.settings.mode);
+            setPricingRate(String(zoneList.settings.flatRate));
+          }
+        }
       } catch (error) {
         console.error("Failed to load shipping data:", error);
       } finally {
@@ -160,8 +216,43 @@ export default function ShippingPage() {
         current.filter((id) => queue.orders.some((order) => order.id === id))
       );
     }
-    if (zoneList) setZones(zoneList);
+    if (zoneList) {
+      setZones(zoneList.zones);
+      if (zoneList.settings) {
+        setPricingMode(zoneList.settings.mode);
+        setPricingRate(String(zoneList.settings.flatRate));
+      }
+    }
   }, []);
+
+  // ---------------------------------------------------------------
+  // Shipping pricing mode (flat rate / base rate + zone exceptions)
+  // ---------------------------------------------------------------
+  async function savePricing() {
+    const rate = Number(pricingRate);
+    if (pricingMode !== "disabled" && (!Number.isFinite(rate) || rate < 0)) {
+      showToast(t("shipping.pricing.error.rate"));
+      return;
+    }
+
+    setPricingSaving(true);
+    try {
+      const res = await fetch("/api/stores", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shippingMode: pricingMode,
+          shippingFlatRate: Math.round((Number.isFinite(rate) ? rate : 0) * 100) / 100,
+        }),
+      });
+      if (!res.ok) throw new Error("save failed");
+      showToast(t("shipping.pricing.toast.saved"));
+    } catch {
+      showToast(t("shipping.pricing.toast.saveFailed"));
+    } finally {
+      setPricingSaving(false);
+    }
+  }
 
   // ---------------------------------------------------------------
   // Shipping zones CRUD (optimistic)
@@ -548,7 +639,92 @@ export default function ShippingPage() {
         /* ------------------------------------------------------------------
            Tab 1 — Shipping zones & rates
            ------------------------------------------------------------------ */
-        <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
+        <div>
+          {/* ----------------------------------------------------------
+             Shipping pricing mode: disabled / flat rate / base + zones
+             ---------------------------------------------------------- */}
+          <div className="mb-6 rounded-xl bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="rounded-lg bg-indigo-50 p-2">
+                <Truck className="h-5 w-5 text-indigo-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  {t("shipping.pricing.title")}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {t("shipping.pricing.subtitle")}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              {PRICING_MODE_OPTIONS.map((option) => {
+                const selected = pricingMode === option.mode;
+                return (
+                  <button
+                    key={option.mode}
+                    type="button"
+                    onClick={() => setPricingMode(option.mode)}
+                    aria-pressed={selected}
+                    className={`rounded-xl border-2 p-4 text-start transition-colors ${
+                      selected
+                        ? "border-indigo-500 bg-indigo-50/60"
+                        : "border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <p
+                      className={`text-sm font-semibold ${
+                        selected ? "text-indigo-700" : "text-slate-800"
+                      }`}
+                    >
+                      {t(option.label)}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      {t(option.desc)}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {pricingMode !== "disabled" && (
+              <div className="mt-4 flex flex-wrap items-end gap-3">
+                <div className="w-full sm:w-56">
+                  <label className={labelClass}>
+                    {pricingMode === "zones"
+                      ? t("shipping.pricing.baseRate")
+                      : t("shipping.pricing.rate")}
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.5"
+                    value={pricingRate}
+                    onChange={(e) => setPricingRate(e.target.value)}
+                    placeholder="50"
+                    className={inputClass}
+                  />
+                </div>
+                {pricingMode === "zones" && (
+                  <p className="max-w-md flex-1 pb-2 text-xs leading-5 text-slate-500">
+                    {t("shipping.pricing.zoneHint")}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={savePricing}
+                  disabled={pricingSaving}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {pricingSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {t("common.save")}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
           <form onSubmit={handleCreateZone} className="h-fit rounded-xl bg-white p-6 shadow-sm">
             <div className="mb-5 flex items-center gap-3">
               <div className="rounded-lg bg-indigo-50 p-2">
@@ -799,6 +975,7 @@ export default function ShippingPage() {
               </ul>
             )}
           </div>
+        </div>
         </div>
       ) : (
         /* ------------------------------------------------------------------

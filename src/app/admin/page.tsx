@@ -46,27 +46,41 @@ async function getCodeStats() {
 
 async function getFollowerStats() {
   try {
-    const [totals, topStores] = await Promise.all([
+    const [totals, boostTotals, topStores] = await Promise.all([
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(storeFollowers),
       db
         .select({
+          count: sql<number>`coalesce(sum(${stores.followerBoost}), 0)::int`,
+        })
+        .from(stores),
+      db
+        .select({
           storeId: storeFollowers.storeId,
           storeName: stores.name,
           storeSlug: stores.slug,
+          followerBoost: stores.followerBoost,
           followers: sql<number>`count(*)::int`,
         })
         .from(storeFollowers)
         .innerJoin(stores, eq(storeFollowers.storeId, stores.id))
-        .groupBy(storeFollowers.storeId, stores.name, stores.slug)
+        .groupBy(
+          storeFollowers.storeId,
+          stores.name,
+          stores.slug,
+          stores.followerBoost
+        )
         .orderBy(sql`count(*) desc`)
         .limit(5),
     ]);
 
     return {
-      total: totals[0]?.count ?? 0,
-      topStores,
+      total: (totals[0]?.count ?? 0) + (boostTotals[0]?.count ?? 0),
+      topStores: topStores.map((store) => ({
+        ...store,
+        followers: store.followers + Math.max(0, store.followerBoost ?? 0),
+      })),
     };
   } catch (error) {
     console.error("Failed to load follower stats:", error);
