@@ -36,3 +36,38 @@ export async function openExternalUrl(url: string): Promise<void> {
   }
   window.open(url, "_blank", "noopener,noreferrer");
 }
+
+/**
+ * Opens a StoreHub page (e.g. a storefront) in a separate Tauri window so
+ * merchants can keep the dashboard open alongside it. Reuses/focuses an
+ * existing window for the same label instead of stacking duplicates.
+ */
+export async function openStoreWindow(
+  url: string,
+  label: string,
+  title: string
+): Promise<void> {
+  if (!isTauriDesktopApp()) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+
+  const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+  const existing = await WebviewWindow.getByLabel(label);
+  if (existing) {
+    await existing.unminimize();
+    await existing.setFocus();
+    return;
+  }
+
+  await new WebviewWindow(label, {
+    url,
+    title,
+    width: 1280,
+    height: 800,
+    minWidth: 960,
+    minHeight: 600,
+    decorations: false,
+    center: true,
+  });
+}
