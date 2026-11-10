@@ -1,0 +1,14 @@
+{
+  "name": "storehub-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "StoreHub Windows desktop app (Tauri v2 shell that loads the StoreHub web app).",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "icon": "tauri icon ../public/icon.png -o src-tauri/icons"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

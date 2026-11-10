@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "StoreHub",
+  "version": "0.1.0",
+  "identifier": "com.storehub.app",
+  "build": {
+    "frontendDist": "../dist",
+    "beforeDevCommand": "npm --prefix .. run dev",
+    "beforeBuildCommand": ""
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "nsis",
+    "createUpdaterArtifacts": true,
+    "publisher": "StoreHub",
+    "copyright": "Copyright © StoreHub",
+    "category": "Business",
+    "shortDescription": "StoreHub store management desktop app",
+    "longDescription": "StoreHub desktop app for managing your online stores, orders, products and POS from Windows.",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false,
+        "languages": ["English", "Arabic"]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgxQjg2RkRDOTg5MEE3NDQKUldSRXA1Q1kzRys0Z1VFSFkzblM2M2M0VWJDMEF1UDVaS2swbkVUckNPbDJtSGl5SWVWdGEyQzQK",
+      "endpoints": [
+        "https://github.com/rootsec26/StoreHub/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

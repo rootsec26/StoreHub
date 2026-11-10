@@ -22,3 +22,7 @@ yarn-error.log*
 # misc
 .DS_Store
 *.pem
+
+# tauri desktop app
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
