@@ -38,6 +38,9 @@ export const metadata: Metadata = {
     description: SITE_DESCRIPTION,
   },
   robots: { index: true, follow: true },
+  verification: {
+    google: "WMFKpvfvPwEYCrftzn0dFbUlW0O_DYkZ14-unZqy0DY",
+  },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "16x16 32x32 48x48", type: "image/x-icon" },
