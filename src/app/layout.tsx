@@ -1,22 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import type { ReactNode } from "react";
-import { Cairo } from "next/font/google";
 import { I18nProvider } from "@/lib/i18n";
 import AnalyticsTracker from "@/components/AnalyticsTracker";
 import { getInitialLocale } from "@/components/locale-initializer";
 import { SITE_DESCRIPTION, SITE_NAME, absoluteUrl, getSiteUrl } from "@/lib/site";
 import { safeUrl } from "@/lib/url";
 import "./globals.css";
-
-// Arabic-first typography: Cairo covers both Arabic and Latin scripts.
-const cairo = Cairo({
-  subsets: ["arabic", "latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  variable: "--font-cairo",
-  fallback: ["Segoe UI", "Tahoma", "Arial", "sans-serif"],
-});
 
 export const metadata: Metadata = {
   metadataBase: safeUrl(getSiteUrl()),
@@ -70,7 +60,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const initialLocale = await getInitialLocale();
   return (
     <html lang={initialLocale} dir={initialLocale === "ar" ? "rtl" : "ltr"} suppressHydrationWarning>
-      <body className={`bg-slate-50 text-slate-900 antialiased ${cairo.variable}`}>
+      <body className="bg-slate-50 text-slate-900 antialiased">
         <Script
           id="storehub-locale-init"
           strategy="beforeInteractive"
