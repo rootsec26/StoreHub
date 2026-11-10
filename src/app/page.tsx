@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -227,7 +227,7 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Mobile nav â€” horizontally scrollable pill strip */}
+        {/* Mobile nav — horizontally scrollable pill strip */}
         <nav
           aria-label="Mobile navigation"
           className="border-t border-slate-200/70 bg-white/85 backdrop-blur-xl lg:hidden"
@@ -312,19 +312,19 @@ export default function LandingPage() {
           <div className="mx-auto mt-14 grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3">
             {[
               {
-                emoji: "âڑ،",
-                title: "ط£ط¯ط§ط، ظپط§ط¦ظ‚ ظˆط³ط±ط¹ط© ط®ط§ط·ظپط©",
-                desc: "ط³ط±ط¹ط© طھط­ظ…ظٹظ„ ط¹ط§ظ„ظٹط© ظ„ظ„ظ…طھط§ط¬ط± ظˆطھط¬ط±ط¨ط© ط´ط±ط§ط، ط³ظ„ط³ط© ظ„ظ„ط¹ظ…ظ„ط§ط،.",
+                emoji: "⚡",
+                title: "أداء فائق وسرعة خاطفة",
+                desc: "سرعة تحميل عالية للمتاجر وتجربة شراء سلسة للعملاء.",
               },
               {
-                emoji: "ًں”’",
-                title: "ط­ظ…ط§ظٹط© ظˆط£ظ…ط§ظ† A+",
-                desc: "طھط´ظپظٹط± ظƒط§ظ…ظ„ ظ„ظ„ط¨ظٹط§ظ†ط§طھ 256-bit AES-GCM ظˆط¹ط²ظ„ طھط§ظ… ظ„ظ„ط¨ظٹط§ظ†ط§طھ.",
+                emoji: "🔒",
+                title: "حماية وأمان A+",
+                desc: "تشفير كامل للبيانات 256-bit AES-GCM وعزل تام للبيانات.",
               },
               {
-                emoji: "ًں“±",
-                title: "ط¯ط¹ظ… طھط¬ط±ط¨ط© ط§ظ„ظ…ظˆط¨ط§ظٹظ„ 100%",
-                desc: "طھطµظ…ظٹظ… ظ…طھط¬ط§ظˆط¨ ظٹط¹ظ…ظ„ ط¨ظƒظپط§ط،ط© ط¹ظ„ظ‰ ظƒط§ظپط© ط§ظ„ط´ط§ط´ط§طھ ظˆط§ظ„ط£ط¬ظ‡ط²ط©.",
+                emoji: "📱",
+                title: "دعم تجربة الموبايل 100%",
+                desc: "تصميم متجاوب يعمل بكفاءة على كافة الشاشات والأجهزة.",
               },
             ].map((badge) => (
               <div
@@ -691,10 +691,10 @@ export default function LandingPage() {
               Store<span className="text-indigo-600">Hub</span>
             </span>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-3 dir='rtl'">
-            <span>طھظ… ط§ظ„طھط·ظˆظٹط± ط¨ظƒظ„</span>
-            <span className="text-base leading-none">ًں’œ</span>
-            <span>ط¨ظˆط§ط³ط·ط©</span>
+          <div className="flex flex-wrap items-center justify-center gap-3" dir="rtl">
+            <span>تم التطوير بكل</span>
+            <span className="text-base leading-none">💜</span>
+            <span>بواسطة</span>
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-950 border border-slate-700 hover:border-purple-500 text-slate-200 hover:text-white text-xs md:text-sm font-mono shadow-md hover:shadow-[0_0_15px_rgba(168,85,247,0.3)] transition-all duration-300">
               <a href="https://github.com/rootsec26" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2">
                 <span className="font-medium">GitHub</span>
@@ -703,7 +703,7 @@ export default function LandingPage() {
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-950/60 border border-purple-500/50 hover:border-purple-400 text-purple-200 hover:text-white text-xs md:text-sm font-medium shadow-md hover:shadow-[0_0_15px_rgba(168,85,247,0.4)] transition-all duration-300">
               <a href="https://rootsec26.vercel.app/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2">
                 <ExternalLink className="w-4 h-4 text-purple-400" />
-                <span className="font-medium">ظ…ط¹ط±ط¶ ط§ظ„ط£ط¹ظ…ط§ظ„</span>
+                <span className="font-medium">معرض الأعمال</span>
               </a>
             </div>
           </div>

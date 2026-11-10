@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -32,7 +32,7 @@ import { useOrdersRealtime } from "@/lib/realtime";
 import { isFreeMode } from "@/lib/free-mode";
 
 /**
- * Single "home" entry â€” rendered once at the top of the sidebar and kept out
+ * Single "home" entry — rendered once at the top of the sidebar and kept out
  * of NAV_ITEMS so it can never appear twice.
  */
 export const HOME_NAV_ITEM = { href: "/", labelKey: "nav.home", icon: Home } as const;
@@ -215,7 +215,7 @@ export default function SidebarNav({
   }, [pathname]);
 
   // The deepest matching entry wins so nested pages (e.g.
-  // /dashboard/ai-radar/social-bot) light up themselves â€” not their parent
+  // /dashboard/ai-radar/social-bot) light up themselves — not their parent
   // and not a sibling with a shared prefix (shipping vs shipping-labels).
   const activeHref = NAV_ITEMS.reduce<string | null>((best, item) => {
     const matches =
