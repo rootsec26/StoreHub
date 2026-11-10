@@ -46,8 +46,41 @@ export default function StoreLinkInterceptor() {
       );
     }
 
+    // Also intercept programmatic window.open() calls for storefront URLs
+    // (e.g. shipping-labels tracking links) so they never reach the browser.
+    const originalOpen = window.open.bind(window);
+    window.open = (
+      url?: string | URL,
+      target?: string,
+      features?: string
+    ): Window | null => {
+      if (url != null) {
+        try {
+          const parsed = new URL(String(url), window.location.origin);
+          if (
+            parsed.origin === window.location.origin &&
+            parsed.pathname.startsWith("/store/")
+          ) {
+            const slug = parsed.pathname.split("/")[2] || "store";
+            void openStoreWindow(
+              parsed.toString(),
+              `store-${slug}`,
+              `StoreHub — ${slug}`
+            );
+            return null;
+          }
+        } catch {
+          // fall through to native window.open
+        }
+      }
+      return originalOpen(url, target, features);
+    };
+
     document.addEventListener("click", onClick, true);
-    return () => document.removeEventListener("click", onClick, true);
+    return () => {
+      document.removeEventListener("click", onClick, true);
+      window.open = originalOpen;
+    };
   }, []);
 
   return null;
