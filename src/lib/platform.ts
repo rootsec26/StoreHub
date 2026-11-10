@@ -22,3 +22,17 @@ export function isTauriDesktopApp(): boolean {
 export function isNativeAppShell(): boolean {
   return isCapacitorNativeApp() || isTauriDesktopApp();
 }
+
+/**
+ * Opens an external URL. Inside the Tauri desktop shell `target="_blank"`
+ * navigation is a no-op, so we hand the URL to the OS default browser via
+ * the shell plugin. Everywhere else falls back to window.open.
+ */
+export async function openExternalUrl(url: string): Promise<void> {
+  if (isTauriDesktopApp()) {
+    const { open } = await import("@tauri-apps/plugin-shell");
+    await open(url);
+    return;
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
+}

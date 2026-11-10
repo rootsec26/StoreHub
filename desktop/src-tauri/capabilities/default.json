@@ -26,6 +26,7 @@
     "core:window:allow-is-maximized",
     "core:window:allow-is-minimized",
     "core:window:allow-set-focus",
-    "updater:default"
+    "updater:default",
+    "shell:allow-open"
   ]
 }

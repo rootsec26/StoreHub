@@ -38,6 +38,7 @@ fn storehub_url() -> String {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let url = storehub_url();
             let parsed = url
