@@ -33,7 +33,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "REPLACE_WITH_UPDATER_PUBLIC_KEY",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgxQjg2RkRDOTg5MEE3NDQKUldSRXA1Q1kzRys0Z1VFSFkzblM2M2M0VWJDMEF1UDVaS2swbkVUckNPbDJtSGl5SWVWdGEyQzQK",
       "endpoints": [
         "https://github.com/rootsec26/StoreHub/releases/latest/download/latest.json"
       ],

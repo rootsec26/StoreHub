@@ -35,10 +35,15 @@ handled by `beforeDevCommand`).
 ```bash
 # 1. Point the app at your production URL
 #    desktop/.env.local → STOREHUB_URL=https://your-domain.com
+#    (already set to https://store-hub-beta.vercel.app on this machine)
 
-# 2. Build
-npm run desktop:build
+# 2. Build — use build-windows.bat on Windows so the MSVC linker env is set up
+#    (vcvars64 + cargo PATH + updater signing key)
+desktop\build-windows.bat
 ```
+
+`build-windows.bat` expects Visual Studio Build Tools with the "Desktop
+development with C++" workload and the Windows 10/11 SDK installed.
 
 Output: `desktop/src-tauri/target/release/bundle/nsis/StoreHub_*_x64-setup.exe`
 

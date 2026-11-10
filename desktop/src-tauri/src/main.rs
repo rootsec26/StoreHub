@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{WebviewUrl, WebviewWindowBuilder};
 
 /// Resolves the StoreHub web app URL the desktop shell should load.
 ///
@@ -18,12 +18,12 @@ fn storehub_url() -> String {
         }
     }
 
-    for var in ["STOREHUB_URL", "NEXT_PUBLIC_SITE_URL"] {
-        if let Some(url) = option_env!(var) {
-            let url = url.trim();
-            if !url.is_empty() {
-                return url.to_string();
-            }
+    let baked = option_env!("STOREHUB_URL")
+        .or_else(|| option_env!("NEXT_PUBLIC_SITE_URL"));
+    if let Some(url) = baked {
+        let url = url.trim();
+        if !url.is_empty() {
+            return url.to_string();
         }
     }
 
