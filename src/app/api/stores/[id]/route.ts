@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { stores } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { getSession } from "@/lib/auth";
+import { getSession, resolveStoreAccess } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
 import { hasFeatureAccess } from "@/lib/paywall";
 import { DEFAULT_THEME_CONFIG } from "@/lib/theme-config";
@@ -21,7 +21,7 @@ function notFoundResponse(): NextResponse {
   );
 }
 
-async function loadOwnedStore(
+async function loadAccessibleStore(
   id: string
 ): Promise<{ store: StoreRow } | { response: NextResponse }> {
   const session = await getSession();
@@ -36,18 +36,20 @@ async function loadOwnedStore(
 
   if (!UUID_PATTERN.test(id)) return { response: notFoundResponse() };
 
-  const rows = await db.select().from(stores).where(eq(stores.id, id)).limit(1);
-  const store = rows[0];
-  if (!store || store.ownerId !== session.id) return { response: notFoundResponse() };
+  // Resolve through store_members as well so team admins can load and update
+  // the store they manage — matching /api/stores/my and the other dashboard
+  // APIs. A session can only ever reach its own accessible store.
+  const access = await resolveStoreAccess(session.id);
+  if (!access || access.store.id !== id) return { response: notFoundResponse() };
 
-  return { store };
+  return { store: access.store };
 }
 
-// Fetch a single store owned by the current user
+// Fetch a single store accessible to the current user (owner or team admin)
 export async function GET(_request: NextRequest, { params }: StoreContext) {
   try {
     const { id } = await params;
-    const result = await loadOwnedStore(id);
+    const result = await loadAccessibleStore(id);
     if ("response" in result) return result.response;
 
     return NextResponse.json({
@@ -68,7 +70,7 @@ export async function GET(_request: NextRequest, { params }: StoreContext) {
 export async function PATCH(request: NextRequest, { params }: StoreContext) {
   try {
     const { id } = await params;
-    const result = await loadOwnedStore(id);
+    const result = await loadAccessibleStore(id);
     if ("response" in result) return result.response;
     const store = result.store;
 

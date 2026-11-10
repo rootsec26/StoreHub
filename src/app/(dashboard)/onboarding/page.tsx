@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Loader2, Store, CheckCircle, ImagePlus, X } from "lucide-react";
@@ -80,6 +80,19 @@ export default function OnboardingPage() {
       .replace(/-+/g, "-")
       .slice(0, 50);
   };
+
+  // Google OAuth sign-ups land here with ?name=<display name> — pre-fill the
+  // store name (and derived slug) so the wizard starts half-done.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const prefill = params.get("name")?.trim();
+      if (!prefill) return;
+      setStoreName((current) => current || prefill.slice(0, 100));
+      setStoreSlug((current) => current || generateSlug(prefill));
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleStoreNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;

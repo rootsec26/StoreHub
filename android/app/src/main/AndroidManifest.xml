@@ -34,6 +34,17 @@
                 <data android:scheme="https" android:host="store-hub-beta.vercel.app" />
             </intent-filter>
 
+            <!-- Custom-scheme deep links: Google OAuth callback
+                 (com.storehub.app://auth/callback, storehub://auth/callback)
+                 and store shortcuts (storehub://store/<slug>). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.storehub.app" />
+                <data android:scheme="storehub" />
+            </intent-filter>
+
         </activity>
 
         <provider

@@ -24,10 +24,12 @@ import {
   Wallet,
   Copy,
   PackageSearch,
+  X,
 } from "lucide-react";
 
 import { useCartStore, type CartItem } from "@/lib/cart";
 import CheckoutForm from "@/components/storefront/CheckoutForm";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { useI18n } from "@/lib/i18n";
 import { accentGradient, accentThemeStyle, normalizeAccent } from "@/lib/theme";
 import { canOptimizeImage } from "@/lib/images";
@@ -116,6 +118,11 @@ function CheckoutContent() {
   const [placedOrder, setPlacedOrder] = useState<PlacedOrder | null>(null);
   const [codVerifyNotice, setCodVerifyNotice] = useState("");
   const [codVerifyUrl, setCodVerifyUrl] = useState("");
+  const [authUser, setAuthUser] = useState<{ name: string; email: string } | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalError, setAuthModalError] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
   const [shippingQuote, setShippingQuote] = useState<ShippingQuoteState | null>(null);
   const selectedPaymentMethodInitialized = useRef(false);
 
@@ -222,6 +229,63 @@ function CheckoutContent() {
       router.push(`/store/${slug}`);
     }
   }, [cart.items.length, success, slug, router]);
+
+  // Customer auth: check for an existing session once on mount. Signed-in
+  // shoppers get their name/email pre-filled; guests are offered a one-time
+  // Google sign-in prompt (the cart itself is persisted in localStorage, so
+  // it survives the OAuth round-trip untouched).
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const user = data?.user as { name?: string; email?: string } | undefined;
+        if (user?.email) {
+          setAuthUser({ name: user.name || "", email: user.email });
+          if (user.name) {
+            setCustomerName((current) => current || user.name || "");
+          }
+          setCustomerEmail((current) => current || user.email || "");
+        } else {
+          try {
+            if (!window.sessionStorage.getItem("storehub_checkout_auth_dismissed")) {
+              setShowAuthModal(true);
+            }
+          } catch {
+            setShowAuthModal(true);
+          }
+        }
+        setAuthChecked(true);
+      })
+      .catch(() => {
+        if (!cancelled) setAuthChecked(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function checkoutReturnPath() {
+    return `/store/${slug}/checkout${window.location.search}`;
+  }
+
+  function dismissAuthModal() {
+    setShowAuthModal(false);
+    try {
+      window.sessionStorage.setItem("storehub_checkout_auth_dismissed", "1");
+    } catch {}
+  }
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {}
+    window.location.reload();
+  }
 
   const whatsappUrl = useMemo(() => {
     if (!success || !placedOrder || !orderId) return null;
@@ -700,6 +764,38 @@ function CheckoutContent() {
                 </div>
               )}
 
+              {authUser && (
+                <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+                  <span className="flex min-w-0 items-center gap-2 text-sm text-emerald-800">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <span className="truncate">
+                      {t("checkout.signedInAs", { email: authUser.email })}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    disabled={signingOut}
+                    className="shrink-0 text-xs font-medium text-emerald-700 hover:underline disabled:opacity-50"
+                  >
+                    {t("checkout.signOut")}
+                  </button>
+                </div>
+              )}
+
+              {!authUser && authChecked && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthModalError("");
+                    setShowAuthModal(true);
+                  }}
+                  className="mb-4 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--color-primary)]/40 bg-[var(--color-primary)]/5 px-4 py-2.5 text-sm font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10"
+                >
+                  {t("checkout.signInPrompt")}
+                </button>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -991,6 +1087,57 @@ function CheckoutContent() {
         </div>
         </div>
       </main>
+
+      {/* Guest sign-in prompt — Google OAuth returns to this exact checkout
+          URL, and the persisted cart store keeps every item intact. */}
+      {showAuthModal && !authUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("checkout.signInTitle")}
+        >
+          <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <button
+              type="button"
+              onClick={dismissAuthModal}
+              aria-label={t("checkout.continueAsGuest")}
+              className="absolute end-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary)]/10">
+              <User className="h-6 w-6 text-[var(--color-primary)]" />
+            </div>
+            <h2 className="mb-1 text-center text-lg font-bold text-slate-900">
+              {t("checkout.signInTitle")}
+            </h2>
+            <p className="mb-5 text-center text-sm text-slate-500">
+              {t("checkout.signInSubtitle")}
+            </p>
+
+            {authModalError && (
+              <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+                {authModalError}
+              </div>
+            )}
+
+            <GoogleSignInButton
+              redirectTo={checkoutReturnPath}
+              onError={setAuthModalError}
+            />
+
+            <button
+              type="button"
+              onClick={dismissAuthModal}
+              className="mt-3 w-full rounded-lg px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              {t("checkout.continueAsGuest")}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import PlatformBanner from "@/components/PlatformBanner";
 import DesktopTitleBar from "@/components/desktop/DesktopTitleBar";
 import StoreLinkInterceptor from "@/components/desktop/StoreLinkInterceptor";
 import TauriDeepLinkHandler from "@/components/desktop/TauriDeepLinkHandler";
+import CapacitorDeepLinkHandler from "@/components/mobile/CapacitorDeepLinkHandler";
 import { getInitialLocale } from "@/components/locale-initializer";
 import { SITE_DESCRIPTION, SITE_NAME, absoluteUrl, getSiteUrl } from "@/lib/site";
 import { safeUrl } from "@/lib/url";
@@ -77,6 +78,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <DesktopTitleBar />
         <StoreLinkInterceptor />
         <TauriDeepLinkHandler />
+        <CapacitorDeepLinkHandler />
         <AnalyticsTracker />
         <I18nProvider initialLocale={initialLocale}>{children}</I18nProvider>
       </body>

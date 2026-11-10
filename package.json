@@ -12,6 +12,8 @@
     "desktop:icon": "npm --prefix desktop run icon"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/browser": "^8.0.5",
     "@capacitor/core": "^8.6.0",
     "@paddle/paddle-node-sdk": "^3.10.0",
     "@stripe/stripe-js": "^9.17.0",

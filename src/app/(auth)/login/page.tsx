@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { LogIn, Mail, Lock, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
+
+function safeNextPath(): string {
+  if (typeof window === "undefined") return "/";
+  const next = new URLSearchParams(window.location.search).get("next");
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +19,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [oauthError, setOauthError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -56,6 +64,26 @@ export default function LoginPage() {
           {error}
         </div>
       )}
+
+      {oauthError && (
+        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+          {oauthError}
+        </div>
+      )}
+
+      <GoogleSignInButton
+        redirectTo={safeNextPath}
+        onError={setOauthError}
+        className="mb-5"
+      />
+
+      <div className="mb-5 flex items-center gap-3">
+        <div className="h-px flex-1 bg-slate-200" />
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          {t("auth.orDivider")}
+        </span>
+        <div className="h-px flex-1 bg-slate-200" />
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>

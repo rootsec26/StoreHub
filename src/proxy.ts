@@ -76,6 +76,7 @@ const APP_ONLY_PATHS = [
   "/create-store",
   "/onboarding",
   "/forgot-password",
+  "/auth/callback",
 ];
 
 let customDomainCache: Map<string, { slug: string; expires: number }> = new Map();
@@ -280,11 +281,19 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Legacy alias: store creation lives at /onboarding — /create-store 404s.
+  if (pathname === "/create-store") {
+    const target = resolveUrl(request, "/onboarding");
+    target.search = request.nextUrl.search;
+    return NextResponse.redirect(target);
+  }
+
   // Public pages that don't require auth
   const isPublicPage =
     pathname === "/" ||
     pathname === "/login" ||
     pathname === "/signup" ||
+    pathname.startsWith("/auth/") ||
     pathname.startsWith("/store/");
 
   // Admin routes require a valid session AND strict admin-token authorization.
@@ -347,7 +356,7 @@ export async function proxy(request: NextRequest) {
       const { payload } = await jwtVerify(token, SECRET);
       const hasStore = Boolean((payload as SessionClaims).storeId);
       return NextResponse.redirect(
-        resolveUrl(request, hasStore ? "/dashboard" : "/create-store")
+        resolveUrl(request, hasStore ? "/dashboard" : "/onboarding")
       );
     } catch {
       // Invalid token, continue to auth page
@@ -379,7 +388,7 @@ export async function proxy(request: NextRequest) {
     const storeId = (payload as SessionClaims).storeId;
 
     // Onboarding: users who already own a store skip store creation.
-    if (pathname === "/create-store" || pathname === "/onboarding") {
+    if (pathname === "/onboarding") {
       return storeId
         ? NextResponse.redirect(resolveUrl(request, "/dashboard"))
         : NextResponse.next();

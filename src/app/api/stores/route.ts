@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { stores } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { createSession, getSession } from "@/lib/auth";
+import { createSession, getAccessibleStores, getSession } from "@/lib/auth";
 import { createErrorResponse, extractDbErrorInfo } from "@/lib/errors";
 import { buildStoreUpdate, readJsonObject } from "@/lib/store-update";
 
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     const store = result[0];
 
     // Re-issue the session cookie with the new store so middleware stops
-    // bouncing this user back to /create-store on the next navigation.
+    // bouncing this user back to /onboarding on the next navigation.
     const token = await createSession({
       id: session.id,
       email: session.email,
@@ -134,12 +134,9 @@ export async function PATCH(request: NextRequest) {
     const body = await readJsonObject(request);
     if (body instanceof NextResponse) return body;
 
-    // Get user's store
-    const userStore = await db
-      .select()
-      .from(stores)
-      .where(eq(stores.ownerId, session.id))
-      .limit(1);
+    // Get the store the session can access (owner or team admin) — same
+    // resolution as GET /api/stores/my so members aren't locked out of saves.
+    const userStore = await getAccessibleStores(session.id);
 
     if (userStore.length === 0) {
       return NextResponse.json({ error: "Store not found", code: "STORE_NOT_FOUND" }, { status: 404 });

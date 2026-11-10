@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { deepLinkToPath } from "@/lib/deep-link";
+import { completeOAuthDeepLink } from "@/lib/oauth";
 import { isTauriDesktopApp, openStoreWindow } from "@/lib/platform";
 
 /**
@@ -11,6 +12,8 @@ import { isTauriDesktopApp, openStoreWindow } from "@/lib/platform";
  *
  * - On cold start, `getCurrent()` returns the URL that launched the app.
  * - While running, `onOpenUrl` fires for every subsequent deep link.
+ * - `storehub://auth/callback?…` finishes a Google OAuth sign-in: the PKCE
+ *   code is exchanged and the app session cookie is set before navigating.
  *
  * Store links open in a dedicated store window (same behavior as
  * StoreLinkInterceptor); everything else navigates the main window.
@@ -26,7 +29,15 @@ export default function TauriDeepLinkHandler() {
 
     async function handle(urls: string[] | null) {
       const raw = urls?.[0];
-      if (!raw) return;
+      if (!raw || cancelled) return;
+
+      // OAuth callback deep link — completes sign-in, then navigates.
+      const oauthTarget = await completeOAuthDeepLink(raw);
+      if (oauthTarget) {
+        router.push(oauthTarget);
+        return;
+      }
+
       const path = deepLinkToPath(raw);
       if (!path || cancelled) return;
 

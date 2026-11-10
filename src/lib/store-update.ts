@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { stores } from "@/db/schema";
 import { isHexColor } from "@/lib/theme";
+import { validateCurrencyCode } from "@/lib/currency";
 import { isShippingMode } from "@/lib/shipping-pricing";
 import {
   THEME_CONFIG_KEYS,
@@ -151,6 +152,54 @@ export function buildStoreUpdate(
       return { error: badRequest("accentColor must be a hex color like #4f46e5", "INVALID_COLOR") };
     }
     update.accentColor = body.accentColor;
+  }
+
+  // `currency` must be handled before `supportedCurrencies` so the latter can
+  // guarantee the (possibly just-updated) base currency stays in the list.
+  if (body.currency !== undefined) {
+    if (
+      typeof body.currency !== "string" ||
+      !validateCurrencyCode(body.currency.trim())
+    ) {
+      return {
+        error: badRequest(
+          "currency must be a supported currency code (e.g. EGP, USD, SAR)",
+          "INVALID_CURRENCY"
+        ),
+      };
+    }
+    update.currency = body.currency.trim().toUpperCase();
+  }
+
+  if (body.supportedCurrencies !== undefined) {
+    if (!Array.isArray(body.supportedCurrencies)) {
+      return {
+        error: badRequest(
+          "supportedCurrencies must be an array of currency codes",
+          "INVALID_CURRENCIES"
+        ),
+      };
+    }
+    const codes = [
+      ...new Set(
+        body.supportedCurrencies.map((code) =>
+          typeof code === "string" ? code.trim().toUpperCase() : ""
+        )
+      ),
+    ];
+    if (codes.length === 0 || codes.some((code) => !validateCurrencyCode(code))) {
+      return {
+        error: badRequest(
+          "supportedCurrencies must contain only supported currency codes",
+          "INVALID_CURRENCIES"
+        ),
+      };
+    }
+    const baseCurrency =
+      (update.currency as string | undefined) ?? store.currency ?? "EGP";
+    update.supportedCurrencies = codes.includes(baseCurrency)
+      ? codes
+      : [baseCurrency, ...codes];
   }
 
   const theme = buildThemeUpdate(body, store.themeConfig);

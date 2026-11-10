@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json({
       user: result.user,
-      redirect: result.user.storeId ? "/dashboard" : "/create-store",
+      redirect: result.user.storeId ? "/dashboard" : "/onboarding",
     });
 
     response.cookies.set("session", result.token, {

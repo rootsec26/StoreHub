@@ -155,7 +155,11 @@ export default function SettingsPage() {
       setToast(t("settings.toast.saved"));
     } catch (error) {
       console.error("[settings] save failed:", error);
-      setToast(t("settings.toast.failed"));
+      setToast(
+        error instanceof Error && error.message
+          ? error.message
+          : t("settings.toast.failed")
+      );
     } finally {
       setSaving(false);
     }

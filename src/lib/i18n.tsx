@@ -1112,6 +1112,12 @@ const en = {
   "checkout.whatsappMissing":
     "This store hasn't added a WhatsApp number yet. Update it in Settings.",
   "checkout.failed": "Checkout failed",
+  "checkout.signInTitle": "Sign in to check out faster",
+  "checkout.signInSubtitle": "Use your Google account to auto-fill your details. Your cart is saved.",
+  "checkout.signInPrompt": "Sign in with Google to save your details",
+  "checkout.continueAsGuest": "Continue as guest",
+  "checkout.signedInAs": "Signed in as {email}",
+  "checkout.signOut": "Sign out",
   "checkout.email": "Email",
   "checkout.emailPlaceholder": "you@example.com",
   "checkout.manualSuccessTitle": "Order Received!",
@@ -1229,6 +1235,17 @@ const en = {
   "auth.failed": "Login failed",
   "auth.signupFailed": "Signup failed",
   "auth.somethingWrong": "Something went wrong",
+  "auth.continueWithGoogle": "Continue with Google",
+  "auth.redirectingToGoogle": "Redirecting to Google…",
+  "auth.orDivider": "or",
+  "auth.oauthNotConfigured": "Google sign-in is not configured yet.",
+  "auth.oauthFailedTitle": "Sign-in failed",
+  "auth.oauthSessionMissing": "We couldn't complete Google sign-in. Please try again.",
+  "auth.completingSignIn": "Completing sign-in…",
+  "auth.tryAgain": "Try again",
+  "auth.openDesktopApp": "Open StoreHub Desktop",
+  "auth.openDesktopAppHint":
+    "Your sign-in is ready — opening the StoreHub app to finish logging you in.",
 
   // --------------------------------------------
   // Onboarding
@@ -3288,6 +3305,12 @@ const ar: Record<TranslationKey, string> = {
   "checkout.whatsappMissing":
     "لم يضف صاحب المتجر رقم واتساب بعد. يمكنك تحديثه من الإعدادات.",
   "checkout.failed": "تعذّر إتمام الطلب",
+  "checkout.signInTitle": "سجّل الدخول لإتمام طلبك بسرعة",
+  "checkout.signInSubtitle": "استخدم حساب جوجل لتعبئة بياناتك تلقائيًا. سلتك محفوظة.",
+  "checkout.signInPrompt": "سجّل الدخول عبر جوجل لحفظ بياناتك",
+  "checkout.continueAsGuest": "المتابعة كضيف",
+  "checkout.signedInAs": "مسجّل الدخول كـ {email}",
+  "checkout.signOut": "تسجيل الخروج",
   "checkout.email": "البريد الإلكتروني",
   "checkout.emailPlaceholder": "you@example.com",
   "checkout.manualSuccessTitle": "تم استلام الطلب!",
@@ -3403,6 +3426,17 @@ const ar: Record<TranslationKey, string> = {
   "auth.failed": "فشل تسجيل الدخول",
   "auth.signupFailed": "فشل إنشاء الحساب",
   "auth.somethingWrong": "حدث خطأ ما",
+  "auth.continueWithGoogle": "التسجيل باستخدام جوجل",
+  "auth.redirectingToGoogle": "جارٍ التحويل إلى جوجل…",
+  "auth.orDivider": "أو",
+  "auth.oauthNotConfigured": "تسجيل الدخول عبر جوجل غير مفعّل بعد.",
+  "auth.oauthFailedTitle": "فشل تسجيل الدخول",
+  "auth.oauthSessionMissing": "تعذّر إتمام تسجيل الدخول عبر جوجل. حاول مرة أخرى.",
+  "auth.completingSignIn": "جارٍ إتمام تسجيل الدخول…",
+  "auth.tryAgain": "حاول مرة أخرى",
+  "auth.openDesktopApp": "فتح تطبيق StoreHub لسطح المكتب",
+  "auth.openDesktopAppHint":
+    "تم تجهيز تسجيل الدخول — جارٍ فتح تطبيق StoreHub لإكماله.",
 
   // Onboarding
   "onboarding.title": "أنشئ متجرك",
