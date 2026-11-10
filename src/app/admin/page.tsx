@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { desc } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import {
   Activity,
   ArrowRight,
   BellRing,
+  Heart,
   Megaphone,
   MessageSquareCode,
   ShoppingBag,
@@ -14,7 +15,7 @@ import {
 } from "lucide-react";
 
 import { db } from "@/db";
-import { activationCodes } from "@/db/schema";
+import { activationCodes, storeFollowers, stores } from "@/db/schema";
 import { isAdminAuthorized } from "@/lib/admin";
 import { getAdminOverview } from "@/lib/messaging/service";
 import AdminAnalyticsDashboard from "./AnalyticsDashboard";
@@ -40,6 +41,36 @@ async function getCodeStats() {
   } catch (error) {
     console.error("Failed to load activation code stats:", error);
     return { total: 0, available: 0, used: 0 };
+  }
+}
+
+async function getFollowerStats() {
+  try {
+    const [totals, topStores] = await Promise.all([
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(storeFollowers),
+      db
+        .select({
+          storeId: storeFollowers.storeId,
+          storeName: stores.name,
+          storeSlug: stores.slug,
+          followers: sql<number>`count(*)::int`,
+        })
+        .from(storeFollowers)
+        .innerJoin(stores, eq(storeFollowers.storeId, stores.id))
+        .groupBy(storeFollowers.storeId, stores.name, stores.slug)
+        .orderBy(sql`count(*) desc`)
+        .limit(5),
+    ]);
+
+    return {
+      total: totals[0]?.count ?? 0,
+      topStores,
+    };
+  } catch (error) {
+    console.error("Failed to load follower stats:", error);
+    return { total: 0, topStores: [] };
   }
 }
 
@@ -79,7 +110,7 @@ export default async function AdminOverviewPage() {
   const allowed = await isAdminAuthorized();
   if (!allowed) return <AdminOnly />;
 
-  const [overview, codes] = await Promise.all([
+  const [overview, codes, followers] = await Promise.all([
     getAdminOverview().catch((error) => {
       console.error("Failed to load admin overview:", error);
       return {
@@ -92,6 +123,7 @@ export default async function AdminOverviewPage() {
       };
     }),
     getCodeStats(),
+    getFollowerStats(),
   ]);
 
   const sections = [
@@ -183,6 +215,13 @@ export default async function AdminOverviewPage() {
           icon={MessageSquareCode}
           href="/admin/messages"
         />
+        <StatCard
+          label="Store followers"
+          value={followers.total}
+          hint={`${followers.topStores.length.toLocaleString("en-US")} stores have followers`}
+          icon={Heart}
+          href="/admin/merchants"
+        />
         <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <p className="text-sm font-medium text-slate-500">
@@ -204,6 +243,36 @@ export default async function AdminOverviewPage() {
           </p>
         </div>
       </section>
+
+      {followers.topStores.length > 0 && (
+        <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <h2 className="text-base font-semibold text-slate-900">
+              Top followed stores
+            </h2>
+            <Heart className="h-5 w-5 text-rose-400" />
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {followers.topStores.map((store) => (
+              <li
+                key={store.storeId}
+                className="flex items-center justify-between gap-3 px-5 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-slate-900">
+                    {store.storeName}
+                  </p>
+                  <p className="text-xs text-slate-400">/{store.storeSlug}</p>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-600">
+                  <Heart className="h-3 w-3 fill-rose-500 text-rose-500" />
+                  {store.followers.toLocaleString("en-US")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <AdminAnalyticsDashboard />
 

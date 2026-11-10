@@ -31,6 +31,7 @@ import AIShoppingAssistant from "@/components/storefront/AIShoppingAssistant";
 import FlashSaleBanner from "@/components/storefront/FlashSaleBanner";
 import StoreFooter from "@/components/storefront/Footer";
 import StoreReviews from "@/components/storefront/StoreReviews";
+import StoreFollowButton from "@/components/storefront/StoreFollowButton";
 import { useNow, useStorePromotions } from "@/lib/promotions-hooks";
 import {
   bestPromotionFor,
@@ -407,6 +408,10 @@ export default function StorefrontView({
                   {store.description}
                 </p>
               )}
+
+              <div className="animate-storefront-fade-up mt-4 flex justify-center sm:justify-start">
+                <StoreFollowButton slug={slug} />
+              </div>
 
               <div
                 className="animate-storefront-fade-up mt-5 flex flex-wrap items-center justify-center gap-2 sm:justify-start"

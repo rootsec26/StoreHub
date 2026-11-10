@@ -968,6 +968,11 @@ const en = {
   "store.addAllToCart": "Add All to Cart",
   "store.recentlyViewedEmpty": "No recently viewed products",
   "store.viewProduct": "View Product",
+  "store.follow": "Follow",
+  "store.following": "Following",
+  "store.followError": "Couldn't update follow status. Please try again.",
+  "store.yourStore": "Your Store",
+  "store.ownStoreFollow": "You cannot follow your own store",
 
   // Store reviews
   "reviews.title": "Customer Reviews",
@@ -1897,6 +1902,11 @@ const en = {
   "home.recentMessages": "Recent messages",
   "home.noMessages": "No messages sent yet.",
   "home.activity": "Recent activity",
+  "home.followers": "Followers",
+  "home.recentFollowers": "Recent followers",
+  "home.noFollowers":
+    "No followers yet — share your store link to grow your audience.",
+  "home.followerAnonymous": "Visitor",
 
   "track.title": "Track your order",
   "track.subtitle": "Live shipping status straight from the carrier",
@@ -3069,6 +3079,11 @@ const ar: Record<TranslationKey, string> = {
   "store.addAllToCart": "أضف الكل للسلة",
   "store.recentlyViewedEmpty": "لا توجد منتجات مشاهدة مؤخرًا",
   "store.viewProduct": "عرض المنتج",
+  "store.follow": "متابعة",
+  "store.following": "متابَع",
+  "store.followError": "تعذّر تحديث المتابعة. حاول مرة أخرى.",
+  "store.yourStore": "متجرك",
+  "store.ownStoreFollow": "لا يمكنك متابعة متجرك الخاص",
 
   // Store reviews
   "reviews.title": "تقييمات العملاء",
@@ -3750,6 +3765,10 @@ const ar: Record<TranslationKey, string> = {
   "home.recentMessages": "أحدث الرسائل",
   "home.noMessages": "لم يتم إرسال رسائل بعد.",
   "home.activity": "النشاط الأخير",
+  "home.followers": "المتابعون",
+  "home.recentFollowers": "أحدث المتابعين",
+  "home.noFollowers": "لا يوجد متابعون بعد — شارك رابط متجرك لجذب جمهورك.",
+  "home.followerAnonymous": "زائر",
 
   "track.title": "تتبّع طلبك",
   "track.subtitle": "حالة الشحن المباشرة من شركة الشحن",

@@ -645,6 +645,33 @@ export const storeReviews = pgTable(
 );
 
 // ============================================
+// STORE FOLLOWERS (shopper -> merchant follows)
+// ============================================
+// `userId` holds either an app `users.id` (uuid text) for signed-in users or an
+// anonymous visitor id generated client-side — hence TEXT, not UUID.
+export const storeFollowers = pgTable(
+  "store_followers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("store_followers_store_id_idx").on(table.storeId),
+    index("store_followers_created_at_idx").on(table.createdAt),
+    uniqueIndex("store_followers_store_user_unique").on(
+      table.storeId,
+      table.userId
+    ),
+  ]
+);
+
+// ============================================
 // WAREHOUSES & BRANCHES (multi-warehouse stock engine)
 // ============================================
 export const warehouses = pgTable(

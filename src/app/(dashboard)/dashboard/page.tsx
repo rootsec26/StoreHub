@@ -12,6 +12,8 @@ import {
   MessageSquareCode,
   BarChart3,
   ArrowRight,
+  Heart,
+  User,
 } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
@@ -38,11 +40,24 @@ interface DashboardStats {
   recentOrders: RecentOrder[];
 }
 
+interface RecentFollower {
+  id: string;
+  label: string;
+  isRegistered: boolean;
+  createdAt: string;
+}
+
+interface FollowersData {
+  count: number;
+  recentFollowers: RecentFollower[];
+}
+
 export default function DashboardPage() {
   const { t, formatMoney, formatNumber, formatDate } = useI18n();
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentCampaigns, setRecentCampaigns] = useState<NotificationDTO[]>([]);
+  const [followers, setFollowers] = useState<FollowersData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const lastEvent = useOrdersRealtime((state) => state.lastEvent);
@@ -53,9 +68,12 @@ export default function DashboardPage() {
 
     async function loadStats() {
       try {
-        const [statsRes, campaignsRes] = await Promise.all([
+        const [statsRes, campaignsRes, followersRes] = await Promise.all([
           fetch("/api/dashboard/stats"),
           fetch("/api/notifications?limit=3", { cache: "no-store" }).catch(
+            () => null
+          ),
+          fetch("/api/dashboard/followers", { cache: "no-store" }).catch(
             () => null
           ),
         ]);
@@ -69,6 +87,11 @@ export default function DashboardPage() {
           campaigns = campaignData.campaigns ?? [];
         }
 
+        let followerData: FollowersData | null = null;
+        if (followersRes?.ok) {
+          followerData = (await followersRes.json()) as FollowersData;
+        }
+
         if (cancelled) return;
 
         setStats({
@@ -79,6 +102,7 @@ export default function DashboardPage() {
           recentOrders: statsData.recentOrders ?? [],
         });
         setRecentCampaigns(campaigns);
+        setFollowers(followerData);
       } catch (error) {
         console.error("Failed to load stats:", error);
       } finally {
@@ -310,6 +334,56 @@ export default function DashboardPage() {
                       {formatDate(campaign.createdAt)}
                     </p>
                   </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Followers */}
+        <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <h2 className="text-base font-semibold text-slate-900">
+              {t("home.followers")}
+            </h2>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-600">
+              <Heart className="h-3.5 w-3.5 fill-rose-500 text-rose-500" />
+              {formatNumber(followers?.count ?? 0)}
+            </span>
+          </div>
+          {loading ? (
+            <div className="space-y-4 p-5">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-full" />
+                </div>
+              ))}
+            </div>
+          ) : !followers || followers.recentFollowers.length === 0 ? (
+            <div className="px-5 py-12 text-center text-sm text-slate-500">
+              {t("home.noFollowers")}
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {followers.recentFollowers.map((follower) => (
+                <li
+                  key={follower.id}
+                  className="flex items-center gap-3 px-5 py-3"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                    <User className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-900">
+                      {follower.isRegistered
+                        ? follower.label
+                        : `${t("home.followerAnonymous")} ${follower.label}`}
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      {formatDate(follower.createdAt)}
+                    </p>
+                  </div>
                 </li>
               ))}
             </ul>

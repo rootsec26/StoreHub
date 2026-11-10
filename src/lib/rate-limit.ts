@@ -127,6 +127,14 @@ export const storefrontReviewRateLimiter = createRateLimiter({
   message: "Too many review submissions. Please wait before trying again.",
 });
 
+/** Store follows are public writes — cap spam/abuse per IP. */
+export const storefrontFollowRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 20,
+  keyPrefix: "storefront-follow",
+  message: "Too many follow requests. Please wait before trying again.",
+});
+
 /** Coupon previews hit the DB per attempt — cap enumeration speed. */
 export const couponValidateRateLimiter = createRateLimiter({
   windowMs: 60 * 1000,
