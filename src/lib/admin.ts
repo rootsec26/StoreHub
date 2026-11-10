@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "crypto";
 import { jwtVerify } from "jose";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 
 /**
  * Fallback admin email used when ADMIN_EMAIL is not configured.
@@ -43,32 +43,23 @@ async function sessionEmailFromCookies(): Promise<string | null> {
 }
 
 /**
- * Strict admin authorization.
+ * Super-admin authorization.
  *
- * Identity comes ONLY from a secret token compared in constant time.
- * Never derive it from `Host` / `X-Forwarded-For` / `X-Real-IP` — those are
- * attacker-controlled request headers on any deployment that is reachable
- * directly or behind a proxy that does not strip them.
+ * Identity comes from the app's signed `session` JWT: the caller is an admin
+ * IFF the session email matches ADMIN_EMAIL (default rootsec68@gmail.com).
+ * Never derive identity from `Host` / `X-Forwarded-For` / `X-Real-IP` — those
+ * are attacker-controlled request headers.
  *
- * Presentation:
- *   - API clients : `x-admin-token: <ADMIN_TOKEN>` (or `Authorization: Bearer`)
- *   - Browser UI  : `admin_token` cookie, which middleware sets after a valid
- *                   `?admin_token=<ADMIN_TOKEN>` visit to /admin
- *   - Development : if no ADMIN_TOKEN is configured and NODE_ENV !== production,
- *                   local development is allowed (operator convenience).
- *   - Production  : fails CLOSED — ADMIN_TOKEN must be set, otherwise every
- *                   admin surface returns 403/404.
- *
- * On top of the token credential, the caller must hold a valid app session
- * whose email matches ADMIN_EMAIL (default: rootsec68@gmail.com). Both
- * conditions are required in every environment — local dev included.
+ * The legacy ADMIN_TOKEN helpers below are kept for backwards compatibility
+ * but are no longer required — a valid super-admin session is sufficient and
+ * necessary in every environment (localhost and production alike).
  */
 
-/** Header used by API clients (curl/CI) to present the admin token. */
+/** @deprecated Admin access is granted by ADMIN_EMAIL session, not tokens. */
 export const ADMIN_TOKEN_HEADER = "x-admin-token";
-/** Cookie used by the browser admin UI (set by middleware). */
+/** @deprecated Admin access is granted by ADMIN_EMAIL session, not tokens. */
 export const ADMIN_TOKEN_COOKIE = "admin_token";
-/** Query parameter used once to bootstrap the cookie on first visit. */
+/** @deprecated Admin access is granted by ADMIN_EMAIL session, not tokens. */
 export const ADMIN_TOKEN_QUERY = "admin_token";
 
 function safeEqual(a: string, b: string): boolean {
@@ -95,29 +86,11 @@ export function isDevelopmentAdminFallback(): boolean {
 
 /**
  * Authorize the current request/view. Safe to call from route handlers and
- * server components (uses `headers()` / `cookies()` from `next/headers`).
+ * server components (uses `cookies()` from `next/headers`).
+ *
+ * Returns true only when the request carries a valid session JWT whose email
+ * matches the configured super-admin email.
  */
 export async function isAdminAuthorized(): Promise<boolean> {
-  const headerStore = await headers();
-  const cookieStore = await cookies();
-
-  const authHeader = headerStore.get("authorization");
-  const bearer =
-    authHeader && authHeader.toLowerCase().startsWith("bearer ")
-      ? authHeader.slice(7).trim()
-      : null;
-
-  const candidates = [
-    headerStore.get(ADMIN_TOKEN_HEADER),
-    cookieStore.get(ADMIN_TOKEN_COOKIE)?.value ?? null,
-    bearer,
-  ];
-  const hasCredential = candidates.some(
-    (candidate) => candidate != null && verifyAdminToken(candidate)
-  );
-  if (!hasCredential && !isDevelopmentAdminFallback()) return false;
-
-  // Strict identity gate: the session email must match the configured admin
-  // email regardless of how the admin credential was presented.
   return isAdminEmail(await sessionEmailFromCookies());
 }

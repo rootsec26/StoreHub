@@ -22,7 +22,7 @@ export default async function AdminLayout({
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="fixed end-4 top-4 z-50 rounded-lg bg-red-600 px-4 py-2 font-mono text-sm text-white shadow-lg">
-        🔒 LOCALHOST ONLY ADMIN PANEL
+        SUPER ADMIN PANEL
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-8">

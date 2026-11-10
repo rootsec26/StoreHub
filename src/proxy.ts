@@ -7,14 +7,7 @@ import { stores } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { getDefaultCurrencyForCountry } from "@/lib/currency";
 import { isGatedApiPath, resolveApiFeatureGate } from "@/lib/paywall";
-import {
-  ADMIN_TOKEN_COOKIE,
-  ADMIN_TOKEN_HEADER,
-  ADMIN_TOKEN_QUERY,
-  isDevelopmentAdminFallback,
-  isAdminEmail,
-  verifyAdminToken,
-} from "@/lib/admin";
+import { isAdminEmail } from "@/lib/admin";
 
 const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) {
@@ -298,25 +291,11 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/store/");
 
-  // Admin routes require a valid session AND strict admin-token authorization.
-  // Identity is a constant-time secret comparison — never Host/X-Forwarded-For.
+  // Admin routes require a valid session whose email matches the configured
+  // super-admin email (ADMIN_EMAIL). Identity comes from the signed JWT —
+  // never from Host/X-Forwarded-For headers.
   const isAdminPath = pathname === "/admin" || pathname.startsWith("/admin/");
   if (isAdminPath) {
-    const queryToken = request.nextUrl.searchParams.get(ADMIN_TOKEN_QUERY);
-    const presentedToken =
-      queryToken ??
-      request.cookies.get(ADMIN_TOKEN_COOKIE)?.value ??
-      request.headers.get(ADMIN_TOKEN_HEADER);
-    const adminAuthorized =
-      verifyAdminToken(presentedToken) || isDevelopmentAdminFallback();
-
-    if (!adminAuthorized) {
-      return NextResponse.json(
-        { error: "Forbidden: Admin access requires a valid admin token" },
-        { status: 403 }
-      );
-    }
-
     if (!token) {
       return NextResponse.redirect(resolveUrl(request, "/login"));
     }
@@ -331,28 +310,8 @@ export async function proxy(request: NextRequest) {
       return response;
     }
 
-    // Platform admin surfaces are restricted to the configured admin email.
     if (!isAdminEmail(adminPayload.email)) {
       return NextResponse.redirect(resolveUrl(request, "/"));
-    }
-
-    // Bootstrap the cookie from a one-time ?admin_token= visit, then strip the
-    // secret from the URL so it does not end up in history/referrers.
-    if (queryToken) {
-      const cleanUrl = new URL(request.url);
-      cleanUrl.searchParams.delete(ADMIN_TOKEN_QUERY);
-      const response =
-        cleanUrl.toString() === request.url
-          ? NextResponse.next()
-          : NextResponse.redirect(cleanUrl);
-      response.cookies.set(ADMIN_TOKEN_COOKIE, queryToken, {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        maxAge: 60 * 60 * 8,
-      });
-      return response;
     }
 
     return NextResponse.next();

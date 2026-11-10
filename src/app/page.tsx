@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   ArrowRight,
   Check,
@@ -173,11 +173,27 @@ const NAV_LINKS: [string, TranslationKey][] = [
 export default function LandingPage() {
   const { t, formatNumber } = useI18n();
   const [logoTapped, setLogoTapped] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const isNativeApp = useSyncExternalStore(
     () => () => {},
     isNativeAppShell,
     () => false
   );
+
+  // Reveal the discreet super-admin shortcut only for the configured
+  // ADMIN_EMAIL session — the flag is computed server-side in /api/auth/me.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { isAdmin?: boolean } | null) => {
+        if (!cancelled && data?.isAdmin) setIsSuperAdmin(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-white" dir="rtl">
@@ -212,6 +228,16 @@ export default function LandingPage() {
           </nav>
 
           <div className="flex items-center gap-2">
+            {isSuperAdmin && (
+              <Link
+                href="/admin"
+                title="Super Admin"
+                aria-label="Super Admin panel"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              >
+                <ShieldCheck className="h-5 w-5" />
+              </Link>
+            )}
             <LanguageToggle compact />
             <Link
               href="/login"
