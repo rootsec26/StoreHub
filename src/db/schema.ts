@@ -1470,3 +1470,69 @@ export const platformFollows = pgTable(
     index("platform_follows_created_at_idx").on(table.createdAt),
   ]
 );
+
+// ============================================
+// STORE GROUPS (merchant community space)
+// ============================================
+// One group per store. Merchants post announcements; shoppers request to
+// join and only approved members can read posts via the API.
+export const storeGroups = pgTable(
+  "store_groups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    title: text("title").notNull().default(""),
+    description: text("description").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [uniqueIndex("store_groups_store_unique").on(table.storeId)]
+);
+
+export const storeGroupPosts = pgTable(
+  "store_group_posts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => storeGroups.id, { onDelete: "cascade" }),
+    authorName: text("author_name").notNull().default(""),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("store_group_posts_group_idx").on(table.groupId, table.createdAt),
+  ]
+);
+
+// user_id is the app user id for signed-in users or a client-generated
+// anonymous UUID (localStorage) — same convention as store_followers.
+export const storeGroupMembers = pgTable(
+  "store_group_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => storeGroups.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    status: text("status").notNull().default("pending"), // pending | approved | rejected
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("store_group_members_group_user_unique").on(
+      table.groupId,
+      table.userId
+    ),
+    index("store_group_members_status_idx").on(table.groupId, table.status),
+  ]
+);

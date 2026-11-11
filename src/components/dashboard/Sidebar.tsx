@@ -13,6 +13,7 @@ import {
   Calculator,
   Truck,
   Users,
+  UsersRound,
   BarChart3,
   Megaphone,
   Zap,
@@ -65,6 +66,7 @@ export const NAV_ITEMS = [
     group: "fulfillment",
   },
   { href: "/dashboard/customers", labelKey: "nav.customers", icon: Users, group: "growth" },
+  { href: "/dashboard/group", labelKey: "nav.storeGroup", icon: UsersRound, group: "growth" },
   { href: "/dashboard/reviews", labelKey: "nav.reviews", icon: Star, group: "growth" },
   {
     href: "/dashboard/verification",

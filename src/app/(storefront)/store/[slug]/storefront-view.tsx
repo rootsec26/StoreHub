@@ -19,6 +19,7 @@ import {
   Zap,
   PackageSearch,
   Home,
+  UsersRound,
 } from "lucide-react";
 
 import { useCartStore, type CartItem } from "@/lib/cart";
@@ -433,8 +434,15 @@ export default function StorefrontView({
                 </p>
               )}
 
-              <div className="animate-storefront-fade-up mt-4 flex justify-center sm:justify-start">
+              <div className="animate-storefront-fade-up mt-4 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                 <StoreFollowButton slug={slug} />
+                <Link
+                  href={`/store/${slug}/group`}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-4 py-2 text-xs font-bold text-white ring-1 ring-white/25 backdrop-blur transition hover:bg-white/25"
+                >
+                  <UsersRound className="h-3.5 w-3.5" />
+                  {t("group.join")}
+                </Link>
               </div>
 
               <div
