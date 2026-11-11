@@ -992,6 +992,8 @@ const en = {
   "store.followError": "Couldn't update follow status. Please try again.",
   "store.yourStore": "Your Store",
   "store.ownStoreFollow": "You cannot follow your own store",
+  "store.platformHome": "Home",
+  "store.platformSupport": "Chat with us on WhatsApp",
 
   // Platform feed
   "platform.title": "Platform updates",
@@ -3216,6 +3218,8 @@ const ar: Record<TranslationKey, string> = {
   "store.followError": "تعذّر تحديث المتابعة. حاول مرة أخرى.",
   "store.yourStore": "متجرك",
   "store.ownStoreFollow": "لا يمكنك متابعة متجرك الخاص",
+  "store.platformHome": "الرئيسية",
+  "store.platformSupport": "تواصل معنا عبر واتساب",
 
   // Platform feed
   "platform.title": "تحديثات المنصة",

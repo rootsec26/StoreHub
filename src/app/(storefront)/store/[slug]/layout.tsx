@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { stores } from "@/db/schema";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import AdminPreviewBar from "@/components/storefront/AdminPreviewBar";
+import PlatformBar from "@/components/storefront/PlatformBar";
 import { getSession } from "@/lib/auth";
 import { resolveThemeConfig, type ThemeConfig, DEFAULT_THEME_CONFIG } from "@/lib/theme-config";
 
@@ -43,6 +44,7 @@ export default async function StorefrontLayout({ children, params }: LayoutProps
 
   return (
     <ThemeProvider config={themeConfig}>
+      <PlatformBar />
       {canPreview && <AdminPreviewBar />}
       <div className="min-h-screen">{children}</div>
     </ThemeProvider>
