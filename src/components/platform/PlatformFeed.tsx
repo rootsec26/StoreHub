@@ -4,20 +4,20 @@ import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ArrowRight,
   BadgeCheck,
   Bell,
   Check,
   Megaphone,
   PartyPopper,
   RefreshCw,
-  Sparkles,
 } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 
 const FOLLOWER_ID_KEY = "storehub:follower-id";
 const POLL_INTERVAL_MS = 45_000;
-const MAX_POSTS = 20;
+const MAX_POSTS = 50;
 
 interface PlatformPost {
   id: string;
@@ -31,12 +31,13 @@ interface PlatformPost {
 interface FeedResponse {
   posts?: PlatformPost[];
   followerCount?: number;
+  count?: number;
   following?: boolean;
 }
 
 const CATEGORY_META: Record<
   string,
-  { icon: typeof Sparkles; labelKey: TranslationKey; classes: string }
+  { icon: typeof Megaphone; labelKey: TranslationKey; classes: string }
 > = {
   UPDATE: {
     icon: RefreshCw,
@@ -68,11 +69,13 @@ function getOrCreateFollowerId(): string | null {
 }
 
 /**
- * Verified StoreHub platform feed. Super-admin posts surface here with the
- * official badge; merchants and shoppers can follow the feed. Refreshes by
- * polling so new posts appear without a manual reload.
+ * Official StoreHub platform channel.
+ *
+ * `compact` (landing page): a sleek card with branding, verified badge,
+ * follower count and a CTA to /feed — no raw post list.
+ * Default (`/feed` page): the same card plus the full updates timeline.
  */
-export default function PlatformFeed() {
+export default function PlatformFeed({ compact = false }: { compact?: boolean }) {
   const { t, formatNumber, formatDate } = useI18n();
 
   const [posts, setPosts] = useState<PlatformPost[] | null>(null);
@@ -86,20 +89,23 @@ export default function PlatformFeed() {
     try {
       const params = new URLSearchParams();
       if (followerIdRef.current) params.set("followerId", followerIdRef.current);
-      const res = await fetch(`/api/platform/feed?${params.toString()}`, {
-        cache: "no-store",
-      });
+      // Compact mode only needs follow state — skip the posts payload.
+      const endpoint = compact
+        ? `/api/platform/follow?${params.toString()}`
+        : `/api/platform/feed?${params.toString()}`;
+      const res = await fetch(endpoint, { cache: "no-store" });
       if (!res.ok) return;
       const data = (await res.json()) as FeedResponse;
-      setPosts(Array.isArray(data.posts) ? data.posts.slice(0, MAX_POSTS) : []);
-      if (typeof data.followerCount === "number") {
-        setCount(data.followerCount);
+      if (!compact && Array.isArray(data.posts)) {
+        setPosts(data.posts.slice(0, MAX_POSTS));
       }
+      const nextCount = data.followerCount ?? data.count;
+      if (typeof nextCount === "number") setCount(nextCount);
       setFollowing(Boolean(data.following));
     } catch {
       // Transient failure — keep the last rendered state.
     }
-  }, []);
+  }, [compact]);
 
   useEffect(() => {
     followerIdRef.current = getOrCreateFollowerId();
@@ -145,70 +151,92 @@ export default function PlatformFeed() {
   }, [busy, following, count]);
 
   return (
-    <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 shadow-md ring-1 ring-slate-900/10">
-            <Image
-              src="/logo-transparent.png"
-              alt="StoreHub"
-              fill
-              sizes="44px"
-              className="object-contain p-1.5"
-            />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <h2 className="truncate text-base font-bold text-slate-900">
-                StoreHub
-              </h2>
-              <BadgeCheck
-                className="h-5 w-5 shrink-0 text-sky-500"
-                aria-label={t("platform.verified")}
+    <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm">
+      {/* Official channel header */}
+      <div className="relative border-b border-slate-100 bg-gradient-to-r from-indigo-50/80 via-white to-violet-50/60 px-5 py-5">
+        <div className="pointer-events-none absolute -end-10 -top-10 h-28 w-28 rounded-full bg-indigo-200/30 blur-2xl" />
+        <div className="relative flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 shadow-lg shadow-indigo-500/25 ring-1 ring-slate-900/10">
+              <Image
+                src="/logo-transparent.png"
+                alt="StoreHub"
+                fill
+                sizes="48px"
+                className="object-contain p-1.5"
               />
-              <span className="hidden rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-indigo-600 ring-1 ring-indigo-100 sm:inline">
-                {t("platform.title")}
-              </span>
             </div>
-            <p className="truncate text-[11px] font-medium text-slate-400">
-              {t("platform.official")}
-            </p>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <h2 className="truncate text-lg font-extrabold tracking-tight text-slate-900">
+                  StoreHub
+                </h2>
+                <BadgeCheck
+                  className="h-6 w-6 shrink-0 text-sky-500 drop-shadow-[0_2px_6px_rgba(14,165,233,0.55)]"
+                  strokeWidth={2.4}
+                  aria-label={t("platform.verified")}
+                />
+                <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-sky-700 ring-1 ring-sky-200">
+                  {t("platform.verifiedBadge")}
+                </span>
+                <span className="hidden rounded-full bg-indigo-100 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-indigo-700 ring-1 ring-indigo-200 sm:inline">
+                  {t("platform.title")}
+                </span>
+              </div>
+              <p className="mt-0.5 truncate text-xs font-medium text-slate-500">
+                {t("platform.official")}
+              </p>
+            </div>
           </div>
-        </div>
 
-        <button
-          type="button"
-          onClick={toggleFollow}
-          disabled={busy || count === null}
-          aria-pressed={following}
-          title={error ? t("store.followError") : undefined}
-          className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all active:scale-95 ${
-            following
-              ? "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-200"
-              : "bg-indigo-600 text-white shadow-sm hover:bg-indigo-500"
-          }`}
-        >
-          {following ? (
-            <Check className="h-3.5 w-3.5" strokeWidth={3} />
-          ) : (
-            <Bell className="h-3.5 w-3.5" />
-          )}
-          {following ? t("store.following") : t("store.follow")}
-          {count !== null && (
-            <span
-              className={`rounded-full px-1.5 py-0.5 text-[10px] font-extrabold ${
-                following ? "bg-emerald-200/70 text-emerald-800" : "bg-white/20"
-              }`}
-            >
-              {formatNumber(count)}
-            </span>
-          )}
-        </button>
+          <button
+            type="button"
+            onClick={toggleFollow}
+            disabled={busy || count === null}
+            aria-pressed={following}
+            title={error ? t("store.followError") : undefined}
+            className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all active:scale-95 ${
+              following
+                ? "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-200"
+                : "bg-indigo-600 text-white shadow-md shadow-indigo-500/25 hover:bg-indigo-500"
+            }`}
+          >
+            {following ? (
+              <Check className="h-3.5 w-3.5" strokeWidth={3} />
+            ) : (
+              <Bell className="h-3.5 w-3.5" />
+            )}
+            {following ? t("store.following") : t("store.follow")}
+            {count !== null && (
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[10px] font-extrabold ${
+                  following ? "bg-emerald-200/70 text-emerald-800" : "bg-white/20"
+                }`}
+              >
+                {formatNumber(count)}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
-      {posts === null ? (
+      {compact ? (
+        /* Compact CTA — keeps the landing page clean */
+        <div className="flex items-center justify-between gap-3 px-5 py-4">
+          <p className="text-xs font-medium text-slate-500">
+            {t("platform.official")}
+          </p>
+          <Link
+            href="/feed"
+            className="group inline-flex shrink-0 items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-slate-700"
+          >
+            {t("platform.viewAll")}
+            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5" />
+          </Link>
+        </div>
+      ) : posts === null ? (
         <div className="space-y-3 p-5">
-          {[0, 1].map((i) => (
+          {[0, 1, 2].map((i) => (
             <div
               key={i}
               className="h-16 animate-pulse rounded-xl bg-slate-100"

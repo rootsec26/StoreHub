@@ -1004,6 +1004,9 @@ const en = {
   "platform.cat.update": "Update",
   "platform.cat.announcement": "Announcement",
   "platform.cat.feature": "New feature",
+  "platform.viewAll": "View all updates",
+  "platform.verifiedBadge": "Verified",
+  "platform.backHome": "Back to StoreHub",
 
   // Store reviews
   "reviews.title": "Customer Reviews",
@@ -3230,6 +3233,9 @@ const ar: Record<TranslationKey, string> = {
   "platform.cat.update": "تحديث",
   "platform.cat.announcement": "إعلان",
   "platform.cat.feature": "ميزة جديدة",
+  "platform.viewAll": "عرض كل التحديثات",
+  "platform.verifiedBadge": "موثّق",
+  "platform.backHome": "العودة إلى StoreHub",
 
   // Store reviews
   "reviews.title": "تقييمات العملاء",

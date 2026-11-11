@@ -499,7 +499,7 @@ export default function LandingPage() {
       {/* Platform feed — official StoreHub updates & announcements */}
       <section className="bg-slate-50 py-16">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
-          <PlatformFeed />
+          <PlatformFeed compact />
         </div>
       </section>
 
