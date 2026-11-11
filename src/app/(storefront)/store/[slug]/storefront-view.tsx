@@ -19,7 +19,7 @@ import {
   Zap,
   PackageSearch,
   Home,
-  UsersRound,
+  UserPlus,
 } from "lucide-react";
 
 import { useCartStore, type CartItem } from "@/lib/cart";
@@ -387,25 +387,25 @@ export default function StorefrontView({
             <div className="min-w-0 flex-1 text-center sm:text-start">
               <div className="mb-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                 {store.category && (
-                  <span className="inline-flex animate-storefront-fade-up items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/25 backdrop-blur">
-                    <Tag className="h-3.5 w-3.5" />
+                  <span className="inline-flex animate-storefront-fade-up items-center gap-1.5 rounded-full border border-white/20 bg-white/15 px-3 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur transition hover:bg-white/25">
+                    <Tag className="h-3.5 w-3.5 text-sky-200" />
                     {categoryLabel}
                   </span>
                 )}
                 {store.address && (
-                  <span className="inline-flex animate-storefront-fade-up items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/25 backdrop-blur" style={{ animationDelay: "90ms" }}>
-                    <MapPin className="h-3.5 w-3.5" />
+                  <span className="inline-flex animate-storefront-fade-up items-center gap-1.5 rounded-full border border-white/20 bg-white/15 px-3 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur" style={{ animationDelay: "90ms" }}>
+                    <MapPin className="h-3.5 w-3.5 text-amber-200" />
                     {store.address}
                   </span>
                 )}
                 {store.phone && (
                   <a
                     href={`tel:${store.phone}`}
-                    className="inline-flex animate-storefront-fade-up items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/25 backdrop-blur transition hover:bg-white/25"
+                    className="inline-flex animate-storefront-fade-up items-center gap-1.5 rounded-full border border-white/20 bg-white/15 px-3 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur transition hover:bg-white/25"
                     style={{ animationDelay: "120ms" }}
                     dir="ltr"
                   >
-                    <Phone className="h-3.5 w-3.5" />
+                    <Phone className="h-3.5 w-3.5 text-emerald-200" />
                     {store.phone}
                   </a>
                 )}
@@ -438,10 +438,10 @@ export default function StorefrontView({
                 <StoreFollowButton slug={slug} />
                 <Link
                   href={`/store/${slug}/group`}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-4 py-2 text-xs font-bold text-white ring-1 ring-white/25 backdrop-blur transition hover:bg-white/25"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-sky-300/40 bg-sky-400/20 px-4 py-2 text-xs font-bold text-white shadow-md shadow-sky-950/20 backdrop-blur transition hover:bg-sky-400/30"
                 >
-                  <UsersRound className="h-3.5 w-3.5" />
-                  {t("group.join")}
+                  <UserPlus className="h-3.5 w-3.5 text-sky-200" />
+                  {t("group.joinCta")}
                 </Link>
               </div>
 
@@ -449,17 +449,17 @@ export default function StorefrontView({
                 className="animate-storefront-fade-up mt-5 flex flex-wrap items-center justify-center gap-2 sm:justify-start"
                 style={{ animationDelay: "270ms" }}
               >
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-black/15 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
-                  <Package className="h-3.5 w-3.5" />
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
+                  <Package className="h-3.5 w-3.5 text-sky-300" />
                   {products.length} products
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-black/15 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
-                  <Tag className="h-3.5 w-3.5" />
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
+                  <Tag className="h-3.5 w-3.5 text-amber-300" />
                   {categories.length} categories
                 </span>
                 <Link
                   href={`/store/${slug}/track-order`}
-                  className="inline-flex animate-storefront-fade-up items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-xs font-semibold text-white ring-1 ring-white/30 backdrop-blur transition hover:bg-white/30"
+                  className="inline-flex animate-storefront-fade-up items-center gap-1.5 rounded-full border border-white/20 bg-white/15 px-3 py-1.5 text-xs font-semibold text-white shadow-sm backdrop-blur transition hover:bg-white/25"
                   style={{ animationDelay: "300ms" }}
                 >
                   <PackageSearch className="h-3.5 w-3.5" />

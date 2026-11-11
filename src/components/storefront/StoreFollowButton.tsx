@@ -178,7 +178,7 @@ export default function StoreFollowButton({ slug }: StoreFollowButtonProps) {
       disabled={busy || count === null}
       aria-pressed={following}
       title={error ? t("store.followError") : undefined}
-      className={`group relative inline-flex animate-storefront-fade-up items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold shadow-lg transition-all duration-300 active:scale-95 ${
+      className={`group relative inline-flex animate-storefront-fade-up items-center gap-2 rounded-full border border-white/25 px-5 py-2.5 text-sm font-bold shadow-lg shadow-black/20 backdrop-blur transition-all duration-300 active:scale-95 ${
         following
           ? "bg-emerald-400 text-emerald-950 shadow-emerald-950/30 hover:bg-emerald-300"
           : "bg-[var(--color-primary)] text-white shadow-black/30 ring-2 ring-white/40 hover:brightness-110 hover:shadow-[0_0_24px_var(--color-primary)]"
