@@ -94,10 +94,12 @@ export function getOAuthRedirectUrl(redirectPath = "/"): string | null {
   if (typeof window === "undefined") return null;
 
   const next = encodeURIComponent(sanitizeNextPath(redirectPath));
-  // Environment-aware origin: resolves to the current origin in the browser
-  // (local dev, Vercel previews, production, storefront domains) and to the
-  // configured site URL elsewhere.
-  const origin = getSiteUrl();
+  // The callback MUST stay on the origin that started the flow — the PKCE
+  // verifier is origin-scoped — so prefer the live window origin
+  // (localhost dev, Vercel previews, production, storefront domains) over
+  // any configured site URL.
+  const origin =
+    window.location?.origin || getSiteUrl();
 
   return `${origin}${OAUTH_CALLBACK_PATH}?next=${next}`;
 }
