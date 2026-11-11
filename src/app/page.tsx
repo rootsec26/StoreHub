@@ -31,6 +31,7 @@ import { isFreeMode } from "@/lib/free-mode";
 import { isNativeAppShell } from "@/lib/platform";
 import LanguageToggle from "@/components/LanguageToggle";
 import TopStoresShowcase from "@/components/landing/TopStoresShowcase";
+import HeroFloatingShowcase from "@/components/landing/HeroFloatingShowcase";
 import PlatformFeed from "@/components/platform/PlatformFeed";
 
 const FEATURES: {
@@ -309,6 +310,7 @@ export default function LandingPage() {
             >
               Store<span className="text-indigo-600">Hub</span>
             </div>
+            <HeroFloatingShowcase />
           </div>
           <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-blue-200/80 bg-white/80 px-4 py-1.5 text-sm font-bold text-blue-700 shadow-sm shadow-blue-100/60 backdrop-blur">
             <Sparkles className="h-4 w-4 text-blue-500" />
