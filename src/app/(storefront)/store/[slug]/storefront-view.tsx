@@ -18,6 +18,7 @@ import {
   MapPin,
   Zap,
   PackageSearch,
+  Home,
 } from "lucide-react";
 
 import { useCartStore, type CartItem } from "@/lib/cart";
@@ -350,6 +351,15 @@ export default function StorefrontView({
         <div className="pointer-events-none absolute -top-24 -start-24 h-72 w-72 rounded-full bg-white/15 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-28 end-0 h-80 w-80 rounded-full bg-black/10 blur-3xl" />
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.22),transparent_38%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.14),transparent_32%)]" />
+
+        {/* Back to the StoreHub platform home */}
+        <Link
+          href="/"
+          className="absolute start-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-1.5 text-xs font-bold text-white ring-1 ring-white/25 backdrop-blur transition hover:bg-white/25"
+        >
+          <Home className="h-3.5 w-3.5" />
+          {t("store.platformHome")}
+        </Link>
 
         <div className="relative mx-auto max-w-7xl px-4 pb-8 pt-10 sm:px-6 sm:pb-10 sm:pt-14">
           <div className="flex flex-col gap-8 sm:flex-row sm:items-center sm:gap-10">

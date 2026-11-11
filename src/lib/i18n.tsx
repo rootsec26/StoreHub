@@ -993,7 +993,7 @@ const en = {
   "store.yourStore": "Your Store",
   "store.ownStoreFollow": "You cannot follow your own store",
   "store.platformHome": "Home",
-  "store.platformSupport": "Chat with us on WhatsApp",
+  "store.platformTelegram": "Having an issue? Contact us",
 
   // Platform feed
   "platform.title": "Platform updates",
@@ -3219,7 +3219,7 @@ const ar: Record<TranslationKey, string> = {
   "store.yourStore": "متجرك",
   "store.ownStoreFollow": "لا يمكنك متابعة متجرك الخاص",
   "store.platformHome": "الرئيسية",
-  "store.platformSupport": "تواصل معنا عبر واتساب",
+  "store.platformTelegram": "لو عندك شكوى تواصل مع",
 
   // Platform feed
   "platform.title": "تحديثات المنصة",
