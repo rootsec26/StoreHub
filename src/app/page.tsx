@@ -32,6 +32,7 @@ import { isNativeAppShell } from "@/lib/platform";
 import LanguageToggle from "@/components/LanguageToggle";
 import TopStoresShowcase from "@/components/landing/TopStoresShowcase";
 import HeroFloatingShowcase from "@/components/landing/HeroFloatingShowcase";
+import FeatureCube3D from "@/components/landing/FeatureCube3D";
 import PlatformFeed from "@/components/platform/PlatformFeed";
 
 const FEATURES: {
@@ -467,6 +468,9 @@ export default function LandingPage() {
       <section id="features" className="scroll-mt-36 lg:scroll-mt-20 bg-white py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="mx-auto mb-14 max-w-2xl text-center">
+            <div className="pointer-events-none mx-auto mb-8 h-52 w-52 sm:h-60 sm:w-60">
+              <FeatureCube3D />
+            </div>
             <h2 className="text-3xl font-bold text-slate-900 sm:text-4xl">
               {t("landing.featuresTitle")}
             </h2>

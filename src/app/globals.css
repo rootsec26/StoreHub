@@ -141,6 +141,239 @@
   }
 }
 
+/* Feature section — standalone CSS-3D glass cube with orbit rings */
+.feature-cube-scene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  perspective: 1000px;
+}
+
+.feature-cube-float {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  animation: feature-cube-float 7s ease-in-out infinite;
+}
+
+@keyframes feature-cube-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -12px, 0);
+  }
+}
+
+.feature-cube {
+  --fc-size: 104px;
+  --fc-half: calc(var(--fc-size) / 2);
+  position: absolute;
+  inset: 0;
+  width: var(--fc-size);
+  height: var(--fc-size);
+  margin: auto;
+  transform-style: preserve-3d;
+  animation: feature-cube-spin 16s linear infinite;
+}
+
+@media (min-width: 640px) {
+  .feature-cube {
+    --fc-size: 128px;
+  }
+}
+
+@keyframes feature-cube-spin {
+  0% {
+    transform: rotateX(-24deg) rotateY(0deg);
+  }
+  50% {
+    transform: rotateX(14deg) rotateY(180deg);
+  }
+  100% {
+    transform: rotateX(-24deg) rotateY(360deg);
+  }
+}
+
+.feature-cube-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20%;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  background: linear-gradient(
+    140deg,
+    rgba(255, 255, 255, 0.6),
+    rgba(255, 255, 255, 0.14) 55%,
+    rgba(129, 140, 248, 0.2)
+  );
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 0 26px rgba(99, 102, 241, 0.16),
+    inset 0 0 20px rgba(56, 189, 248, 0.12);
+  backface-visibility: hidden;
+}
+
+.fc-tint-indigo {
+  background: linear-gradient(
+    140deg,
+    rgba(224, 231, 255, 0.65),
+    rgba(199, 210, 254, 0.2) 55%,
+    rgba(99, 102, 241, 0.28)
+  );
+}
+
+.fc-tint-violet {
+  background: linear-gradient(
+    140deg,
+    rgba(245, 243, 255, 0.65),
+    rgba(221, 214, 254, 0.2) 55%,
+    rgba(139, 92, 246, 0.28)
+  );
+}
+
+.fc-tint-sky {
+  background: linear-gradient(
+    140deg,
+    rgba(240, 249, 255, 0.65),
+    rgba(186, 230, 253, 0.22) 55%,
+    rgba(14, 165, 233, 0.26)
+  );
+}
+
+.fc-front {
+  transform: translateZ(var(--fc-half));
+}
+.fc-back {
+  transform: rotateY(180deg) translateZ(var(--fc-half));
+}
+.fc-right {
+  transform: rotateY(90deg) translateZ(var(--fc-half));
+}
+.fc-left {
+  transform: rotateY(-90deg) translateZ(var(--fc-half));
+}
+.fc-top {
+  transform: rotateX(90deg) translateZ(var(--fc-half));
+}
+.fc-bottom {
+  transform: rotateX(-90deg) translateZ(var(--fc-half));
+}
+
+.feature-cube-icon {
+  width: 36%;
+  height: 36%;
+  color: #4f46e5;
+  opacity: 0.85;
+  filter: drop-shadow(0 2px 6px rgba(99, 102, 241, 0.35));
+}
+
+.feature-orbit {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  pointer-events: none;
+}
+
+.feature-orbit-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 96%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  border-radius: 50%;
+  box-shadow:
+    0 0 30px rgba(139, 92, 246, 0.12),
+    inset 0 0 30px rgba(56, 189, 248, 0.06);
+}
+
+.orbit-tilt-a {
+  transform: rotateX(70deg);
+}
+
+.orbit-tilt-b {
+  transform: rotateX(64deg) rotateZ(38deg);
+}
+
+.orbit-spin {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+
+.orbit-spin-a {
+  animation: feature-orbit-spin 18s linear infinite;
+}
+
+.orbit-spin-b {
+  animation: feature-orbit-spin-rev 12s linear infinite;
+}
+
+@keyframes feature-orbit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes feature-orbit-spin-rev {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+.orbit-arm {
+  position: absolute;
+  inset: 0;
+  transform: rotate(var(--orbit-angle, 0deg));
+}
+
+.orbit-dot {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  translate: -50% -50%;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+@media (min-width: 640px) {
+  .orbit-dot {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+.orbit-dot-indigo {
+  background: radial-gradient(circle at 30% 30%, #a5b4fc, #6366f1 70%);
+  box-shadow:
+    0 0 12px rgba(99, 102, 241, 0.65),
+    0 0 28px rgba(99, 102, 241, 0.3);
+}
+
+.orbit-dot-sky {
+  background: radial-gradient(circle at 30% 30%, #7dd3fc, #0ea5e9 70%);
+  box-shadow:
+    0 0 12px rgba(14, 165, 233, 0.6),
+    0 0 28px rgba(14, 165, 233, 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feature-cube-float,
+  .feature-cube,
+  .orbit-spin-a,
+  .orbit-spin-b {
+    animation: none;
+  }
+}
+
 /* Storefront motion system — lightweight CSS so product grids stay fast. */
 @keyframes storefront-fade-up {
   from {
