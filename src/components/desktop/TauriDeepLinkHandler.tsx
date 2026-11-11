@@ -34,7 +34,11 @@ export default function TauriDeepLinkHandler() {
       // OAuth callback deep link — completes sign-in, then navigates.
       const oauthTarget = await completeOAuthDeepLink(raw);
       if (oauthTarget) {
-        router.push(oauthTarget);
+        // Full navigation so the freshly set `session` cookie is picked up
+        // by the proxy — router.push can serve a stale unauthenticated
+        // render and leave the user looking logged out (same reason the
+        // Capacitor handler uses window.location.assign).
+        window.location.assign(oauthTarget);
         return;
       }
 

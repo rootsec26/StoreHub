@@ -34,15 +34,16 @@ function OAuthCallbackContent() {
         return;
       }
 
-      // Desktop handoff: the OAuth flow was started inside a native shell but
-      // Supabase redirected to this web callback (custom scheme not
-      // allow-listed, or NEXT_PUBLIC_OAUTH_*_VIA_WEB=1). Forward the raw
-      // `code`/fragment to the app scheme untouched — the app webview owns the
-      // PKCE verifier and exchanges it there, since the app `session` cookie
-      // cannot cross the browser → webview boundary.
-      const shell = searchParams.get("shell");
+      // `?shell=` (and the `?app=` alias) marks a native-shell OAuth flow that
+      // was bounced through the web callback because the custom scheme could
+      // not be allow-listed. Forward the raw `code`/fragment to the app
+      // scheme untouched — the app webview owns the PKCE verifier and
+      // exchanges it there, since the app `session` cookie cannot cross the
+      // browser → webview boundary.
+      const shellParam = searchParams.get("shell") ?? searchParams.get("app");
+      const shell = isOAuthShell(shellParam) ? shellParam : null;
       const insideShell = isTauriDesktopApp() || isCapacitorNativeApp();
-      if (isOAuthShell(shell) && !insideShell) {
+      if (shell && !insideShell) {
         const target = buildOAuthHandoffUrl(shell, {
           code: searchParams.get("code"),
           next: searchParams.get("next"),
