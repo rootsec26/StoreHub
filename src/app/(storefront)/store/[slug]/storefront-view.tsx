@@ -19,7 +19,6 @@ import {
   Zap,
   PackageSearch,
   Home,
-  UserPlus,
 } from "lucide-react";
 
 import { useCartStore, type CartItem } from "@/lib/cart";
@@ -36,6 +35,7 @@ import StoreReviews from "@/components/storefront/StoreReviews";
 import VerifiedBadge from "@/components/storefront/VerifiedBadge";
 import OpenInAppButton from "@/components/desktop/OpenInAppButton";
 import StoreFollowButton from "@/components/storefront/StoreFollowButton";
+import StoreGroupButton from "@/components/storefront/StoreGroupButton";
 import { useNow, useStorePromotions } from "@/lib/promotions-hooks";
 import {
   bestPromotionFor,
@@ -436,13 +436,7 @@ export default function StorefrontView({
 
               <div className="animate-storefront-fade-up mt-4 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                 <StoreFollowButton slug={slug} />
-                <Link
-                  href={`/store/${slug}/group`}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-sky-300/40 bg-sky-400/20 px-4 py-2 text-xs font-bold text-white shadow-md shadow-sky-950/20 backdrop-blur transition hover:bg-sky-400/30"
-                >
-                  <UserPlus className="h-3.5 w-3.5 text-sky-200" />
-                  {t("group.joinCta")}
-                </Link>
+                <StoreGroupButton slug={slug} />
               </div>
 
               <div
