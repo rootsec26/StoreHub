@@ -67,6 +67,7 @@ const RESERVED_SUBDOMAINS = new Set([
 const APP_ONLY_PATHS = [
   "/dashboard",
   "/login",
+  "/sign-in",
   "/signup",
   "/create-store",
   "/onboarding",
@@ -235,6 +236,14 @@ export async function proxy(request: NextRequest) {
       return NextResponse.next();
     }
 
+    // The OAuth callback must complete on the domain that started the flow:
+    // the PKCE code verifier lives in that origin's storage and the session
+    // cookie must be scoped to it. Bouncing to the apex would make
+    // `exchangeCodeForSession` fail with a missing verifier.
+    if (pathname === "/auth/callback") {
+      return NextResponse.next();
+    }
+
     if (!isAppOnlyPath(pathname)) {
       const target = storePathForSubdomain(pathname, effectiveSlug);
       if (target === pathname) {
@@ -287,6 +296,7 @@ export async function proxy(request: NextRequest) {
   const isPublicPage =
     pathname === "/" ||
     pathname === "/login" ||
+    pathname === "/sign-in" ||
     pathname === "/signup" ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/store/");
@@ -319,7 +329,12 @@ export async function proxy(request: NextRequest) {
 
   // If logged in and on auth pages, send the user where they actually belong:
   // owners with a store go to the dashboard, new users go to store creation.
-  if (token && (pathname === "/login" || pathname === "/signup")) {
+  if (
+    token &&
+    (pathname === "/login" ||
+      pathname === "/sign-in" ||
+      pathname === "/signup")
+  ) {
     try {
       const { payload } = await jwtVerify(token, SECRET);
       const hasStore = Boolean((payload as SessionClaims).storeId);

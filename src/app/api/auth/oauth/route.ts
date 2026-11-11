@@ -14,6 +14,27 @@ import { getSupabaseConfig } from "@/lib/supabase/server";
 import { withRateLimit, authRateLimiter } from "@/lib/rate-limit";
 import { extractDbErrorInfo, createErrorResponse } from "@/lib/errors";
 
+/**
+ * Cookie domain for the app session. On a store subdomain
+ * (`<store>.<root-domain>`) we widen the cookie to the parent domain so the
+ * session persists when the shopper moves between the storefront and the
+ * apex app (dashboard, login). Custom domains and localhost keep a
+ * host-only cookie — a parent domain cannot be derived for them.
+ */
+function sessionCookieDomain(request: NextRequest): string | undefined {
+  const rootDomain = (process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "")
+    .replace(/\.+$/, "")
+    .toLowerCase();
+  // Require a dotted root domain — `Domain=localhost` cookies are rejected.
+  if (!rootDomain.includes(".")) return undefined;
+
+  const host = request.headers.get("host")?.split(":")[0].toLowerCase() ?? "";
+  if (host !== rootDomain && !host.endsWith(`.${rootDomain}`)) {
+    return undefined;
+  }
+  return `.${rootDomain}`;
+}
+
 function safeNextPath(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -179,6 +200,7 @@ export async function POST(request: NextRequest) {
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7,
       path: "/",
+      domain: sessionCookieDomain(request),
     });
 
     return response;

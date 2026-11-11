@@ -7,6 +7,7 @@ import {
   isTauriDesktopApp,
   openExternalUrl,
 } from "@/lib/platform";
+import { getSiteUrl } from "@/lib/site";
 
 let oauthClient: SupabaseClient | null = null;
 
@@ -103,22 +104,27 @@ export function getOAuthRedirectUrl(redirectPath = "/"): string | null {
   if (typeof window === "undefined") return null;
 
   const next = encodeURIComponent(sanitizeNextPath(redirectPath));
+  // Environment-aware origin: resolves to the current origin in the browser
+  // (local dev, Vercel previews, production, storefront domains) and to the
+  // configured site URL elsewhere. The callback MUST stay on the origin that
+  // started the flow — the PKCE verifier is origin-scoped.
+  const origin = getSiteUrl();
 
   if (isTauriDesktopApp()) {
     if (process.env.NEXT_PUBLIC_OAUTH_TAURI_VIA_WEB === "1") {
-      return `${window.location.origin}${OAUTH_CALLBACK_PATH}?shell=tauri&next=${next}`;
+      return `${origin}${OAUTH_CALLBACK_PATH}?shell=tauri&next=${next}`;
     }
     return getOAuthDeepLinkUrl("tauri", redirectPath);
   }
 
   if (isCapacitorNativeApp()) {
     if (process.env.NEXT_PUBLIC_OAUTH_ANDROID_VIA_WEB === "1") {
-      return `${window.location.origin}${OAUTH_CALLBACK_PATH}?shell=android&next=${next}`;
+      return `${origin}${OAUTH_CALLBACK_PATH}?shell=android&next=${next}`;
     }
     return getOAuthDeepLinkUrl("android", redirectPath);
   }
 
-  return `${window.location.origin}${OAUTH_CALLBACK_PATH}?next=${next}`;
+  return `${origin}${OAUTH_CALLBACK_PATH}?next=${next}`;
 }
 
 /**
