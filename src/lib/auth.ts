@@ -177,6 +177,22 @@ export async function getAccessibleStores(
   return access ? [access.store] : [];
 }
 
+/**
+ * True when `id` belongs to a real `users` row. Follow tables store either an
+ * app user id or an anonymous client-generated UUID — this distinguishes them
+ * so anonymous follows can be safely merged into an account without ever
+ * deleting another user's follow rows.
+ */
+export async function isAppUserId(id: string): Promise<boolean> {
+  if (!UUID_PATTERN.test(id)) return false;
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  return rows.length > 0;
+}
+
 // Get session with store info
 export async function getSessionWithStore(): Promise<SessionUser | null> {
   const session = await getSession();

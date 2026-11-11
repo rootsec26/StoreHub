@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { storeFollowers, stores } from "@/db/schema";
-import { getSessionWithStore } from "@/lib/auth";
+import { getSessionWithStore, isAppUserId } from "@/lib/auth";
 import { createErrorResponse } from "@/lib/errors";
 import { getStoreBySlug, isValidUuid } from "@/lib/storefront";
 import { storefrontFollowRateLimiter, withRateLimit } from "@/lib/rate-limit";
@@ -71,13 +71,21 @@ async function followerCount(store: StoreRef): Promise<number> {
 }
 
 async function isFollowing(storeId: string, userId: string): Promise<boolean> {
+  return isFollowingAny(storeId, [userId]);
+}
+
+async function isFollowingAny(
+  storeId: string,
+  userIds: string[]
+): Promise<boolean> {
+  if (userIds.length === 0) return false;
   const rows = await db
     .select({ id: storeFollowers.id })
     .from(storeFollowers)
     .where(
       and(
         eq(storeFollowers.storeId, storeId),
-        eq(storeFollowers.userId, userId)
+        inArray(storeFollowers.userId, userIds)
       )
     )
     .limit(1);
@@ -87,19 +95,49 @@ async function isFollowing(storeId: string, userId: string): Promise<boolean> {
 /**
  * Resolve who is following: a signed-in app user always wins (their session
  * id is authoritative); anonymous shoppers are identified by a
- * client-generated id persisted in localStorage.
+ * client-generated id persisted in localStorage. `providedId` is the raw
+ * client-supplied id — kept alongside so anonymous follows can be merged
+ * into the account after sign-in.
  */
 async function resolveFollowerId(
   provided: unknown
-): Promise<{ followerId: string | null; sessionStoreId?: string }> {
+): Promise<{
+  followerId: string | null;
+  providedId: string | null;
+  sessionStoreId?: string;
+}> {
+  const providedId = isValidFollowerId(provided) ? provided : null;
   const session = await getSessionWithStore();
   if (session?.id) {
-    return { followerId: session.id, sessionStoreId: session.storeId };
+    return {
+      followerId: session.id,
+      providedId,
+      sessionStoreId: session.storeId,
+    };
   }
   return {
-    followerId: isValidFollowerId(provided) ? provided : null,
+    followerId: providedId,
+    providedId,
     sessionStoreId: session?.storeId,
   };
+}
+
+/**
+ * Ids whose follow rows may be touched for this request: the resolved
+ * follower id plus the client-provided id — but only when it is NOT a real
+ * app user (anonymous ids are safe to merge/delete; a different account's
+ * rows are never touched).
+ */
+async function manageableFollowerIds(
+  followerId: string | null,
+  providedId: string | null
+): Promise<string[]> {
+  const ids = new Set<string>();
+  if (followerId) ids.add(followerId);
+  if (providedId && providedId !== followerId) {
+    if (!(await isAppUserId(providedId))) ids.add(providedId);
+  }
+  return [...ids];
 }
 
 /**
@@ -122,12 +160,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { followerId } = await resolveFollowerId(
+    const { followerId, providedId } = await resolveFollowerId(
       params.get("followerId")
     );
+    // A shopper who followed anonymously and then signed in still counts as
+    // following — check both the session id and their anonymous id.
+    const checkIds = await manageableFollowerIds(followerId, providedId);
     const [count, following] = await Promise.all([
       followerCount(store),
-      followerId ? isFollowing(store.id, followerId) : Promise.resolve(false),
+      isFollowingAny(store.id, checkIds),
     ]);
 
     return NextResponse.json({ count, following });
@@ -167,9 +208,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { followerId, sessionStoreId } = await resolveFollowerId(
-      body.followerId
-    );
+    const { followerId, providedId, sessionStoreId } =
+      await resolveFollowerId(body.followerId);
     if (!followerId) {
       return NextResponse.json(
         { error: "A follower id is required", code: "MISSING_FOLLOWER_ID" },
@@ -200,6 +240,21 @@ export async function POST(request: NextRequest) {
         const code = (error as { code?: string }).code;
         if (code !== "23505") throw error;
       }
+    }
+
+    // Merge an anonymous follow into the signed-in account so the user ends
+    // up with exactly one active follow row per store.
+    const mergeIds = await manageableFollowerIds(followerId, providedId);
+    const anonIds = mergeIds.filter((id) => id !== followerId);
+    if (anonIds.length > 0) {
+      await db
+        .delete(storeFollowers)
+        .where(
+          and(
+            eq(storeFollowers.storeId, store.id),
+            inArray(storeFollowers.userId, anonIds)
+          )
+        );
     }
 
     const count = await followerCount(store);
@@ -239,7 +294,9 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { followerId } = await resolveFollowerId(body.followerId);
+    const { followerId, providedId } = await resolveFollowerId(
+      body.followerId
+    );
     if (!followerId) {
       return NextResponse.json(
         { error: "A follower id is required", code: "MISSING_FOLLOWER_ID" },
@@ -247,12 +304,15 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Unfollow every id this request may manage — covers the anonymous row a
+    // shopper created before signing in, so the toggle always clears state.
+    const deleteIds = await manageableFollowerIds(followerId, providedId);
     await db
       .delete(storeFollowers)
       .where(
         and(
           eq(storeFollowers.storeId, store.id),
-          eq(storeFollowers.userId, followerId)
+          inArray(storeFollowers.userId, deleteIds)
         )
       );
 
