@@ -1456,6 +1456,7 @@ const en = {
   "landing.app.inAppSubtitle":
     "Manage your store, track orders and grow your business — all from one place.",
   "landing.app.openDashboard": "Open Dashboard",
+  "landing.app.comingSoon": "Coming soon",
   "store.preview.title": "You're browsing your store",
   "store.preview.badge": "Store Preview — Dashboard",
   "store.preview.back": "Back to Dashboard",
@@ -3684,6 +3685,7 @@ const ar: Record<TranslationKey, string> = {
   "landing.app.inAppSubtitle":
     "أدر متجرك وتابع طلباتك ونمِّ أعمالك — كل ذلك من مكان واحد.",
   "landing.app.openDashboard": "افتح لوحة التحكم",
+  "landing.app.comingSoon": "قريباً",
   "store.preview.title": "أنت تتصفح متجرك الآن",
   "store.preview.badge": "وضع معاينة المتجر — لوحة التحكم",
   "store.preview.back": "العودة إلى لوحة التحكم",

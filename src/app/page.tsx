@@ -26,7 +26,6 @@ import {
 } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
-import { ANDROID_APK_URL } from "@/lib/app-download";
 import { isFreeMode } from "@/lib/free-mode";
 import { isNativeAppShell } from "@/lib/platform";
 import LanguageToggle from "@/components/LanguageToggle";
@@ -429,14 +428,14 @@ export default function LandingPage() {
                   {t("landing.app.note")}
                 </p>
               </div>
-              <a
-                href={ANDROID_APK_URL}
-                download="storehub.apk"
-                className="mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-base font-bold text-indigo-700 shadow-xl shadow-indigo-950/30 transition-all hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-2xl"
+              <button
+                type="button"
+                disabled
+                className="mt-auto inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-white/15 px-6 py-3.5 text-base font-bold text-white/80 opacity-70 shadow-xl shadow-indigo-950/30 pointer-events-none"
               >
                 <Download className="h-5 w-5" />
-                {t("landing.app.button")}
-              </a>
+                {t("landing.app.comingSoon")}
+              </button>
             </div>
 
             {/* Windows */}
@@ -450,13 +449,14 @@ export default function LandingPage() {
                   {t("landing.app.windows.note")}
                 </p>
               </div>
-              <a
-                href="https://github.com/rootsec26/StoreHub/releases/download/v0.1.5/StoreHub_0.1.5_x64-setup.exe"
-                className="mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-base font-bold text-indigo-700 shadow-xl shadow-indigo-950/30 transition-all hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-2xl"
+              <button
+                type="button"
+                disabled
+                className="mt-auto inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-white/15 px-6 py-3.5 text-base font-bold text-white/80 opacity-70 shadow-xl shadow-indigo-950/30 pointer-events-none"
               >
                 <Download className="h-5 w-5" />
-                {t("landing.app.windows.button")}
-              </a>
+                {t("landing.app.comingSoon")}
+              </button>
             </div>
           </div>
             </>
