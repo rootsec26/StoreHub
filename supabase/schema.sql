@@ -14,6 +14,8 @@ CREATE TABLE users (
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   name TEXT NOT NULL,
+  products JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_used_product TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

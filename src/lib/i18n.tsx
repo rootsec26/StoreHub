@@ -48,6 +48,9 @@ const en = {
   "nav.pricing": "Pricing",
   "nav.faq": "الأسئلة الشائعة",
   "nav.topStores": "Top Stores",
+  "nav.storehub": "StoreHub",
+  "nav.about": "About Aura",
+  "nav.pricingGeneral": "Pricing & Plans",
   "nav.barcodes": "Barcode & QR Label Generator",
   "nav.products": "Products",
   "nav.categories": "Categories",
@@ -1345,6 +1348,88 @@ const en = {
   // --------------------------------------------
   "landing.signIn": "Sign In",
   "landing.getStarted": "Start Free",
+  "landing.aura.badge": "Aura Ecosystem",
+  "landing.aura.title":
+    "The Aura ecosystem for software solutions and integrated cloud platforms.",
+  "landing.aura.subtitle":
+    "Aura is a parent technology ecosystem bringing scalable SaaS products together — starting with StoreHub and expanding into education, operations and future verticals.",
+  "landing.aura.ctaPrimary": "Explore Aura products",
+  "landing.aura.ctaSecondary": "Explore Aura capabilities",
+  "landing.aura.navCta": "Explore products",
+  "landing.aura.highlight1.title": "Unified ecosystem",
+  "landing.aura.highlight1.desc":
+    "One account experience across Aura products.",
+  "landing.aura.highlight2.title": "Enterprise security",
+  "landing.aura.highlight2.desc":
+    "Strong isolation, encryption and clear permissions.",
+  "landing.aura.highlight3.title": "Built for growth",
+  "landing.aura.highlight3.desc":
+    "Start with StoreHub and expand as Aura adds modules.",
+  "landing.products.title": "Explore the Aura Ecosystem",
+  "landing.products.subtitle":
+    "Choose a product to get started. More Aura modules are on the way.",
+  "landing.products.available": "Available now",
+  "landing.products.comingSoon": "Coming soon",
+  "landing.product.storehub.name": "StoreHub",
+  "landing.product.storehub.tagline": "Multi-tenant e-commerce",
+  "landing.product.storehub.description":
+    "Create, manage and grow your online store with products, orders, shipping, payments, POS and AI tools.",
+  "landing.product.storehub.cta": "Start StoreHub free",
+  "landing.product.academy.name": "Aura Academy",
+  "landing.product.academy.tagline": "Learning platform",
+  "landing.product.academy.description":
+    "Courses, students and learning operations — coming soon to the Aura ecosystem.",
+  "landing.product.future.name": "Aura Solutions",
+  "landing.product.future.tagline": "SaaS solution slots",
+  "landing.product.future.description":
+    "Reserved slots for upcoming Aura SaaS verticals and enterprise solutions.",
+  "landing.footer.ecosystem":
+    "Aura — unified software ecosystem for scalable business products.",
+  "landing.auraFeatures.title": "Capabilities built for scale",
+  "landing.auraFeatures.subtitle":
+    "Core platform strengths shared across Aura products.",
+  "landing.auraFeature1.title": "High scalability",
+  "landing.auraFeature1.desc":
+    "Architecture designed to grow with tenants, traffic and data.",
+  "landing.auraFeature2.title": "Multi-tenant architecture",
+  "landing.auraFeature2.desc":
+    "Run many businesses on shared infrastructure with isolated data.",
+  "landing.auraFeature3.title": "Enterprise security",
+  "landing.auraFeature3.desc":
+    "Strong isolation, encryption and permission controls.",
+  "landing.auraFeature4.title": "Modern AI tools",
+  "landing.auraFeature4.desc":
+    "AI-assisted workflows built into Aura products.",
+  "landing.about.title": "About Aura",
+  "landing.about.subtitle": "A parent ecosystem for business software",
+  "landing.about.p1":
+    "Aura is a technology company building a family of scalable SaaS products. Instead of separate tools, each module shares the same account, security and platform foundations.",
+  "landing.about.p2":
+    "StoreHub is our flagship e-commerce product. Aura Academy and future SaaS verticals will join the ecosystem with dedicated product experiences.",
+  "landing.about.point1": "Unified account experience",
+  "landing.about.point2": "Shared security and permissions",
+  "landing.about.point3": "Products that can expand independently",
+  "landing.auraPricing.title": "Aura General Plans",
+  "landing.auraPricing.subtitle":
+    "Product-specific plans live inside each module; ecosystem packaging will be announced as new products launch.",
+  "landing.auraPricing.cardTitle": "Ecosystem launch pricing",
+  "landing.auraPricing.cardDesc":
+    "StoreHub is available now with its own free and Pro plans. Aura Academy and future modules will share ecosystem pricing when they launch.",
+  "landing.auraPricing.cta": "Explore products",
+  "landing.auraFaq.title": "Aura FAQ",
+  "landing.auraFaq.subtitle": "Common questions about the Aura ecosystem.",
+  "landing.auraFaq.q1": "What is Aura?",
+  "landing.auraFaq.a1":
+    "Aura is a parent technology ecosystem for scalable SaaS products, starting with StoreHub.",
+  "landing.auraFaq.q2": "Is StoreHub part of Aura?",
+  "landing.auraFaq.a2":
+    "Yes. StoreHub is Aura's flagship multi-tenant e-commerce product.",
+  "landing.auraFaq.q3": "When will Aura Academy launch?",
+  "landing.auraFaq.a3":
+    "Aura Academy is in development and will appear as an active product card when ready.",
+  "landing.auraFaq.q4": "Will Aura products share one account?",
+  "landing.auraFaq.a4":
+    "Aura is designed around a unified account experience, with product-specific access where needed.",
   "landing.heroTitle":
     "Build Your Online Store in Minutes.. and Sell Smarter, Without the Complexity!",
   "landing.heroSubtitle":
@@ -1405,7 +1490,7 @@ const en = {
   "landing.ctaSubtitle":
     "Join hundreds of merchants who sell smarter with StoreHub",
   "landing.ctaButton": "Create Your Free Store",
-  "landing.rights": "© {year} StoreHub. All rights reserved.",
+  "landing.rights": "© {year} Aura. All rights reserved.",
   "landing.heroBadge": "The #1 E-Commerce Platform for Egyptian Merchants",
   "landing.heroStat1": "1000+ Active Stores",
   "landing.heroStat2": "50K+ Orders Processed",
@@ -2143,6 +2228,84 @@ const en = {
   "verify.benefit4Title": "Trust emblem",
   "verify.benefit4Desc":
     "The royal blue mark appears next to your store name everywhere.",
+
+  // --------------------------------------------
+  // Aura Hub — product selection
+  // --------------------------------------------
+  "auraHub.title": "Choose your Aura product",
+  "auraHub.subtitle":
+    "Pick where you want to continue — you can switch products anytime.",
+  "auraHub.badgeActive": "Active",
+  "auraHub.badgeInProgress": "In progress",
+  "auraHub.badgeNotActivated": "Not activated",
+  "auraHub.badgeComingSoon": "Coming soon",
+  "auraHub.badgeExpired": "Expired",
+  "auraHub.ctaOpen": "Open",
+  "auraHub.ctaContinue": "Continue",
+  "auraHub.ctaStart": "Start",
+  "auraHub.ctaSubscribe": "Subscribe to activate StoreHub",
+  "auraHub.ctaSetupStore": "Set up your store",
+  "auraHub.continueLabel": "Continue where you left off",
+  "auraHub.comingSoonTitle": "Coming soon",
+  "auraHub.comingSoonBody":
+    "{name} is on the way. Join the waitlist and we'll let you know the moment it launches.",
+  "auraHub.notifyMe": "Notify me",
+  "auraHub.waitlisted": "You're on the list",
+  "auraHub.productsLabel": "Products",
+  "auraHub.switchProduct": "Switch product",
+  "auraHub.openHub": "Open product hub",
+  "auraHub.error": "Something went wrong. Please try again.",
+
+  // Manual subscription billing
+  "billing.planMonthly": "StoreHub Monthly",
+  "billing.pageTitle": "Subscription & Billing",
+  "billing.pageSubtitle": "Pay for StoreHub manually via Vodafone Cash.",
+  "billing.wallet": "Receive money on",
+  "billing.amount": "Amount",
+  "billing.duration": "Duration",
+  "billing.days": "{days} days",
+  "billing.method": "Payment method",
+  "billing.senderPhone": "Sender phone (Vodafone)",
+  "billing.transactionId": "Transaction ID (operation number)",
+  "billing.reference": "Request ID",
+  "billing.submit": "Submit payment request",
+  "billing.pending": "Pending review",
+  "billing.approved": "Approved",
+  "billing.rejected": "Rejected",
+  "billing.expired": "Expired",
+  "billing.subscribeToActivate": "Subscribe to activate StoreHub",
+  "billing.neverPaidNotice": "Your store needs an active StoreHub subscription to unlock the dashboard.",
+  "billing.activeUntil": "Active until {date}",
+  "billing.expiredNotice": "Your subscription has expired. Renew to keep your store online.",
+  "billing.history": "Payment history",
+  "billing.empty": "No payment requests yet",
+  "billing.proofUpload": "Upload proof (image)",
+  "billing.proofUploaded": "Proof attached",
+  "billing.adminTitle": "Payment requests",
+  "billing.adminReminder": "Verify the money actually arrived in the wallet before approving.",
+  "billing.approve": "Approve",
+  "billing.reject": "Reject",
+  "billing.rejectReason": "Rejection reason",
+  "billing.statusActive": "Active",
+  "billing.statusTrial": "Trial",
+  "billing.statusExpired": "Expired",
+  "billing.createdAt": "Created",
+  "billing.renew": "Renew subscription",
+  "billing.loading": "Loading…",
+  "billing.requestCreated": "Request submitted — we'll review it and activate your subscription after approval.",
+  "billing.choosePlan": "Choose a plan",
+  "billing.instructions": "How to pay",
+  "billing.yourRequests": "Your requests",
+  "billing.viewProof": "View proof",
+  "billing.noProof": "No proof uploaded",
+  "billing.allRequests": "All payment requests",
+  "storefront.unavailableTitle": "Store temporarily unavailable",
+  "storefront.unavailableBody": "{name} is not accepting orders right now. Please check back later.",
+  "storefront.unavailableNote": "This store is taking a short break — we'll be back soon.",
+  "billing.waitingApproval": "Waiting for approval — this page updates automatically.",
+  "billing.subscriptionActive": "Subscription active",
+  "billing.setupStore": "Set up your store",
+  "billing.backToDashboard": "Back to dashboard",
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -2171,6 +2334,9 @@ const ar: Record<TranslationKey, string> = {
   "nav.pricing": "الأسعار",
   "nav.faq": "الأسئلة الشائعة",
   "nav.topStores": "أفضل المتاجر",
+  "nav.storehub": "StoreHub",
+  "nav.about": "عن Aura",
+  "nav.pricingGeneral": "الأسعار / الباقات العامة",
   "nav.barcodes": "باركود ورموز QR",
   "nav.products": "المنتجات",
   "nav.categories": "الأقسام",
@@ -3583,6 +3749,84 @@ const ar: Record<TranslationKey, string> = {
   // Landing page
   "landing.signIn": "تسجيل الدخول",
   "landing.getStarted": "ابدأ مجاناً",
+  "landing.aura.badge": "منظومة Aura",
+  "landing.aura.title":
+    "منظومة Aura للحلول البرمجية والمنصات السحابية المتكاملة.",
+  "landing.aura.subtitle":
+    "Aura هي منظومة تقنية أم تجمع منتجات SaaS قابلة للتوسع — نبدأ بـ StoreHub ونتوسع إلى التعليم والعمليات والقطاعات المستقبلية.",
+  "landing.aura.ctaPrimary": "استكشف منتجات Aura",
+  "landing.aura.ctaSecondary": "استكشف قدرات Aura",
+  "landing.aura.navCta": "استكشف المنتجات",
+  "landing.aura.highlight1.title": "منظومة موحدة",
+  "landing.aura.highlight1.desc": "تجربة حساب واحدة عبر منتجات Aura.",
+  "landing.aura.highlight2.title": "أمان مؤسسي",
+  "landing.aura.highlight2.desc": "عزل قوي وتشفير وصلاحيات واضحة.",
+  "landing.aura.highlight3.title": "مصممة للنمو",
+  "landing.aura.highlight3.desc":
+    "ابدأ بـ StoreHub وتوسع مع إطلاق وحدات Aura الجديدة.",
+  "landing.products.title": "استكشف منظومة Aura",
+  "landing.products.subtitle":
+    "اختر منتجاً للبدء. المزيد من وحدات Aura في الطريق.",
+  "landing.products.available": "متاح الآن",
+  "landing.products.comingSoon": "قريباً",
+  "landing.product.storehub.name": "StoreHub",
+  "landing.product.storehub.tagline": "تجارة إلكترونية متعددة المتاجر",
+  "landing.product.storehub.description":
+    "أنشئ وأدر ونمِّ متجرك الإلكتروني مع المنتجات والطلبات والشحن والمدفوعات ونقطة البيع وأدوات الذكاء الاصطناعي.",
+  "landing.product.storehub.cta": "ابدأ StoreHub مجاناً",
+  "landing.product.academy.name": "Aura Academy",
+  "landing.product.academy.tagline": "المنصة التعليمية",
+  "landing.product.academy.description":
+    "الدورات والطلاب وعمليات التعلم — قريباً ضمن منظومة Aura.",
+  "landing.product.future.name": "Aura Solutions",
+  "landing.product.future.tagline": "مساحات حلول SaaS",
+  "landing.product.future.description":
+    "مساحات محجوزة لقطاعات Aura SaaS والحلول المؤسسية القادمة.",
+  "landing.footer.ecosystem":
+    "Aura — منظومة برمجية موحدة لمنتجات أعمال قابلة للتوسع.",
+  "landing.auraFeatures.title": "قدرات مبنية للتوسع",
+  "landing.auraFeatures.subtitle": "نقاط قوة أساسية تتشاركها منتجات Aura.",
+  "landing.auraFeature1.title": "قابلية توسع عالية",
+  "landing.auraFeature1.desc":
+    "بنية مصممة للنمو مع المستأجرين والزيارات والبيانات.",
+  "landing.auraFeature2.title": "بنية متعددة المستأجرين",
+  "landing.auraFeature2.desc":
+    "تشغيل أعمال متعددة على بنية مشتركة مع عزل البيانات.",
+  "landing.auraFeature3.title": "أمان مؤسسي",
+  "landing.auraFeature3.desc": "عزل قوي وتشفير وضوابط صلاحيات.",
+  "landing.auraFeature4.title": "أدوات ذكاء اصطناعي حديثة",
+  "landing.auraFeature4.desc":
+    "سير عمل مدعوم بالذكاء الاصطناعي داخل منتجات Aura.",
+  "landing.about.title": "عن Aura",
+  "landing.about.subtitle": "منظومة أم لحلول برمجية للأعمال",
+  "landing.about.p1":
+    "Aura شركة تقنية تبني عائلة من منتجات SaaS قابلة للتوسع. بدلاً من أدوات منفصلة، تتشارك كل وحدة نفس الأساسيات للحساب والأمان والمنصة.",
+  "landing.about.p2":
+    "StoreHub هو منتج التجارة الإلكترونية الرئيسي لدينا. ستنضم Aura Academy وقطاعات SaaS المستقبلية إلى المنظومة بتجارب منتجات مخصصة.",
+  "landing.about.point1": "تجربة حساب موحدة",
+  "landing.about.point2": "أمان وصلاحيات مشتركة",
+  "landing.about.point3": "منتجات تتوسع بشكل مستقل",
+  "landing.auraPricing.title": "باقات Aura العامة",
+  "landing.auraPricing.subtitle":
+    "خطط كل منتج موجودة داخل وحدته؛ وسيتم إعلان باقات المنظومة مع إطلاق المنتجات الجديدة.",
+  "landing.auraPricing.cardTitle": "تسعير إطلاق المنظومة",
+  "landing.auraPricing.cardDesc":
+    "StoreHub متاح الآن مع خطتيه المجانية وبرو. ستشارك Aura Academy والوحدات المستقبلية تسعير المنظومة عند إطلاقها.",
+  "landing.auraPricing.cta": "استكشف المنتجات",
+  "landing.auraFaq.title": "أسئلة شائعة عن Aura",
+  "landing.auraFaq.subtitle": "أسئلة شائعة حول منظومة Aura.",
+  "landing.auraFaq.q1": "ما هي Aura؟",
+  "landing.auraFaq.a1":
+    "Aura هي منظومة تقنية أم لمنتجات SaaS قابلة للتوسع، تبدأ بـ StoreHub.",
+  "landing.auraFaq.q2": "هل StoreHub جزء من Aura؟",
+  "landing.auraFaq.a2":
+    "نعم. StoreHub هو منتج Aura الرئيسي للتجارة الإلكترونية متعددة المتاجر.",
+  "landing.auraFaq.q3": "متى ستطلق Aura Academy؟",
+  "landing.auraFaq.a3":
+    "Aura Academy قيد التطوير وستظهر كبطاقة منتج نشطة عند جاهزيتها.",
+  "landing.auraFaq.q4": "هل ستتشارك منتجات Aura حساباً واحداً؟",
+  "landing.auraFaq.a4":
+    "صُممت Aura حول تجربة حساب موحدة، مع وصول خاص بكل منتج عند الحاجة.",
   "landing.heroTitle": "ابنِ متجرك الإلكتروني في دقائق.. وبِع بذكاء وبدون تعقيد!",
   "landing.heroSubtitle":
     "منصة تجارة إلكترونية متكاملة مدعومة بالذكاء الاصطناعي، درع تأكيد طلبات الواتساب، الشحن الآلي، ونقاط الولاء.",
@@ -3634,7 +3878,7 @@ const ar: Record<TranslationKey, string> = {
   "landing.ctaTitle": "جاهز لإطلاق متجرك؟",
   "landing.ctaSubtitle": "انضم إلى مئات التجار الذين يبيعون بذكاء مع StoreHub",
   "landing.ctaButton": "أنشئ متجرك مجاناً",
-  "landing.rights": "© {year} StoreHub. جميع الحقوق محفوظة.",
+  "landing.rights": "© {year} Aura. جميع الحقوق محفوظة.",
   "landing.heroBadge": "منصة التجارة الإلكترونية الأولى لتجار مصر",
   "landing.heroStat1": "+1000 متجر نشط",
   "landing.heroStat2": "+50 ألف طلب",
@@ -4155,6 +4399,81 @@ const ar: Record<TranslationKey, string> = {
     "الحصول على 10,000 متابع حقيقي يرفع مصداقية متجرك فوراً.",
   "verify.benefit4Title": "شعار الموثوقية",
   "verify.benefit4Desc": "العلامة الزرقاء الملكية تظهر بجانب اسم متجرك في كل مكان.",
+
+  // Aura Hub — product selection
+  "auraHub.title": "اختر منتج Aura",
+  "auraHub.subtitle": "اختر من أين تريد المتابعة — يمكنك التبديل بين المنتجات في أي وقت.",
+  "auraHub.badgeActive": "نشط",
+  "auraHub.badgeInProgress": "قيد الإعداد",
+  "auraHub.badgeNotActivated": "غير مفعّل",
+  "auraHub.badgeComingSoon": "قريباً",
+  "auraHub.badgeExpired": "منتهي",
+  "auraHub.ctaOpen": "فتح",
+  "auraHub.ctaContinue": "متابعة",
+  "auraHub.ctaStart": "ابدأ",
+  "auraHub.ctaSubscribe": "اشترك لتفعيل StoreHub",
+  "auraHub.ctaSetupStore": "أنشئ متجرك",
+  "auraHub.continueLabel": "متابعة من حيث توقفت",
+  "auraHub.comingSoonTitle": "قريباً",
+  "auraHub.comingSoonBody":
+    "{name} في الطريق. انضم إلى قائمة الانتظار وسنخبرك فور إطلاقه.",
+  "auraHub.notifyMe": "أعلمني",
+  "auraHub.waitlisted": "أنت على القائمة",
+  "auraHub.productsLabel": "المنتجات",
+  "auraHub.switchProduct": "تبديل المنتج",
+  "auraHub.openHub": "فتح مركز المنتجات",
+  "auraHub.error": "حدث خطأ ما. حاول مرة أخرى.",
+
+  // Manual subscription billing
+  "billing.planMonthly": "اشتراك StoreHub الشهري",
+  "billing.pageTitle": "الاشتراك والفوترة",
+  "billing.pageSubtitle": "ادفع اشتراك StoreHub يدوياً عبر فودافون كاش.",
+  "billing.wallet": "رقم المحفظة",
+  "billing.amount": "المبلغ",
+  "billing.duration": "المدة",
+  "billing.days": "{days} يوم",
+  "billing.method": "طريقة الدفع",
+  "billing.senderPhone": "رقم هاتف المرسل (فودافون)",
+  "billing.transactionId": "رقم العملية",
+  "billing.reference": "رقم الطلب",
+  "billing.submit": "إرسال طلب الدفع",
+  "billing.pending": "قيد المراجعة",
+  "billing.approved": "مقبول",
+  "billing.rejected": "مرفوض",
+  "billing.expired": "منتهي",
+  "billing.subscribeToActivate": "اشترك لتفعيل StoreHub",
+  "billing.neverPaidNotice": "يحتاج متجرك إلى اشتراك StoreHub فعّال لفتح لوحة التحكم.",
+  "billing.activeUntil": "نشط حتى {date}",
+  "billing.expiredNotice": "انتهى اشتراكك. جدد الاشتراك لاستمرار متجرك.",
+  "billing.history": "سجل المدفوعات",
+  "billing.empty": "لا توجد طلبات دفع بعد",
+  "billing.proofUpload": "رفع إثبات الدفع (صورة)",
+  "billing.proofUploaded": "تم إرفاق الإثبات",
+  "billing.adminTitle": "طلبات الدفع",
+  "billing.adminReminder": "تأكد من وصول المبلغ فعلياً إلى المحفظة قبل الموافقة.",
+  "billing.approve": "موافقة",
+  "billing.reject": "رفض",
+  "billing.rejectReason": "سبب الرفض",
+  "billing.statusActive": "نشط",
+  "billing.statusTrial": "تجريبي",
+  "billing.statusExpired": "منتهي",
+  "billing.createdAt": "تاريخ الإنشاء",
+  "billing.renew": "تجديد الاشتراك",
+  "billing.loading": "جارٍ التحميل…",
+  "billing.requestCreated": "تم إرسال الطلب — سنراجعه ويفعّل اشتراكك بعد الموافقة.",
+  "billing.choosePlan": "اختر خطة",
+  "billing.instructions": "طريقة الدفع",
+  "billing.yourRequests": "طلباتك",
+  "billing.viewProof": "عرض الإثبات",
+  "billing.noProof": "لا يوجد إثبات مرفق",
+  "billing.allRequests": "كل طلبات الدفع",
+  "storefront.unavailableTitle": "المتجر غير متاح مؤقتاً",
+  "storefront.unavailableBody": "{name} لا يستقبل طلبات الآن. يرجى المحاولة لاحقاً.",
+  "storefront.unavailableNote": "هذا المتجر في استراحة قصيرة — سنعود قريباً.",
+  "billing.waitingApproval": "بانتظار الموافقة — يتم تحديث هذه الصفحة تلقائياً.",
+  "billing.subscriptionActive": "الاشتراك نشط",
+  "billing.setupStore": "أنشئ متجرك",
+  "billing.backToDashboard": "العودة إلى لوحة التحكم",
 };
 
 const dictionaries: Record<Locale, Record<TranslationKey, string>> = {

@@ -22,6 +22,7 @@ import { getSiteUrl } from "@/lib/site";
 import { isTauriDesktopApp, openStoreWindow } from "@/lib/platform";
 import NotificationBell from "@/components/dashboard/NotificationBell";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import ProductMenu from "@/components/products/ProductMenu";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { useOrdersRealtime, type RealtimeStatus } from "@/lib/realtime";
@@ -410,6 +411,8 @@ export default function DashboardLayout({
               </Link>
             </div>
           )}
+
+          <ProductMenu />
 
           <NotificationBell />
 

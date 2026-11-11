@@ -5,6 +5,11 @@ import { eq } from "drizzle-orm";
 import { createSession, getAccessibleStores, getSession } from "@/lib/auth";
 import { createErrorResponse, extractDbErrorInfo } from "@/lib/errors";
 import { buildStoreUpdate, readJsonObject } from "@/lib/store-update";
+import {
+  markProductOnboardingComplete,
+  getUserProductState,
+  setLastUsedProduct,
+} from "@/lib/products-server";
 
 // Check slug availability
 export async function GET(request: NextRequest) {
@@ -73,6 +78,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // One store per account — owners and team members alike already have
+    // store access resolved from the DB, so block accidental second stores.
+    const accessible = await getAccessibleStores(session.id);
+    if (accessible.length > 0) {
+      return NextResponse.json(
+        { error: "You already belong to a store", code: "ALREADY_IN_STORE" },
+        { status: 409 }
+      );
+    }
+
+    // Pay-first: store creation requires an approved StoreHub payment.
+    const { products: hubProducts } = await getUserProductState(session.id);
+    if (hubProducts.storehub?.status !== "active") {
+      return NextResponse.json(
+        {
+          error: "An active StoreHub subscription is required. Subscribe from Billing.",
+          code: "SUBSCRIPTION_REQUIRED",
+        },
+        { status: 402 }
+      );
+    }
+
     const result = await db
       .insert(stores)
       .values({
@@ -87,6 +114,13 @@ export async function POST(request: NextRequest) {
       .returning();
 
     const store = result[0];
+
+    // Store creation completes StoreHub onboarding in the Aura Hub map.
+    // No trial is granted — access requires an approved payment.
+    await markProductOnboardingComplete(session.id, "storehub").catch(
+      () => undefined
+    );
+    await setLastUsedProduct(session.id, "storehub").catch(() => undefined);
 
     // Re-issue the session cookie with the new store so middleware stops
     // bouncing this user back to /onboarding on the next navigation.

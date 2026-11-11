@@ -13,6 +13,7 @@ import {
 import { getSupabaseConfig } from "@/lib/supabase/server";
 import { withRateLimit, authRateLimiter } from "@/lib/rate-limit";
 import { extractDbErrorInfo, createErrorResponse } from "@/lib/errors";
+import { isAdminEmail } from "@/lib/admin";
 
 /**
  * Cookie domain for the app session. On a store subdomain
@@ -135,6 +136,20 @@ export async function POST(request: NextRequest) {
     );
   }
   const email = supabaseEmail.trim().toLowerCase();
+
+  // The admin email grants platform-admin rights on session email match.
+  // Only accept it when the identity provider verified mailbox ownership —
+  // an unconfirmed OAuth email must never mint an admin session.
+  if (isAdminEmail(email) && !supabaseUser.email_confirmed_at) {
+    return NextResponse.json(
+      {
+        error: "Admin sign-in requires a verified email",
+        code: "EMAIL_NOT_VERIFIED",
+      },
+      { status: 403 }
+    );
+  }
+
   const name = displayNameFromMetadata(
     supabaseUser.user_metadata as Record<string, unknown> | undefined,
     email
@@ -180,17 +195,12 @@ export async function POST(request: NextRequest) {
 
     const token = await createSession(sessionUser);
 
-    // Routing: an explicit internal `next` wins (e.g. returning to checkout).
-    // Otherwise merchants land on their dashboard and new users on the store
-    // creation wizard with their Google name pre-filled.
-    let redirectUrl: string;
-    if (requestedNext) {
-      redirectUrl = requestedNext;
-    } else if (access) {
-      redirectUrl = "/dashboard";
-    } else {
-      redirectUrl = `/onboarding?name=${encodeURIComponent(name)}`;
-    }
+    // Aura Hub routing: everyone lands on /select-product after sign-in.
+    // A safe internal `next` is forwarded so the hub can honour the original
+    // destination once product access is confirmed.
+    const redirectUrl = requestedNext
+      ? `/select-product?next=${encodeURIComponent(requestedNext)}`
+      : "/select-product";
 
     const response = NextResponse.json({ success: true, redirectUrl });
 

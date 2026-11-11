@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionWithStore } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { createErrorResponse } from "@/lib/errors";
+import { getUserProductState } from "@/lib/products-server";
 
 export async function GET() {
   try {
@@ -10,6 +11,9 @@ export async function GET() {
     if (!session) {
       return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
+
+    // Effective StoreHub subscription state (evaluated: trial/active/expired).
+    const { products } = await getUserProductState(session.id);
 
     return NextResponse.json({
       user: {
@@ -25,6 +29,9 @@ export async function GET() {
           }
         : null,
       isAdmin: isAdminEmail(session.email),
+      subscription: {
+        storehub: products.storehub ?? null,
+      },
     });
   } catch (error) {
     console.error("Get session error:", error);

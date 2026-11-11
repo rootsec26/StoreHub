@@ -1,5 +1,10 @@
 import { PRODUCTION_SITE_URL, safeParseUrl, urlToString } from "@/lib/url";
 
+export const AURA_SITE_NAME = "Aura";
+
+export const AURA_SITE_DESCRIPTION =
+  "Aura is a scalable SaaS ecosystem. Start with StoreHub, our flagship multi-tenant e-commerce platform, with more products on the way.";
+
 export const SITE_NAME = "StoreHub";
 
 export const SITE_DESCRIPTION =

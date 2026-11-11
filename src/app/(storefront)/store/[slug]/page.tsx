@@ -14,6 +14,8 @@ import type {
 import { resolveThemeConfig } from "@/lib/theme-config";
 import { hasFeatureAccess } from "@/lib/paywall";
 import { getStorePromotions } from "@/lib/storefront";
+import { getStorehubEntitlement } from "@/lib/store-access";
+import StoreUnavailable from "./StoreUnavailable";
 import StorefrontRenderer from "./storefront-renderer";
 
 const FALLBACK_CURRENCY = "EGP";
@@ -165,6 +167,17 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
   const { slug } = await params;
   const storeRow = await fetchStoreBySlug(slug);
   if (!storeRow) notFound();
+
+  // Locked StoreHub subscription (never paid or lapsed past grace): show a
+  // clear unavailable page BEFORE fetching any catalog data — nothing
+  // leaks. Fail-open on lookup errors so a DB hiccup never closes a shop.
+  const entitlement = await getStorehubEntitlement(
+    storeRow.ownerId,
+    storeRow.id
+  ).catch(() => null);
+  if (entitlement && entitlement.status !== "active") {
+    return <StoreUnavailable storeName={storeRow.name} />;
+  }
 
   const currency = safeCurrency(storeRow.currency);
   const supportedCurrencies = safeSupportedCurrencies(storeRow.supportedCurrencies);

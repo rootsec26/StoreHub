@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { db } from "@/db";
 import { users, stores, storeMembers } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import { hasStoreAccess } from "@/lib/store-access";
 
 const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) {
@@ -207,6 +208,20 @@ export async function getSessionWithStore(): Promise<SessionUser | null> {
       session.storeSlug = access.store.slug;
       session.storeName = access.store.name;
       session.role = access.role;
+    }
+  } else {
+    // Stale-claim heal: the JWT may still carry a storeId for a store that
+    // was deleted or a membership that was revoked. Verify against the DB
+    // and drop the claim so callers (and re-minted cookies) see reality.
+    // Fail-open on DB errors — API handlers re-check via getAccessibleStores.
+    const stillValid = await hasStoreAccess(session.id, session.storeId).catch(
+      () => true
+    );
+    if (!stillValid) {
+      session.storeId = undefined;
+      session.storeSlug = undefined;
+      session.storeName = undefined;
+      session.role = undefined;
     }
   }
 

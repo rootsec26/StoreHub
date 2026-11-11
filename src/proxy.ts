@@ -8,6 +8,8 @@ import { and, eq } from "drizzle-orm";
 import { getDefaultCurrencyForCountry } from "@/lib/currency";
 import { isGatedApiPath, resolveApiFeatureGate } from "@/lib/paywall";
 import { isAdminEmail } from "@/lib/admin";
+import { getStorehubEntitlement, hasStoreAccess } from "@/lib/store-access";
+import { resolveStorehubLanding } from "@/lib/products-server";
 
 const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) {
@@ -16,12 +18,51 @@ if (!jwtSecret) {
 const SECRET = new TextEncoder().encode(jwtSecret);
 
 interface SessionClaims {
+  id?: string;
   storeId?: string;
   email?: string;
 }
 
 const CURRENCY_COOKIE_NAME = "storehub_currency";
 const CURRENCY_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+/**
+ * StoreHub subscription write gate. Expired subscribers keep READ access but
+ * every mutating /api/* call is refused with 402 SUBSCRIPTION_EXPIRED.
+ * Exempt prefixes are session/auth flows, the billing API itself, the hub,
+ * admin, webhooks and shopper-facing storefront endpoints (those carry no
+ * merchant session anyway).
+ */
+const SUBSCRIPTION_GATE_EXEMPT_PREFIXES = [
+  "/api/auth",
+  "/api/billing",
+  "/api/hub",
+  "/api/admin",
+  "/api/webhooks",
+  "/api/health",
+  "/api/platform",
+  "/api/supabase",
+  "/api/analytics",
+  "/api/notifications",
+  "/api/storefront",
+  "/api/checkout",
+  "/api/coupons/validate",
+  "/api/orders/verify-cod",
+  "/api/orders/payment-proof",
+  "/api/orders/cancel",
+  "/api/team/accept",
+  "/api/shipping/webhook",
+];
+
+const SUBSCRIPTION_GATE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+function isSubscriptionGatedWrite(method: string, pathname: string): boolean {
+  if (SUBSCRIPTION_GATE_METHODS.has(method.toUpperCase())) return false;
+  if (!pathname.startsWith("/api/")) return false;
+  return !SUBSCRIPTION_GATE_EXEMPT_PREFIXES.some((prefix) =>
+    pathname.startsWith(prefix)
+  );
+}
 
 function detectCurrencyFromHeaders(request: NextRequest): string {
   const vercelCountry = request.headers.get("x-vercel-ip-country");
@@ -73,6 +114,8 @@ const APP_ONLY_PATHS = [
   "/onboarding",
   "/forgot-password",
   "/auth/callback",
+  "/select-product",
+  "/billing",
 ];
 
 let customDomainCache: Map<string, { slug: string; expires: number }> = new Map();
@@ -214,6 +257,42 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // StoreHub subscription gate: expired stores keep read access but writes
+  // are refused with 402 (never 500). Runs before the /api/* passthrough.
+  if (
+    token &&
+    isSubscriptionGatedWrite(request.method, pathname)
+  ) {
+    try {
+      const { payload } = await jwtVerify(token, SECRET);
+      const claims = payload as SessionClaims;
+      if (claims.id && claims.storeId) {
+        const entitlement = await getStorehubEntitlement(
+          claims.id,
+          claims.storeId
+        ).catch(() => null);
+        // Locked = never paid ('none') or lapsed past grace ('expired').
+        if (entitlement && entitlement.status !== "active") {
+          return NextResponse.json(
+            {
+              error:
+                entitlement.status === "expired"
+                  ? "Your StoreHub subscription has expired. Renew from Billing."
+                  : "An active StoreHub subscription is required. Subscribe from Billing.",
+              code:
+                entitlement.status === "expired"
+                  ? "SUBSCRIPTION_EXPIRED"
+                  : "SUBSCRIPTION_REQUIRED",
+            },
+            { status: 402 }
+          );
+        }
+      }
+    } catch {
+      // Invalid sessions are rejected by the route handler itself.
+    }
+  }
+
   const hostHeader = request.headers.get("host");
   const hostname = hostHeader?.split(":")[0].toLowerCase() ?? "";
 
@@ -327,8 +406,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // If logged in and on auth pages, send the user where they actually belong:
-  // owners with a store go to the dashboard, new users go to store creation.
+  // If logged in and on auth pages, send the user to the Aura Hub — it
+  // decides between the product grid, a single product's entry route, or a
+  // safe `?next=` return URL.
   if (
     token &&
     (pathname === "/login" ||
@@ -336,11 +416,12 @@ export async function proxy(request: NextRequest) {
       pathname === "/signup")
   ) {
     try {
-      const { payload } = await jwtVerify(token, SECRET);
-      const hasStore = Boolean((payload as SessionClaims).storeId);
-      return NextResponse.redirect(
-        resolveUrl(request, hasStore ? "/dashboard" : "/onboarding")
-      );
+      await jwtVerify(token, SECRET);
+      const requestedNext = request.nextUrl.searchParams.get("next");
+      const target = requestedNext
+        ? `/select-product?next=${encodeURIComponent(requestedNext)}`
+        : "/select-product";
+      return NextResponse.redirect(resolveUrl(request, target));
     } catch {
       // Invalid token, continue to auth page
     }
@@ -361,31 +442,73 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Protected pages require a valid token
+  // Protected pages require a valid token — bounce to sign-in with a
+  // validated internal return URL (the hub re-validates `next`).
   if (!token) {
-    return NextResponse.redirect(resolveUrl(request, "/login"));
+    const returnTo =
+      pathname === "/select-product"
+        ? "/select-product"
+        : `${pathname}${request.nextUrl.search}`;
+    return NextResponse.redirect(
+      resolveUrl(
+        request,
+        `/sign-in?next=${encodeURIComponent(returnTo)}`
+      )
+    );
   }
 
   try {
     const { payload } = await jwtVerify(token, SECRET);
-    const storeId = (payload as SessionClaims).storeId;
+    const claims = payload as SessionClaims;
+    const storeId = claims.storeId;
 
-    // Onboarding: users who already own a store skip store creation.
-    if (pathname === "/onboarding") {
-      return storeId
-        ? NextResponse.redirect(resolveUrl(request, "/dashboard"))
-        : NextResponse.next();
+    const isStoreScopedPath =
+      pathname === "/onboarding" || pathname.startsWith("/dashboard");
+    if (!isStoreScopedPath) {
+      return NextResponse.next();
     }
 
-    // Dashboard: if user doesn't have a store, redirect to onboarding
-    if (pathname.startsWith("/dashboard") && !storeId) {
-      return NextResponse.redirect(resolveUrl(request, "/onboarding"));
+    // Central pay-first routing rule — resolves ground truth (store access,
+    // owner paid period) so stale JWT storeId claims can never loop:
+    //   unpaid + no store -> /billing | paid + no store -> /onboarding
+    //   paid + store -> /dashboard | store but lapsed -> /billing
+    const landing = claims.id
+      ? await resolveStorehubLanding(claims.id).catch(() => null)
+      : null;
+
+    if (!landing) {
+      // Fail-open on DB errors: keep the previous claim-based behavior.
+      const hasAccess =
+        storeId && claims.id
+          ? await hasStoreAccess(claims.id, storeId).catch(() => true)
+          : false;
+      if (pathname === "/onboarding") {
+        return hasAccess
+          ? NextResponse.redirect(resolveUrl(request, "/dashboard"))
+          : NextResponse.next();
+      }
+      if (pathname.startsWith("/dashboard") && !hasAccess) {
+        return NextResponse.redirect(resolveUrl(request, "/select-product"));
+      }
+      return NextResponse.next();
+    }
+
+    if (pathname === "/onboarding") {
+      return landing.route === "/onboarding"
+        ? NextResponse.next()
+        : NextResponse.redirect(resolveUrl(request, landing.route));
+    }
+
+    if (pathname.startsWith("/dashboard")) {
+      return landing.route === "/dashboard"
+        ? NextResponse.next()
+        : NextResponse.redirect(resolveUrl(request, landing.route));
     }
 
     return NextResponse.next();
   } catch {
     // Invalid token
-    const response = NextResponse.redirect(resolveUrl(request, "/login"));
+    const response = NextResponse.redirect(resolveUrl(request, "/sign-in"));
     response.cookies.delete("session");
     return response;
   }

@@ -47,7 +47,9 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json({
       user: result.user,
-      redirect: result.user.storeId ? "/dashboard" : "/onboarding",
+      // Aura Hub decides the real destination (single product shortcut,
+      // product grid, or a forwarded `?next=` return URL).
+      redirect: "/select-product",
     });
 
     response.cookies.set("session", result.token, {

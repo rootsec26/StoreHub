@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { UserProductMap } from "@/lib/products";
 import {
   pgTable,
   uuid,
@@ -21,6 +22,9 @@ export const users = pgTable("users", {
   email: text("email").unique().notNull(),
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
+  // Aura Hub: per-product access map + last used product (see src/lib/products.ts)
+  products: jsonb("products").$type<UserProductMap>().notNull().default({}),
+  lastUsedProduct: text("last_used_product"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -108,6 +112,43 @@ export const stores = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("stores_owner_id_idx").on(table.ownerId)]
+);
+
+// ============================================
+// PAYMENT REQUESTS (manual subscription payments)
+// ============================================
+export const paymentRequests = pgTable(
+  "payment_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    storeId: uuid("store_id").references(() => stores.id, {
+      onDelete: "set null",
+    }),
+    productKey: text("product_key").notNull().default("storehub"),
+    plan: text("plan").notNull(),
+    amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+    currency: text("currency").notNull().default("EGP"),
+    method: text("method").notNull(),
+    referenceCode: text("reference_code").notNull().unique(),
+    senderPhone: text("sender_phone").notNull(),
+    transactionId: text("transaction_id").notNull(),
+    transactionIdNormalized: text("transaction_id_normalized").notNull(),
+    proofData: text("proof_data").notNull().default(""),
+    status: text("status").notNull().default("pending"),
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    rejectReason: text("reject_reason").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("payment_requests_user_idx").on(table.userId, table.createdAt),
+    index("payment_requests_status_idx").on(table.status),
+  ]
 );
 
 // ============================================

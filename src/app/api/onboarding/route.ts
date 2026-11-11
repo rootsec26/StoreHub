@@ -3,9 +3,14 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/db";
 import { stores } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { createSession } from "@/lib/auth";
+import { createSession, resolveStoreAccess } from "@/lib/auth";
 import { extractDbErrorInfo, createErrorResponse } from "@/lib/errors";
 import { isValidImageUrl } from "@/lib/images";
+import {
+  getUserProductState,
+  markProductOnboardingComplete,
+  setLastUsedProduct,
+} from "@/lib/products-server";
 
 // Preset slugs plus free-text custom categories (from the "Other" option)
 // are both accepted; only the length is enforced server-side.
@@ -129,6 +134,34 @@ export async function POST(request: NextRequest) {
       .where(eq(stores.ownerId, session.id))
       .limit(1);
 
+    // Team members belong to someone else's store — never let them create a
+    // second store through onboarding (they'd silently become an owner).
+    if (existingStore.length === 0) {
+      const membership = await resolveStoreAccess(session.id);
+      if (membership) {
+        return NextResponse.json(
+          {
+            error: "You already belong to a store",
+            code: "ALREADY_IN_STORE",
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Pay-first: store setup requires an approved StoreHub payment. Runs
+    // after the ALREADY_IN_STORE checks so members still get 409.
+    const { products: hubProducts } = await getUserProductState(session.id);
+    if (hubProducts.storehub?.status !== "active") {
+      return NextResponse.json(
+        {
+          error: "An active StoreHub subscription is required. Subscribe from Billing.",
+          code: "SUBSCRIPTION_REQUIRED",
+        },
+        { status: 402 }
+      );
+    }
+
     let store;
 
     if (existingStore.length > 0) {
@@ -166,6 +199,14 @@ export async function POST(request: NextRequest) {
         .returning();
       store = result[0];
     }
+
+    // Store creation IS StoreHub onboarding — record it in the Aura Hub
+    // product map (best-effort; never block store creation on it). No trial
+    // is granted — access requires an approved payment.
+    await markProductOnboardingComplete(session.id, "storehub").catch(
+      () => undefined
+    );
+    await setLastUsedProduct(session.id, "storehub").catch(() => undefined);
 
     // Create new session with store info
     const token = await createSession({

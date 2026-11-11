@@ -35,6 +35,7 @@ import { recordAnalyticsEvent } from "@/lib/analytics";
 import { effectiveProductPrice } from "@/lib/product-details";
 import { createOrderToken } from "@/lib/order-tokens";
 import { notifyCustomerOrderPlaced } from "@/lib/order-notifications";
+import { getStorehubEntitlement } from "@/lib/store-access";
 import { computeShippingQuote } from "@/lib/shipping-pricing";
 import { revalidatePath } from "next/cache";
 
@@ -143,6 +144,23 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckoutR
     }
 
     const storeData = store[0];
+
+    // Locked StoreHub subscription (never paid or lapsed past grace): the
+    // storefront is closed for this store — shoppers get a clear error,
+    // never a 500 and never another tenant's data.
+    const entitlement = await getStorehubEntitlement(
+      storeData.ownerId,
+      storeData.id
+    ).catch(() => null);
+    if (entitlement && entitlement.status !== "active") {
+      return NextResponse.json(
+        {
+          message: "This store is temporarily unavailable.",
+          code: "STORE_UNAVAILABLE",
+        },
+        { status: 503 }
+      );
+    }
 
     const supportedCurrencies = storeData.supportedCurrencies || ["EGP", "USD", "SAR", "AED", "EUR"];
     if (!supportedCurrencies.includes(currency)) {

@@ -42,8 +42,16 @@ export default function LoginPage() {
       }
 
       const next = new URLSearchParams(window.location.search).get("next");
-      const safeNext = next && next.startsWith("/") ? next : null;
-      router.push(safeNext || data.redirect || "/dashboard");
+      const safeNext =
+        next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+      const target = data.redirect || "/select-product";
+      // Forward a safe return URL into the hub — it honours `next` once
+      // product access/onboarding is confirmed.
+      router.push(
+        safeNext && safeNext !== target
+          ? `${target}?next=${encodeURIComponent(safeNext)}`
+          : target
+      );
       router.refresh();
     } catch {
       setError(t("auth.somethingWrong"));

@@ -315,5 +315,5 @@ export async function exchangeOAuthForAppSession(
   ) {
     return target;
   }
-  return "/dashboard";
+  return "/select-product";
 }

@@ -4,6 +4,7 @@ import { createSession } from "@/lib/auth";
 import { extractDbErrorInfo, isDatabaseUnreachable, createErrorResponse } from "@/lib/errors";
 import { withRateLimit, authRateLimiter } from "@/lib/rate-limit";
 import { recordAnalyticsEvent } from "@/lib/analytics";
+import { isAdminEmail } from "@/lib/admin";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -134,6 +135,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Admin accounts are email-match privileged (see src/lib/admin.ts) and
+  // password signup never verifies mailbox ownership — the admin email must
+  // go through OAuth, where the provider guarantees verification.
+  if (isAdminEmail(email)) {
+    return NextResponse.json(
+      {
+        error: "This email must sign in with Google",
+        code: "ADMIN_OAUTH_REQUIRED",
+      },
+      { status: 403 }
+    );
+  }
+
   if (name.length > 100) {
     return NextResponse.json(
       { error: "Name must be 100 characters or fewer" },
@@ -160,7 +174,7 @@ export async function POST(request: NextRequest) {
     });
 
     const response = NextResponse.json(
-      { success: true, redirectUrl: "/onboarding" },
+      { success: true, redirectUrl: "/select-product" },
       { status: 200 }
     );
 
