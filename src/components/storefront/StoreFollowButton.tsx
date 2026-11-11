@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BadgeCheck, Check, Plus } from "lucide-react";
 
 import { useI18n } from "@/lib/i18n";
+import {
+  FOLLOW_SYNC_EVENT,
+  buildFollowLoginUrl,
+} from "@/lib/follow-action";
 
 const FOLLOWER_ID_KEY = "storehub:follower-id";
 const OWNER_NOTICE_MS = 2600;
@@ -39,31 +43,14 @@ export default function StoreFollowButton({ slug }: StoreFollowButtonProps) {
   const [count, setCount] = useState<number | null>(null);
   const [following, setFollowing] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
+  const [authed, setAuthed] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [showOwnerNotice, setShowOwnerNotice] = useState(false);
   const followerIdRef = useRef<string | null>(null);
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    followerIdRef.current = getOrCreateFollowerId();
-
-    let cancelled = false;
-
-    // Owner detection: /api/auth/me returns the signed-in user's store slug.
-    // Anonymous visitors get a 401 and simply stay in follower mode.
-    fetch("/api/auth/me", { cache: "no-store" })
-      .then(async (res) => {
-        if (!res.ok) return null;
-        return (await res.json()) as {
-          store?: { slug?: string } | null;
-        } | null;
-      })
-      .then((data) => {
-        if (!cancelled && data?.store?.slug === slug) setIsOwner(true);
-      })
-      .catch(() => {});
-
+  const refreshFollow = useCallback(() => {
     const params = new URLSearchParams({ slug });
     if (followerIdRef.current) {
       params.set("followerId", followerIdRef.current);
@@ -78,22 +65,60 @@ export default function StoreFollowButton({ slug }: StoreFollowButtonProps) {
           count?: number;
           following?: boolean;
         };
-        if (cancelled) return;
         setCount(typeof data.count === "number" ? data.count : 0);
         setFollowing(Boolean(data.following));
       })
+      .catch(() => setCount(0));
+  }, [slug]);
+
+  useEffect(() => {
+    followerIdRef.current = getOrCreateFollowerId();
+
+    let cancelled = false;
+
+    // Auth probe: owner detection (the signed-in user's store slug) plus the
+    // gate that routes logged-out visitors through Google sign-in — the
+    // deferred follow action completes on return.
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return (await res.json()) as {
+          user?: unknown;
+          store?: { slug?: string } | null;
+        } | null;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setAuthed(Boolean(data?.user));
+        if (data?.store?.slug === slug) setIsOwner(true);
+      })
       .catch(() => {
-        if (!cancelled) setCount(0);
+        if (!cancelled) setAuthed(false);
       });
+
+    refreshFollow();
 
     return () => {
       cancelled = true;
       if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     };
-  }, [slug]);
+  }, [slug, refreshFollow]);
+
+  // A deferred follow completed after sign-in — refresh follow state.
+  useEffect(() => {
+    const handler = () => refreshFollow();
+    window.addEventListener(FOLLOW_SYNC_EVENT, handler);
+    return () => window.removeEventListener(FOLLOW_SYNC_EVENT, handler);
+  }, [refreshFollow]);
 
   const toggle = useCallback(async () => {
     if (busy || isOwner) return;
+    if (authed === false) {
+      window.location.assign(
+        buildFollowLoginUrl({ action: "follow_store", storeSlug: slug })
+      );
+      return;
+    }
     setBusy(true);
     setError(false);
 
@@ -129,7 +154,7 @@ export default function StoreFollowButton({ slug }: StoreFollowButtonProps) {
     } finally {
       setBusy(false);
     }
-  }, [busy, following, count, slug, isOwner]);
+  }, [busy, following, count, slug, isOwner, authed]);
 
   const handleOwnerClick = useCallback(() => {
     setShowOwnerNotice(true);
@@ -175,7 +200,7 @@ export default function StoreFollowButton({ slug }: StoreFollowButtonProps) {
     <button
       type="button"
       onClick={toggle}
-      disabled={busy || count === null}
+      disabled={busy || count === null || authed === null}
       aria-pressed={following}
       title={error ? t("store.followError") : undefined}
       className={`group relative inline-flex animate-storefront-fade-up items-center gap-2 rounded-full border border-white/25 px-5 py-2.5 text-sm font-bold shadow-lg shadow-black/20 backdrop-blur transition-all duration-300 active:scale-95 ${

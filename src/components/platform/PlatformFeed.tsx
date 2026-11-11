@@ -14,6 +14,10 @@ import {
 } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/lib/i18n";
+import {
+  FOLLOW_SYNC_EVENT,
+  buildFollowLoginUrl,
+} from "@/lib/follow-action";
 
 const FOLLOWER_ID_KEY = "storehub:follower-id";
 const POLL_INTERVAL_MS = 45_000;
@@ -83,6 +87,7 @@ export default function PlatformFeed({ compact = false }: { compact?: boolean })
   const [following, setFollowing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  const [authed, setAuthed] = useState<boolean | null>(null);
   const followerIdRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
@@ -109,14 +114,36 @@ export default function PlatformFeed({ compact = false }: { compact?: boolean })
 
   useEffect(() => {
     followerIdRef.current = getOrCreateFollowerId();
+
+    // Auth probe: logged-out visitors are routed through Google sign-in
+    // before they can follow; the deferred action completes on return.
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return (await res.json()) as { user?: unknown } | null;
+      })
+      .then((data) => setAuthed(Boolean(data?.user)))
+      .catch(() => setAuthed(false));
+
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
     const timer = setInterval(() => void load(), POLL_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [load]);
 
+  // A deferred follow completed after sign-in — refresh follow state.
+  useEffect(() => {
+    const handler = () => void load();
+    window.addEventListener(FOLLOW_SYNC_EVENT, handler);
+    return () => window.removeEventListener(FOLLOW_SYNC_EVENT, handler);
+  }, [load]);
+
   const toggleFollow = useCallback(async () => {
     if (busy) return;
+    if (authed === false) {
+      window.location.assign(buildFollowLoginUrl({ action: "follow_platform" }));
+      return;
+    }
     setBusy(true);
     setError(false);
 
@@ -148,7 +175,7 @@ export default function PlatformFeed({ compact = false }: { compact?: boolean })
     } finally {
       setBusy(false);
     }
-  }, [busy, following, count]);
+  }, [busy, following, count, authed]);
 
   return (
     <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm">
@@ -192,7 +219,7 @@ export default function PlatformFeed({ compact = false }: { compact?: boolean })
           <button
             type="button"
             onClick={toggleFollow}
-            disabled={busy || count === null}
+            disabled={busy || count === null || authed === null}
             aria-pressed={following}
             title={error ? t("store.followError") : undefined}
             className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all active:scale-95 ${

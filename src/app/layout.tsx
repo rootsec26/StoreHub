@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { I18nProvider } from "@/lib/i18n";
 import AnalyticsTracker from "@/components/AnalyticsTracker";
 import PlatformBanner from "@/components/PlatformBanner";
@@ -8,6 +8,7 @@ import DesktopTitleBar from "@/components/desktop/DesktopTitleBar";
 import StoreLinkInterceptor from "@/components/desktop/StoreLinkInterceptor";
 import TauriDeepLinkHandler from "@/components/desktop/TauriDeepLinkHandler";
 import CapacitorDeepLinkHandler from "@/components/mobile/CapacitorDeepLinkHandler";
+import PendingFollowExecutor from "@/components/PendingFollowExecutor";
 import { getInitialLocale } from "@/components/locale-initializer";
 import { SITE_DESCRIPTION, SITE_NAME, absoluteUrl, getSiteUrl } from "@/lib/site";
 import { safeUrl } from "@/lib/url";
@@ -80,6 +81,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <TauriDeepLinkHandler />
         <CapacitorDeepLinkHandler />
         <AnalyticsTracker />
+        <Suspense fallback={null}>
+          <PendingFollowExecutor />
+        </Suspense>
         <I18nProvider initialLocale={initialLocale}>{children}</I18nProvider>
       </body>
     </html>
