@@ -19,7 +19,6 @@ import {
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { useOrdersRealtime } from "@/lib/realtime";
 import StatusBadge from "@/components/StatusBadge";
-import PlatformFeed from "@/components/platform/PlatformFeed";
 import StatCard from "@/components/ui/StatCard";
 import Badge, { statusTone } from "@/components/ui/Badge";
 import Skeleton from "@/components/ui/Skeleton";
@@ -214,9 +213,6 @@ export default function DashboardPage() {
               />
             ))}
       </div>
-
-      {/* Platform feed — verified StoreHub announcements merchants can follow */}
-      <PlatformFeed />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Recent Orders */}

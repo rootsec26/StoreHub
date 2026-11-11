@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BadgeCheck,
@@ -146,21 +147,30 @@ export default function PlatformFeed() {
   return (
     <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm">
-            <Bell className="h-4.5 w-4.5" />
+        <div className="flex items-center gap-3">
+          <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 shadow-md ring-1 ring-slate-900/10">
+            <Image
+              src="/logo-transparent.png"
+              alt="StoreHub"
+              fill
+              sizes="44px"
+              className="object-contain p-1.5"
+            />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <h2 className="text-base font-semibold text-slate-900">
-                {t("platform.title")}
+              <h2 className="truncate text-base font-bold text-slate-900">
+                StoreHub
               </h2>
               <BadgeCheck
-                className="h-4.5 w-4.5 text-sky-500"
+                className="h-5 w-5 shrink-0 text-sky-500"
                 aria-label={t("platform.verified")}
               />
+              <span className="hidden rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-indigo-600 ring-1 ring-indigo-100 sm:inline">
+                {t("platform.title")}
+              </span>
             </div>
-            <p className="text-[11px] font-medium text-slate-400">
+            <p className="truncate text-[11px] font-medium text-slate-400">
               {t("platform.official")}
             </p>
           </div>

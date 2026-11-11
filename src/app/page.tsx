@@ -31,6 +31,7 @@ import { isFreeMode } from "@/lib/free-mode";
 import { isNativeAppShell } from "@/lib/platform";
 import LanguageToggle from "@/components/LanguageToggle";
 import TopStoresShowcase from "@/components/landing/TopStoresShowcase";
+import PlatformFeed from "@/components/platform/PlatformFeed";
 
 const FEATURES: {
   icon: typeof Bot;
@@ -492,6 +493,13 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Platform feed — official StoreHub updates & announcements */}
+      <section className="bg-slate-50 py-16">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6">
+          <PlatformFeed />
         </div>
       </section>
 
