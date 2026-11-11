@@ -24,7 +24,6 @@ import {
   Wallet,
   Copy,
   PackageSearch,
-  X,
 } from "lucide-react";
 
 import { useCartStore, type CartItem } from "@/lib/cart";
@@ -120,8 +119,6 @@ function CheckoutContent() {
   const [codVerifyUrl, setCodVerifyUrl] = useState("");
   const [authUser, setAuthUser] = useState<{ name: string; email: string } | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authModalError, setAuthModalError] = useState("");
   const [signingOut, setSigningOut] = useState(false);
   const [shippingQuote, setShippingQuote] = useState<ShippingQuoteState | null>(null);
   const selectedPaymentMethodInitialized = useRef(false);
@@ -248,14 +245,6 @@ function CheckoutContent() {
             setCustomerName((current) => current || user.name || "");
           }
           setCustomerEmail((current) => current || user.email || "");
-        } else {
-          try {
-            if (!window.sessionStorage.getItem("storehub_checkout_auth_dismissed")) {
-              setShowAuthModal(true);
-            }
-          } catch {
-            setShowAuthModal(true);
-          }
         }
         setAuthChecked(true);
       })
@@ -270,13 +259,6 @@ function CheckoutContent() {
 
   function checkoutReturnPath() {
     return `/store/${slug}/checkout${window.location.search}`;
-  }
-
-  function dismissAuthModal() {
-    setShowAuthModal(false);
-    try {
-      window.sessionStorage.setItem("storehub_checkout_auth_dismissed", "1");
-    } catch {}
   }
 
   async function handleSignOut() {
@@ -783,19 +765,28 @@ function CheckoutContent() {
                 </div>
               )}
 
-              {!authUser && authChecked && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthModalError("");
-                    setShowAuthModal(true);
-                  }}
-                  className="mb-4 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--color-primary)]/40 bg-[var(--color-primary)]/5 px-4 py-2.5 text-sm font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10"
-                >
-                  {t("checkout.signInPrompt")}
-                </button>
-              )}
-
+              {!authChecked ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                </div>
+              ) : !authUser ? (
+                /* Guests must sign in with Google — the manual checkout form
+                   is hidden until a session exists. */
+                <div className="rounded-2xl border border-indigo-100 bg-gradient-to-b from-indigo-50/70 to-white px-6 py-10 text-center">
+                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-primary)]/10">
+                    <Lock className="h-7 w-7 text-[var(--color-primary)]" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    {t("checkout.authRequiredTitle")}
+                  </h3>
+                  <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-500">
+                    {t("checkout.authRequiredSubtitle")}
+                  </p>
+                  <div className="mx-auto mt-6 w-full max-w-xs">
+                    <GoogleSignInButton redirectTo={checkoutReturnPath} />
+                  </div>
+                </div>
+              ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -1006,6 +997,7 @@ function CheckoutContent() {
                   {loading ? t("checkout.placingOrder") : t("checkout.placeOrder")}
                 </button>
               </form>
+              )}
             </div>
           </div>
 
@@ -1088,56 +1080,6 @@ function CheckoutContent() {
         </div>
       </main>
 
-      {/* Guest sign-in prompt — Google OAuth returns to this exact checkout
-          URL, and the persisted cart store keeps every item intact. */}
-      {showAuthModal && !authUser && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label={t("checkout.signInTitle")}
-        >
-          <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <button
-              type="button"
-              onClick={dismissAuthModal}
-              aria-label={t("checkout.continueAsGuest")}
-              className="absolute end-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            >
-              <X className="h-4 w-4" />
-            </button>
-
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary)]/10">
-              <User className="h-6 w-6 text-[var(--color-primary)]" />
-            </div>
-            <h2 className="mb-1 text-center text-lg font-bold text-slate-900">
-              {t("checkout.signInTitle")}
-            </h2>
-            <p className="mb-5 text-center text-sm text-slate-500">
-              {t("checkout.signInSubtitle")}
-            </p>
-
-            {authModalError && (
-              <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
-                {authModalError}
-              </div>
-            )}
-
-            <GoogleSignInButton
-              redirectTo={checkoutReturnPath}
-              onError={setAuthModalError}
-            />
-
-            <button
-              type="button"
-              onClick={dismissAuthModal}
-              className="mt-3 w-full rounded-lg px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            >
-              {t("checkout.continueAsGuest")}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
