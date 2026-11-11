@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { deepLinkToPath } from "@/lib/deep-link";
-import { completeOAuthDeepLink } from "@/lib/oauth";
+import { completeOAuthDeepLink, isOAuthDeepLink } from "@/lib/oauth";
 import { isCapacitorNativeApp } from "@/lib/platform";
 
 /**
@@ -23,14 +23,25 @@ export default function CapacitorDeepLinkHandler() {
     if (!isCapacitorNativeApp()) return;
 
     let cancelled = false;
+    let listenerHandle: { remove: () => Promise<void> } | undefined;
 
     async function handle(raw: string | undefined | null) {
       if (!raw || cancelled) return;
 
       // OAuth callback deep link — completes sign-in, then navigates.
-      const oauthTarget = await completeOAuthDeepLink(raw);
-      if (oauthTarget) {
-        router.push(oauthTarget);
+      if (isOAuthDeepLink(raw)) {
+        const oauthTarget = await completeOAuthDeepLink(raw);
+        if (cancelled) return;
+        if (oauthTarget) {
+          // Full navigation so the freshly set `session` cookie is picked up
+          // by the proxy/middleware — same reason /auth/callback uses
+          // window.location.replace on web. router.push can serve a stale
+          // unauthenticated render and leave the user looking logged out.
+          window.location.assign(oauthTarget);
+        } else {
+          console.error("[deep-link] OAuth callback failed:", raw);
+          router.push("/login");
+        }
         return;
       }
 
@@ -43,13 +54,18 @@ export default function CapacitorDeepLinkHandler() {
       try {
         const { App } = await import("@capacitor/app");
 
-        const launch = await App.getLaunchUrl();
-        await handle(launch?.url);
-        if (cancelled) return;
-
-        await App.addListener("appUrlOpen", (event) => {
+        // Register the warm-start listener first so an appUrlOpen event
+        // arriving while we await getLaunchUrl() is not missed.
+        listenerHandle = await App.addListener("appUrlOpen", (event) => {
           void handle(event.url);
         });
+        if (cancelled) {
+          await listenerHandle.remove();
+          return;
+        }
+
+        const launch = await App.getLaunchUrl();
+        await handle(launch?.url);
       } catch (err) {
         console.error("[deep-link] Capacitor listener failed:", err);
       }
@@ -57,6 +73,7 @@ export default function CapacitorDeepLinkHandler() {
 
     return () => {
       cancelled = true;
+      void listenerHandle?.remove();
     };
   }, [router]);
 

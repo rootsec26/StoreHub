@@ -3,25 +3,17 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, AlertCircle, MonitorSmartphone } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import {
-  buildOAuthHandoffUrl,
   completeOAuthCallback,
   exchangeOAuthForAppSession,
-  type OAuthShell,
 } from "@/lib/oauth";
-import { isCapacitorNativeApp, isTauriDesktopApp } from "@/lib/platform";
 import { useI18n } from "@/lib/i18n";
-
-function isOAuthShell(value: string | null): value is OAuthShell {
-  return value === "tauri" || value === "android";
-}
 
 function OAuthCallbackContent() {
   const searchParams = useSearchParams();
   const { t } = useI18n();
   const [error, setError] = useState("");
-  const [handoffUrl, setHandoffUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,29 +23,6 @@ function OAuthCallbackContent() {
       if (providerError) {
         const description = searchParams.get("error_description") ?? "";
         setError(description || providerError);
-        return;
-      }
-
-      // `?shell=` (and the `?app=` alias) marks a native-shell OAuth flow that
-      // was bounced through the web callback because the custom scheme could
-      // not be allow-listed. Forward the raw `code`/fragment to the app
-      // scheme untouched — the app webview owns the PKCE verifier and
-      // exchanges it there, since the app `session` cookie cannot cross the
-      // browser → webview boundary.
-      const shellParam = searchParams.get("shell") ?? searchParams.get("app");
-      const shell = isOAuthShell(shellParam) ? shellParam : null;
-      const insideShell = isTauriDesktopApp() || isCapacitorNativeApp();
-      if (shell && !insideShell) {
-        const target = buildOAuthHandoffUrl(shell, {
-          code: searchParams.get("code"),
-          next: searchParams.get("next"),
-          hash: window.location.hash,
-        });
-        if (cancelled) return;
-        setHandoffUrl(target);
-        // Protocol launch — browsers show an "Open app?" prompt. The rendered
-        // fallback link covers browsers that block the automatic redirect.
-        window.location.href = target;
         return;
       }
 
@@ -83,27 +52,6 @@ function OAuthCallbackContent() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  if (handoffUrl) {
-    return (
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-100">
-          <MonitorSmartphone className="h-7 w-7 text-indigo-600" />
-        </div>
-        <h1 className="mb-2 text-xl font-bold text-slate-900">
-          {t("auth.openDesktopApp")}
-        </h1>
-        <p className="mb-6 text-sm text-slate-600">{t("auth.openDesktopAppHint")}</p>
-        <Loader2 className="mx-auto mb-4 h-6 w-6 animate-spin text-indigo-600" />
-        <a
-          href={handoffUrl}
-          className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-        >
-          {t("auth.openDesktopApp")}
-        </a>
-      </div>
-    );
-  }
 
   if (error) {
     return (

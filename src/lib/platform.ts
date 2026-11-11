@@ -4,18 +4,15 @@
  * server snapshot always returns false so SSR/SSG renders the web variant.
  */
 
+// Native app shells (Capacitor / Tauri) are temporarily disabled — every
+// detector reports "web" so OAuth, routing, and shell UI all use the
+// standard browser flow. Restore the real checks to re-enable the apps.
 export function isCapacitorNativeApp(): boolean {
-  if (typeof window === "undefined") return false;
-  const w = window as unknown as {
-    Capacitor?: { isNativePlatform?: () => boolean };
-  };
-  return Boolean(w.Capacitor?.isNativePlatform?.());
+  return false;
 }
 
 export function isTauriDesktopApp(): boolean {
-  if (typeof window === "undefined") return false;
-  const w = window as unknown as Record<string, unknown>;
-  return "__TAURI_INTERNALS__" in w || "__TAURI__" in w;
+  return false;
 }
 
 /** True when running inside any StoreHub native app shell (Android/iOS/desktop). */

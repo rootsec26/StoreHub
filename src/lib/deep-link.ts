@@ -2,9 +2,10 @@
  * Deep-link parsing for the StoreHub desktop app.
  *
  * Supported incoming URLs:
- *   storehub://store/<slug>[/product/<id>...]  → /store/<slug>/...
- *   storehub://open?url=<encoded web URL>      → that URL's path on our origin
- *   https://<our-domain>/<any path>            → path as-is (defensive)
+ *   storehub://store/<slug>[/product/<id>...]        → /store/<slug>/...
+ *   com.storehub.app://store/<slug>/...              → /store/<slug>/... (Android)
+ *   <scheme>://open?url=<encoded web URL>            → that URL's path on our origin
+ *   https://<our-domain>/<any path>                  → path as-is (defensive)
  *
  * Only same-site absolute paths are returned — anything that doesn't resolve
  * to an internal "/..." route is rejected so a crafted link can't redirect
@@ -31,6 +32,9 @@ function sanitizePath(pathname: string, search: string, hash: string): string | 
   return `${pathname}${search}${hash}`;
 }
 
+/** Custom URL schemes registered by the native app shells. */
+const CUSTOM_SCHEMES = new Set(["storehub:", "com.storehub.app:"]);
+
 export function deepLinkToPath(raw: string): string | null {
   let url: URL;
   try {
@@ -39,7 +43,7 @@ export function deepLinkToPath(raw: string): string | null {
     return null;
   }
 
-  if (url.protocol === "storehub:") {
+  if (CUSTOM_SCHEMES.has(url.protocol)) {
     // storehub://open?url=https%3A%2F%2F...  — unwrap the real web URL.
     if (url.hostname === "open") {
       const target = url.searchParams.get("url");

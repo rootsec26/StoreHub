@@ -6,8 +6,6 @@ import AnalyticsTracker from "@/components/AnalyticsTracker";
 import PlatformBanner from "@/components/PlatformBanner";
 import DesktopTitleBar from "@/components/desktop/DesktopTitleBar";
 import StoreLinkInterceptor from "@/components/desktop/StoreLinkInterceptor";
-import TauriDeepLinkHandler from "@/components/desktop/TauriDeepLinkHandler";
-import CapacitorDeepLinkHandler from "@/components/mobile/CapacitorDeepLinkHandler";
 import PendingFollowExecutor from "@/components/PendingFollowExecutor";
 import { getInitialLocale } from "@/components/locale-initializer";
 import { SITE_DESCRIPTION, SITE_NAME, absoluteUrl, getSiteUrl } from "@/lib/site";
@@ -75,8 +73,6 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <PlatformBanner />
         <DesktopTitleBar />
         <StoreLinkInterceptor />
-        <TauriDeepLinkHandler />
-        <CapacitorDeepLinkHandler />
         <AnalyticsTracker />
         <Suspense fallback={null}>
           <PendingFollowExecutor />

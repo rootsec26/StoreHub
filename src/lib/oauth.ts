@@ -2,11 +2,6 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cleanUrlInput, ensureProtocol, safeParseUrl, urlToString } from "@/lib/url";
-import {
-  isCapacitorNativeApp,
-  isTauriDesktopApp,
-  openExternalUrl,
-} from "@/lib/platform";
 import { getSiteUrl } from "@/lib/site";
 
 let oauthClient: SupabaseClient | null = null;
@@ -86,19 +81,14 @@ export function getOAuthDeepLinkUrl(
 }
 
 /**
- * Builds the `redirectTo` URL for `signInWithOAuth`, adapting to the runtime:
+ * Builds the `redirectTo` URL for `signInWithOAuth`.
  *
- *   - Web:        https://<origin>/auth/callback?next=…
- *   - Tauri:      storehub://auth/callback?next=…
- *   - Android:    com.storehub.app://auth/callback?next=…
+ * Native shells are temporarily disabled, so every runtime uses the standard
+ * web callback: `https://<origin>/auth/callback?next=…`.
  *
- * When `NEXT_PUBLIC_OAUTH_<SHELL>_VIA_WEB` is set, native shells instead get
- * the web callback URL carrying a `?shell=` marker — `/auth/callback` then
- * bounces the raw `code` back into the app via the custom scheme. Useful when
- * a custom-scheme redirect URL cannot be allow-listed in Supabase.
- *
- * Every variant must be allow-listed in the Supabase dashboard
- * (Authentication → URL Configuration → Redirect URLs).
+ * The callback MUST stay on the origin that started the flow — the PKCE
+ * verifier is origin-scoped. It must be allow-listed in the Supabase
+ * dashboard (Authentication → URL Configuration → Redirect URLs).
  */
 export function getOAuthRedirectUrl(redirectPath = "/"): string | null {
   if (typeof window === "undefined") return null;
@@ -106,23 +96,8 @@ export function getOAuthRedirectUrl(redirectPath = "/"): string | null {
   const next = encodeURIComponent(sanitizeNextPath(redirectPath));
   // Environment-aware origin: resolves to the current origin in the browser
   // (local dev, Vercel previews, production, storefront domains) and to the
-  // configured site URL elsewhere. The callback MUST stay on the origin that
-  // started the flow — the PKCE verifier is origin-scoped.
+  // configured site URL elsewhere.
   const origin = getSiteUrl();
-
-  if (isTauriDesktopApp()) {
-    if (process.env.NEXT_PUBLIC_OAUTH_TAURI_VIA_WEB === "1") {
-      return `${origin}${OAUTH_CALLBACK_PATH}?shell=tauri&next=${next}`;
-    }
-    return getOAuthDeepLinkUrl("tauri", redirectPath);
-  }
-
-  if (isCapacitorNativeApp()) {
-    if (process.env.NEXT_PUBLIC_OAUTH_ANDROID_VIA_WEB === "1") {
-      return `${origin}${OAUTH_CALLBACK_PATH}?shell=android&next=${next}`;
-    }
-    return getOAuthDeepLinkUrl("android", redirectPath);
-  }
 
   return `${origin}${OAUTH_CALLBACK_PATH}?next=${next}`;
 }
@@ -171,9 +146,7 @@ export async function signInWithGoogle(
     return "oauth_not_configured";
   }
 
-  const native = isTauriDesktopApp() || isCapacitorNativeApp();
-
-  const { data, error } = await client.auth.signInWithOAuth({
+  const { error } = await client.auth.signInWithOAuth({
     provider: "google",
     options: {
       redirectTo,
@@ -181,32 +154,10 @@ export async function signInWithGoogle(
         access_type: "offline",
         prompt: "select_account",
       },
-      // Native shells must not navigate their webview to Google (Google
-      // blocks embedded-webview OAuth). Skip the auto-redirect, hand the URL
-      // to the system browser, and let the custom-scheme deep link bring the
-      // result back into the app.
-      ...(native ? { skipBrowserRedirect: true } : {}),
     },
   });
 
-  if (error) return error.message;
-
-  if (native) {
-    const url = data?.url;
-    if (!url) return "oauth_url_missing";
-    try {
-      if (isTauriDesktopApp()) {
-        await openExternalUrl(url);
-      } else {
-        const { Browser } = await import("@capacitor/browser");
-        await Browser.open({ url });
-      }
-    } catch (err) {
-      return err instanceof Error ? err.message : "Failed to open browser";
-    }
-  }
-
-  return null;
+  return error ? error.message : null;
 }
 
 export interface OAuthCallbackResult {
