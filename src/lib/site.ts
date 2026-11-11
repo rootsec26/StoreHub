@@ -31,12 +31,15 @@ export function getSiteUrl(): string {
     return PRODUCTION_SITE_URL;
   }
 
-  // 3. Local development / self-hosted: loopback by default so generated
-  //    URLs (OAuth redirects, metadata, sitemaps, payment return URLs) never
-  //    point at production. Set NEXT_PUBLIC_SITE_URL to override — e.g. for
-  //    a custom domain or a non-3000 port.
+  // 3. Local development / self-hosted. Local runs default to loopback so
+  //    generated URLs (OAuth redirects, metadata, sitemaps, payment return
+  //    URLs) never point at production. Set NEXT_PUBLIC_SITE_URL to override —
+  //    e.g. for a custom domain or a non-3000 port.
   if (explicitUrl) return explicitUrl;
-  return `http://localhost:${process.env.PORT || "3000"}`;
+  if (process.env.NODE_ENV !== "production") {
+    return `http://localhost:${process.env.PORT || "3000"}`;
+  }
+  return PRODUCTION_SITE_URL;
 }
 
 export function getRootDomain(): string | null {
